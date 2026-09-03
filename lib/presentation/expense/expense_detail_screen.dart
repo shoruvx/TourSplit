@@ -24,24 +24,24 @@ class ExpenseDetailScreen extends ConsumerWidget {
     final tourId = user.activeTourId!;
     final tourStream = ref.watch(tourStreamProvider(tourId));
     final membersStream = ref.watch(tourMembersStreamProvider(tourId));
+    final expenseStream = ref.watch(singleExpenseStreamProvider((tourId: tourId, expenseId: expenseId)));
 
-    return FutureBuilder<ExpenseModel?>(
-      future: ref.read(expenseRepositoryProvider).getExpense(tourId, expenseId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
-        }
-        final expense = snapshot.data;
+    return expenseStream.when(
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(),
+        body: Center(child: Text('Error: $e')),
+      ),
+      data: (expense) {
         if (expense == null) {
           return Scaffold(
-              appBar: AppBar(),
-              body: const Center(child: Text('Expense not found')));
+            appBar: AppBar(),
+            body: const Center(child: Text('Expense not found or deleted')),
+          );
         }
 
         return tourStream.when(
-          loading: () => const Scaffold(
-              body: Center(child: CircularProgressIndicator())),
+          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
           data: (tour) {
             if (tour == null) return const Scaffold();
@@ -51,11 +51,11 @@ class ExpenseDetailScreen extends ConsumerWidget {
                 body: const Center(child: Text('You are no longer a member of this tour.')),
               );
             }
-            final isAdmin = tour.adminId == user.uid;
+            final isAdmin = tour.isAdmin(user.uid);
+            final canEdit = isAdmin || expense.paidByUserId == user.uid || expense.addedByUserId == user.uid;
 
             return membersStream.when(
-              loading: () => const Scaffold(
-                  body: Center(child: CircularProgressIndicator())),
+              loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
               error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
               data: (members) {
                 final memberMap = {
@@ -70,6 +70,12 @@ class ExpenseDetailScreen extends ConsumerWidget {
                       onPressed: () => context.pop(),
                     ),
                     actions: [
+                      if (canEdit)
+                        IconButton(
+                          icon: const Icon(Icons.edit_rounded, color: AppColors.primaryTeal),
+                          tooltip: 'Edit Expense',
+                          onPressed: () => context.push('/expense/edit', extra: expense),
+                        ),
                       if (isAdmin && expense.isPending)
                         PopupMenuButton<String>(
                           onSelected: (v) =>
@@ -94,6 +100,12 @@ class ExpenseDetailScreen extends ConsumerWidget {
                               ]),
                             ),
                           ],
+                        ),
+                      if (isAdmin)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
+                          tooltip: 'Delete Expense',
+                          onPressed: () => _confirmDelete(context, ref, tourId, expense),
                         ),
                     ],
                   ),
@@ -221,6 +233,31 @@ class ExpenseDetailScreen extends ConsumerWidget {
                             ],
                           ),
                         ],
+                        if (canEdit) ...[
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.push('/expense/edit', extra: expense),
+                              icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 20),
+                              label: Text(
+                                isAdmin ? 'Edit Expense (Admin)' : 'Edit My Expense',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryTeal,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 2,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -242,6 +279,33 @@ class ExpenseDetailScreen extends ConsumerWidget {
         return 'Equal among selected';
       case SplitType.custom:
         return 'Custom amounts';
+    }
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref, String tourId, ExpenseModel expense) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Expense?'),
+        content: Text('Are you sure you want to delete "${expense.title}"? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.negative),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await ref.read(expenseRepositoryProvider).deleteExpense(tourId, expense.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Expense deleted successfully'), backgroundColor: AppColors.negative),
+        );
+        context.pop();
+      }
     }
   }
 

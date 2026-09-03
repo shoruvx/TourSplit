@@ -37,7 +37,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       text: 'TourSplit update: Split the costs, keep the memories! Brand new emblem logo and performance updates.',
     );
     final urlCtrl = TextEditingController(
-      text: 'https://github.com/shoruv/TourSplit/releases',
+      text: 'https://github.com/shoruvx/TourSplit/releases',
     );
     bool forceUpdate = false;
 

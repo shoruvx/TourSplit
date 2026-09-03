@@ -15,6 +15,7 @@ import '../../presentation/tour/tour_settings_screen.dart';
 import '../../presentation/tour/member_management_screen.dart';
 import '../../presentation/expense/add_expense_screen.dart';
 import '../../presentation/expense/expense_detail_screen.dart';
+import '../../data/models/expense_model.dart';
 import '../../presentation/balance/balance_screen.dart';
 import '../../presentation/settlement/settlement_screen.dart';
 import '../../presentation/reports/report_screen.dart';
@@ -115,6 +116,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/expense/add',
         name: 'add-expense',
         builder: (context, state) => const AddExpenseScreen(),
+      ),
+      GoRoute(
+        path: '/expense/edit',
+        name: 'edit-expense',
+        builder: (context, state) {
+          final expense = state.extra as ExpenseModel?;
+          return AddExpenseScreen(existingExpense: expense);
+        },
       ),
       GoRoute(
         path: '/expense/:expenseId',

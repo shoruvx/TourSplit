@@ -16,7 +16,8 @@ import '../widgets/loading_overlay.dart';
 import '../widgets/member_avatar.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  const AddExpenseScreen({super.key});
+  final ExpenseModel? existingExpense;
+  const AddExpenseScreen({super.key, this.existingExpense});
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -56,6 +57,58 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   List<String> _selectedMemberIds = [];
   final Map<String, TextEditingController> _customSplitControllers = {};
   List<TourMemberModel> _members = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingExpense != null) {
+      final exp = widget.existingExpense!;
+      _titleCtrl.text = exp.title;
+      _amountCtrl.text = exp.amount.toStringAsFixed(exp.amount.truncateToDouble() == exp.amount ? 0 : 2);
+      _descCtrl.text = exp.description ?? '';
+      _selectedDateTime = exp.date;
+
+      // Category
+      final isPreset = _quickCategories.any((c) => c['name'] == exp.category);
+      if (isPreset) {
+        _selectedCategory = exp.category;
+        _isCustomCategory = false;
+      } else {
+        _selectedCategory = 'Other';
+        _isCustomCategory = true;
+        _customCategoryCtrl.text = exp.category;
+      }
+
+      // Contributors
+      if (exp.payers != null && exp.payers!.length > 1) {
+        _isMultiContributor = true;
+        for (final entry in exp.payers!.entries) {
+          _contributorControllers[entry.key] = TextEditingController(
+            text: entry.value.toStringAsFixed(entry.value.truncateToDouble() == entry.value ? 0 : 2),
+          );
+        }
+      } else {
+        _isMultiContributor = false;
+        _paidByUserId = exp.paidByUserId;
+        _paidByName = exp.paidByName;
+      }
+
+      // Split configuration
+      if (exp.splitType == SplitType.custom && exp.customSplits != null) {
+        _splitMode = 2;
+        for (final entry in exp.customSplits!.entries) {
+          _customSplitControllers[entry.key] = TextEditingController(
+            text: entry.value.toStringAsFixed(entry.value.truncateToDouble() == entry.value ? 0 : 2),
+          );
+        }
+      } else if (exp.splitType == SplitType.selected) {
+        _splitMode = 1;
+        _selectedMemberIds = List.from(exp.splitAmong);
+      } else {
+        _splitMode = 0;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -250,6 +303,41 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     setState(() => _isLoading = true);
     try {
+      if (widget.existingExpense != null) {
+        // Edit / Update existing expense (Admin or Payer)
+        final updateData = {
+          'title': _titleCtrl.text.trim().isNotEmpty ? _titleCtrl.text.trim() : category,
+          'amount': totalAmount,
+          'category': category,
+          'paidByUserId': finalPaidByUserId,
+          'paidByName': finalPaidByName,
+          'payers': payersMap,
+          'splitType': splitType.name,
+          'splitAmong': splitMembers,
+          'customSplits': customSplitsMap,
+          'date': _selectedDateTime,
+          'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+          if (isAdmin) 'status': 'approved',
+        };
+
+        await ref.read(expenseRepositoryProvider).updateExpense(
+              tour.id,
+              widget.existingExpense!.id,
+              updateData,
+            );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Expense updated successfully! ✨'),
+              backgroundColor: AppColors.positive,
+            ),
+          );
+          context.pop();
+        }
+        return;
+      }
+
       final expense = ExpenseModel(
         id: '',
         tourId: tour.id,
@@ -351,7 +439,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     icon: const Icon(Icons.close_rounded),
                     onPressed: () => context.pop(),
                   ),
-                  title: const Text('Add Expense'),
+                  title: Text(widget.existingExpense != null ? 'Edit Expense' : 'Add Expense'),
                   centerTitle: true,
                 ),
                 body: Form(
@@ -1015,7 +1103,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         // Submit Button
                         GradientButton(
                           onPressed: () => _submit(tour, user.uid, isAdmin),
-                          label: 'Save Expense',
+                          label: widget.existingExpense != null ? 'Update Expense' : 'Save Expense',
                           icon: Icons.check_circle_rounded,
                           gradient: AppColors.primaryGradient,
                         ),

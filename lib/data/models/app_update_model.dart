@@ -12,7 +12,7 @@ class AppUpdateInfo {
   const AppUpdateInfo({
     required this.latestVersion,
     required this.buildNumber,
-    required this.minSupportedVersion,
+    this.minSupportedVersion = '1.0.0',
     required this.releaseNotes,
     required this.apkUrl,
     required this.forceUpdate,

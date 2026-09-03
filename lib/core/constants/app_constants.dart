@@ -48,7 +48,7 @@ class AppConstants {
   static const String allUsersTopic = 'all_users';
 
   // GitHub Updates
-  static const String githubRepo = 'shoruv/TourSplit';
+  static const String githubRepo = 'shoruvx/TourSplit';
 }
 
 class AppStrings {

@@ -67,6 +67,12 @@ class ExpenseRepository {
     });
   }
 
+  /// Stream single expense by ID
+  Stream<ExpenseModel?> watchExpense(String tourId, String expenseId) {
+    return _expenses(tourId).doc(expenseId).snapshots().map((doc) =>
+        doc.exists ? ExpenseModel.fromFirestore(doc) : null);
+  }
+
   /// Get expense by ID
   Future<ExpenseModel?> getExpense(String tourId, String expenseId) async {
     final doc = await _expenses(tourId).doc(expenseId).get();
@@ -106,4 +112,10 @@ final approvedExpensesStreamProvider =
 final pendingExpensesStreamProvider =
     StreamProvider.family<List<ExpenseModel>, String>((ref, tourId) {
   return ref.watch(expenseRepositoryProvider).watchPendingExpenses(tourId);
+});
+
+/// Stream single expense by tourId and expenseId
+final singleExpenseStreamProvider =
+    StreamProvider.family<ExpenseModel?, ({String tourId, String expenseId})>((ref, arg) {
+  return ref.watch(expenseRepositoryProvider).watchExpense(arg.tourId, arg.expenseId);
 });
