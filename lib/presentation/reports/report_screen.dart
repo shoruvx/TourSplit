@@ -354,7 +354,7 @@ class ReportScreen extends ConsumerWidget {
           final dayTotal = g.expenses.fold(0.0, (s, e) => s + e.amount);
           return [
             pw.Container(
-              color: PdfColor.fromHex('1E4E79'),
+              color: PdfColor.fromHex('00897B'),
               padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

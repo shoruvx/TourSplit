@@ -46,10 +46,12 @@ class DaySummaryTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Day Header Bar (Navy / Dark Teal styling matching spreadsheet screenshot)
+          // 1. Day Header Bar (Uniform TourSplit Teal Gradient styling)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: const Color(0xFF1E4E79), // Classic spreadsheet header navy blue
+            decoration: const BoxDecoration(
+              gradient: AppColors.primaryGradient,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -80,8 +82,9 @@ class DaySummaryTable extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 0.8),
                   ),
                   child: Text(
                     'Total: $currencySymbol${_dayTotal.toStringAsFixed(0)}',
