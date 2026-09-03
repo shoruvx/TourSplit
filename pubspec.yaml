@@ -1,0 +1,85 @@
+name: toursplit
+description: "TourSplit: Split the costs, keep the memories."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.3.0
+  firebase_auth: ^5.1.4
+  cloud_firestore: ^5.2.1
+  firebase_messaging: ^15.0.4
+  firebase_storage: ^12.1.3
+
+  # Google Sign-In
+  google_sign_in: ^6.2.1
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Local Storage / Offline
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # PDF Generation
+  pdf: ^3.11.1
+  printing: ^5.13.1
+
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.4.2
+  share_plus: ^10.0.0
+  url_launcher: ^6.3.0
+  http: ^1.2.2
+  equatable: ^2.0.5
+  collection: ^1.18.0
+
+  # UI
+  flutter_animate: ^4.5.0
+  cached_network_image: ^3.3.1
+  flutter_svg: ^2.0.10+1
+  gap: ^3.0.1
+  shimmer: ^3.0.0
+
+  # Local Notifications
+  flutter_local_notifications: ^17.2.2
+
+  cupertino_icons: ^1.0.8
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.0
+  package_info_plus: ^9.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.4.0
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Outfit-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Outfit-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Outfit-Bold.ttf
+          weight: 700
