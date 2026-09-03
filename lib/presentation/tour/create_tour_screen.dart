@@ -88,7 +88,8 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
       final tourRepo = ref.read(tourRepositoryProvider);
       final tour = await tourRepo.createTour(
         name: _nameCtrl.text.trim(),
-        description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        description:
+            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         currency: _selectedCurrency,
         currencySymbol: _selectedCurrencySymbol,
         adminId: user.uid,
@@ -98,13 +99,13 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
         coverImageUrl: _selectedCoverPreset,
       );
 
-      // Add admin as a member in the subcollection
       await tourRepo.addAdminAsMember(tourId: tour.id, admin: user);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Tour "${tour.name}" created! Invite code: ${tour.inviteCode}'),
+            content: Text(
+                'Tour "${tour.name}" created! Invite code: ${tour.inviteCode}'),
             backgroundColor: AppColors.accent,
             duration: const Duration(seconds: 4),
           ),
@@ -149,7 +150,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Tour Name Field
                 _FieldLabel(label: 'Tour Name *'),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -158,38 +158,50 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   decoration: InputDecoration(
                     hintText: 'Tour name',
                     hintStyle: TextStyle(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
                     ),
                     filled: true,
-                    fillColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                    fillColor: isDark
+                        ? AppColors.darkSurface
+                        : const Color(0xFFF1F5F9),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                       ),
                     ),
                   ),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Tour name required' : null,
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Tour name required'
+                      : null,
                 ).animate().fadeIn(delay: 100.ms),
                 const SizedBox(height: 20),
-
-                // Admin Name (Read-only reference)
                 _FieldLabel(label: 'Your Name (Admin) *'),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                    color: isDark
+                        ? AppColors.darkSurface
+                        : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                      color:
+                          isDark ? AppColors.darkBorder : AppColors.lightBorder,
                     ),
                   ),
                   child: Text(
@@ -203,8 +215,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   ),
                 ).animate().fadeIn(delay: 150.ms),
                 const SizedBox(height: 20),
-
-                // Tour Cover Photo / Preset
                 _FieldLabel(label: 'Tour Cover Theme (Optional)'),
                 const SizedBox(height: 8),
                 SizedBox(
@@ -219,7 +229,8 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                       return GestureDetector(
                         onTap: () {
                           setState(() {
-                            _selectedCoverPreset = isSelected ? null : item['name'];
+                            _selectedCoverPreset =
+                                isSelected ? null : item['name'];
                           });
                         },
                         child: AnimatedContainer(
@@ -229,28 +240,37 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.primaryTeal.withValues(alpha: 0.15)
-                                : (isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9)),
+                                : (isDark
+                                    ? AppColors.darkSurface
+                                    : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: isSelected
                                   ? AppColors.primaryTeal
-                                  : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                                  : (isDark
+                                      ? AppColors.darkBorder
+                                      : AppColors.lightBorder),
                               width: isSelected ? 2 : 1,
                             ),
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(item['emoji']!, style: const TextStyle(fontSize: 28)),
+                              Text(item['emoji']!,
+                                  style: const TextStyle(fontSize: 28)),
                               const SizedBox(height: 4),
                               Text(
                                 item['name']!,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
                                   color: isSelected
                                       ? AppColors.primaryTeal
-                                      : (isDark ? AppColors.darkText : AppColors.lightText),
+                                      : (isDark
+                                          ? AppColors.darkText
+                                          : AppColors.lightText),
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -262,8 +282,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   ),
                 ).animate().fadeIn(delay: 200.ms),
                 const SizedBox(height: 20),
-
-                // Side-by-Side Dates
                 Row(
                   children: [
                     Expanded(
@@ -298,65 +316,76 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   ],
                 ).animate().fadeIn(delay: 250.ms),
                 const SizedBox(height: 20),
-
-                // Budget Limit (Optional)
                 _FieldLabel(label: 'Budget Limit (Optional)'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _budgetCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     hintText: '0',
                     prefixText: '$_selectedCurrencySymbol ',
                     prefixStyle: const TextStyle(fontWeight: FontWeight.bold),
                     filled: true,
-                    fillColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                    fillColor: isDark
+                        ? AppColors.darkSurface
+                        : const Color(0xFFF1F5F9),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                       ),
                     ),
                   ),
                 ).animate().fadeIn(delay: 300.ms),
                 const SizedBox(height: 20),
-
-                // Currency Dropdown
                 _FieldLabel(label: 'Currency'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: _selectedCurrency,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                    fillColor: isDark
+                        ? AppColors.darkSurface
+                        : const Color(0xFFF1F5F9),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                       ),
                     ),
                   ),
                   items: AppConstants.currencies.map((c) {
                     return DropdownMenuItem<String>(
                       value: c['code'],
-                      child: Text('${c['code']} - ${c['name']} (${c['symbol']})'),
+                      child:
+                          Text('${c['code']} - ${c['name']} (${c['symbol']})'),
                     );
                   }).toList(),
                   onChanged: (code) {
                     if (code != null) {
-                      final found = AppConstants.currencies.firstWhere((c) => c['code'] == code);
+                      final found = AppConstants.currencies
+                          .firstWhere((c) => c['code'] == code);
                       setState(() {
                         _selectedCurrency = code;
                         _selectedCurrencySymbol = found['symbol']!;
@@ -365,8 +394,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   },
                 ).animate().fadeIn(delay: 350.ms),
                 const SizedBox(height: 32),
-
-                // Create Tour Button
                 GradientButton(
                   onPressed: _createTour,
                   label: 'Create Tour',
@@ -425,7 +452,8 @@ class _DateSelectorBox extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.primaryTeal),
+            const Icon(Icons.calendar_today_rounded,
+                size: 18, color: AppColors.primaryTeal),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

@@ -73,7 +73,8 @@ class UserModel {
       photoUrl: photoUrl ?? this.photoUrl,
       fcmToken: fcmToken ?? this.fcmToken,
       createdAt: createdAt,
-      activeTourId: clearActiveTour ? null : (activeTourId ?? this.activeTourId),
+      activeTourId:
+          clearActiveTour ? null : (activeTourId ?? this.activeTourId),
     );
   }
 }

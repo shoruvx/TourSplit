@@ -24,10 +24,12 @@ class ExpenseDetailScreen extends ConsumerWidget {
     final tourId = user.activeTourId!;
     final tourStream = ref.watch(tourStreamProvider(tourId));
     final membersStream = ref.watch(tourMembersStreamProvider(tourId));
-    final expenseStream = ref.watch(singleExpenseStreamProvider((tourId: tourId, expenseId: expenseId)));
+    final expenseStream = ref.watch(
+        singleExpenseStreamProvider((tourId: tourId, expenseId: expenseId)));
 
     return expenseStream.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
         body: Center(child: Text('Error: $e')),
@@ -41,21 +43,26 @@ class ExpenseDetailScreen extends ConsumerWidget {
         }
 
         return tourStream.when(
-          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
           data: (tour) {
             if (tour == null) return const Scaffold();
             if (!tour.memberIds.contains(user.uid)) {
               return Scaffold(
                 appBar: AppBar(),
-                body: const Center(child: Text('You are no longer a member of this tour.')),
+                body: const Center(
+                    child: Text('You are no longer a member of this tour.')),
               );
             }
             final isAdmin = tour.isAdmin(user.uid);
-            final canEdit = isAdmin || expense.paidByUserId == user.uid || expense.addedByUserId == user.uid;
+            final canEdit = isAdmin ||
+                expense.paidByUserId == user.uid ||
+                expense.addedByUserId == user.uid;
 
             return membersStream.when(
-              loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+              loading: () => const Scaffold(
+                  body: Center(child: CircularProgressIndicator())),
               error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
               data: (members) {
                 final memberMap = {
@@ -72,9 +79,11 @@ class ExpenseDetailScreen extends ConsumerWidget {
                     actions: [
                       if (canEdit)
                         IconButton(
-                          icon: const Icon(Icons.edit_rounded, color: AppColors.primaryTeal),
+                          icon: const Icon(Icons.edit_rounded,
+                              color: AppColors.primaryTeal),
                           tooltip: 'Edit Expense',
-                          onPressed: () => context.push('/expense/edit', extra: expense),
+                          onPressed: () =>
+                              context.push('/expense/edit', extra: expense),
                         ),
                       if (isAdmin && expense.isPending)
                         PopupMenuButton<String>(
@@ -103,9 +112,11 @@ class ExpenseDetailScreen extends ConsumerWidget {
                         ),
                       if (isAdmin)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              color: AppColors.negative),
                           tooltip: 'Delete Expense',
-                          onPressed: () => _confirmDelete(context, ref, tourId, expense),
+                          onPressed: () =>
+                              _confirmDelete(context, ref, tourId, expense),
                         ),
                     ],
                   ),
@@ -114,7 +125,6 @@ class ExpenseDetailScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Amount card
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(24),
@@ -147,23 +157,18 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           ),
                         ).animate().fadeIn().scale(),
                         const SizedBox(height: 24),
-
                         _InfoRow(label: 'Category', value: expense.category),
                         _InfoRow(
                             label: 'Date',
                             value: DateFormat('EEEE, MMM d, y')
                                 .format(expense.date)),
-                        _InfoRow(
-                            label: 'Paid By', value: expense.paidByName),
+                        _InfoRow(label: 'Paid By', value: expense.paidByName),
                         _InfoRow(
                             label: 'Split Type',
                             value: _splitLabel(expense.splitType)),
                         if (expense.description != null)
-                          _InfoRow(
-                              label: 'Note',
-                              value: expense.description!),
+                          _InfoRow(label: 'Note', value: expense.description!),
                         const Divider(height: 32),
-
                         if (expense.isMultiPayer) ...[
                           Text('Payment Contributions',
                               style: Theme.of(context)
@@ -181,7 +186,6 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           }),
                           const Divider(height: 32),
                         ],
-
                         Text('Split Breakdown',
                             style: Theme.of(context)
                                 .textTheme
@@ -189,28 +193,26 @@ class ExpenseDetailScreen extends ConsumerWidget {
                                 ?.copyWith(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 12),
                         ...expense.splits.entries.map((entry) {
-                          final name =
-                              memberMap[entry.key] ?? entry.key;
+                          final name = memberMap[entry.key] ?? entry.key;
                           return _SplitRow(
                             name: name,
                             amount: entry.value,
                             symbol: tour.currencySymbol,
                           ).animate().fadeIn(delay: 50.ms);
                         }),
-
                         if (isAdmin && expense.isPending) ...[
                           const SizedBox(height: 32),
                           Row(
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () => _handleAction(context,
-                                      ref, tourId, expense, 'reject'),
+                                  onPressed: () => _handleAction(
+                                      context, ref, tourId, expense, 'reject'),
                                   icon: const Icon(Icons.close_rounded,
                                       color: AppColors.negative),
                                   label: const Text('Reject',
-                                      style: TextStyle(
-                                          color: AppColors.negative)),
+                                      style:
+                                          TextStyle(color: AppColors.negative)),
                                   style: OutlinedButton.styleFrom(
                                     side: const BorderSide(
                                         color: AppColors.negative),
@@ -220,10 +222,9 @@ class ExpenseDetailScreen extends ConsumerWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: () => _handleAction(context,
-                                      ref, tourId, expense, 'approve'),
-                                  icon: const Icon(
-                                      Icons.check_rounded),
+                                  onPressed: () => _handleAction(
+                                      context, ref, tourId, expense, 'approve'),
+                                  icon: const Icon(Icons.check_rounded),
                                   label: const Text('Approve'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.positive,
@@ -238,10 +239,14 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => context.push('/expense/edit', extra: expense),
-                              icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 20),
+                              onPressed: () =>
+                                  context.push('/expense/edit', extra: expense),
+                              icon: const Icon(Icons.edit_rounded,
+                                  color: Colors.white, size: 20),
                               label: Text(
-                                isAdmin ? 'Edit Expense (Admin)' : 'Edit My Expense',
+                                isAdmin
+                                    ? 'Edit Expense (Admin)'
+                                    : 'Edit My Expense',
                                 style: const TextStyle(
                                   fontFamily: 'Outfit',
                                   fontSize: 16,
@@ -251,8 +256,10 @@ class ExpenseDetailScreen extends ConsumerWidget {
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryTeal,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
                                 elevation: 2,
                               ),
                             ),
@@ -282,16 +289,21 @@ class ExpenseDetailScreen extends ConsumerWidget {
     }
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, String tourId, ExpenseModel expense) async {
+  void _confirmDelete(BuildContext context, WidgetRef ref, String tourId,
+      ExpenseModel expense) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Expense?'),
-        content: Text('Are you sure you want to delete "${expense.title}"? This cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete "${expense.title}"? This cannot be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.negative),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppColors.negative),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
@@ -299,10 +311,14 @@ class ExpenseDetailScreen extends ConsumerWidget {
       ),
     );
     if (confirm == true) {
-      await ref.read(expenseRepositoryProvider).deleteExpense(tourId, expense.id);
+      await ref
+          .read(expenseRepositoryProvider)
+          .deleteExpense(tourId, expense.id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Expense deleted successfully'), backgroundColor: AppColors.negative),
+          const SnackBar(
+              content: Text('Expense deleted successfully'),
+              backgroundColor: AppColors.negative),
         );
         context.pop();
       }
@@ -311,18 +327,16 @@ class ExpenseDetailScreen extends ConsumerWidget {
 
   void _handleAction(BuildContext context, WidgetRef ref, String tourId,
       ExpenseModel expense, String action) async {
-    final status = action == 'approve'
-        ? ExpenseStatus.approved
-        : ExpenseStatus.rejected;
+    final status =
+        action == 'approve' ? ExpenseStatus.approved : ExpenseStatus.rejected;
     await ref
         .read(expenseRepositoryProvider)
         .updateExpenseStatus(tourId, expense.id, status);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(action == 'approve'
-              ? 'Expense approved!'
-              : 'Expense rejected.'),
+          content: Text(
+              action == 'approve' ? 'Expense approved!' : 'Expense rejected.'),
           backgroundColor:
               action == 'approve' ? AppColors.positive : AppColors.negative,
         ),
@@ -358,9 +372,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              fontFamily: 'Outfit',
-              color: color,
-              fontWeight: FontWeight.w600)),
+              fontFamily: 'Outfit', color: color, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -403,9 +415,7 @@ class _SplitRow extends StatelessWidget {
   final double amount;
   final String symbol;
   const _SplitRow(
-      {required this.name,
-      required this.amount,
-      required this.symbol});
+      {required this.name, required this.amount, required this.symbol});
 
   @override
   Widget build(BuildContext context) {
@@ -417,8 +427,7 @@ class _SplitRow extends StatelessWidget {
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color:
-                isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

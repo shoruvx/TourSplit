@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Brand palette
   static const Color primaryBlue = Color(0xFF3B82F6);
   static const Color primaryDark = Color(0xFF1D4ED8);
-  static const Color primaryTeal = Color(0xFF00897B); // reference teal
+  static const Color primaryTeal = Color(0xFF00897B);
   static const Color primaryTealDark = Color(0xFF00695C);
-  static const Color accent = Color(0xFF00897B);      // modern teal-emerald
-  static const Color warning = Color(0xFFF59E0B);     // amber
-  static const Color danger = Color(0xFFEF4444);      // red
-  static const Color positive = Color(0xFF10B981);    // positive balance
-  static const Color negative = Color(0xFFEF4444);    // negative balance / loan
+  static const Color accent = Color(0xFF00897B);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color danger = Color(0xFFEF4444);
+  static const Color positive = Color(0xFF10B981);
+  static const Color negative = Color(0xFFEF4444);
 
-  // Light theme
   static const Color lightBg = Color(0xFFF8FAFC);
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightCard = Color(0xFFFFFFFF);
@@ -20,7 +18,6 @@ class AppColors {
   static const Color lightText = Color(0xFF1E293B);
   static const Color lightTextSecondary = Color(0xFF64748B);
 
-  // Dark theme
   static const Color darkBg = Color(0xFF0F172A);
   static const Color darkSurface = Color(0xFF1E293B);
   static const Color darkCard = Color(0xFF1E293B);
@@ -28,7 +25,6 @@ class AppColors {
   static const Color darkText = Color(0xFFF1F5F9);
   static const Color darkTextSecondary = Color(0xFF94A3B8);
 
-  // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [Color(0xFF00897B), Color(0xFF0D9488)],
     begin: Alignment.topLeft,
@@ -71,7 +67,8 @@ class AppTheme {
       onError: Colors.white,
       surface: isDark ? AppColors.darkSurface : AppColors.lightSurface,
       onSurface: isDark ? AppColors.darkText : AppColors.lightText,
-      surfaceContainerHighest: isDark ? AppColors.darkCard : AppColors.lightCard,
+      surfaceContainerHighest:
+          isDark ? AppColors.darkCard : AppColors.lightCard,
     );
 
     final textTheme = TextTheme(
@@ -145,7 +142,8 @@ class AppTheme {
         fontFamily: 'Outfit',
         fontSize: 12,
         fontWeight: FontWeight.w400,
-        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+        color:
+            isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
       ),
       labelLarge: TextStyle(
         fontFamily: 'Outfit',
@@ -159,8 +157,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       textTheme: textTheme,
-      scaffoldBackgroundColor:
-          isDark ? AppColors.darkBg : AppColors.lightBg,
+      scaffoldBackgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       cardTheme: CardThemeData(
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
         elevation: 0,
@@ -173,10 +170,8 @@ class AppTheme {
         ),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor:
-            isDark ? AppColors.darkBg : AppColors.lightBg,
-        foregroundColor:
-            isDark ? AppColors.darkText : AppColors.lightText,
+        backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+        foregroundColor: isDark ? AppColors.darkText : AppColors.lightText,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
@@ -220,9 +215,8 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark
-            ? AppColors.darkSurface.withOpacity(0.5)
-            : AppColors.lightBg,
+        fillColor:
+            isDark ? AppColors.darkSurface.withOpacity(0.5) : AppColors.lightBg,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(
@@ -247,11 +241,15 @@ class AppTheme {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         hintStyle: TextStyle(
           fontFamily: 'Outfit',
-          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          color: isDark
+              ? AppColors.darkTextSecondary
+              : AppColors.lightTextSecondary,
         ),
         labelStyle: TextStyle(
           fontFamily: 'Outfit',
-          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          color: isDark
+              ? AppColors.darkTextSecondary
+              : AppColors.lightTextSecondary,
         ),
       ),
       dividerTheme: DividerThemeData(

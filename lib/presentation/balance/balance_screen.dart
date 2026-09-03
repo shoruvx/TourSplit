@@ -37,8 +37,8 @@ class BalanceScreen extends ConsumerWidget {
         if (tour == null) return const Scaffold();
 
         return membersStream.when(
-          loading: () => const Scaffold(
-              body: Center(child: CircularProgressIndicator())),
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
           data: (members) => expensesStream.when(
             loading: () => const Scaffold(
@@ -49,16 +49,14 @@ class BalanceScreen extends ConsumerWidget {
                   body: Center(child: CircularProgressIndicator())),
               error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
               data: (settlements) {
-                final approvedSettlements = settlements
-                    .where((s) => s.isApproved)
-                    .toList();
+                final approvedSettlements =
+                    settlements.where((s) => s.isApproved).toList();
 
-                var balances = BalanceService.calculateBalances(
-                    members, expenses);
+                var balances =
+                    BalanceService.calculateBalances(members, expenses);
                 balances = BalanceService.applySettlements(
                     balances, approvedSettlements);
-                final debts = BalanceService.simplifyDebts(
-                    balances, members);
+                final debts = BalanceService.simplifyDebts(balances, members);
 
                 return Scaffold(
                   appBar: AppBar(
@@ -71,7 +69,6 @@ class BalanceScreen extends ConsumerWidget {
                   body: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      // Per-member balance cards
                       ...members.map((m) {
                         final balance = balances[m.userId] ?? 0.0;
                         return _BalanceCard(
@@ -80,10 +77,10 @@ class BalanceScreen extends ConsumerWidget {
                           currency: tour.currencySymbol,
                           currentUserId: user.uid,
                         ).animate().fadeIn(
-                            delay: Duration(milliseconds: members.indexOf(m) * 60),
+                            delay:
+                                Duration(milliseconds: members.indexOf(m) * 60),
                             duration: 300.ms);
                       }),
-
                       const SizedBox(height: 24),
                       Text('Who Owes Whom',
                           style: Theme.of(context)
@@ -91,7 +88,6 @@ class BalanceScreen extends ConsumerWidget {
                               .titleMedium
                               ?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
-
                       if (debts.isEmpty)
                         Container(
                           padding: const EdgeInsets.all(20),
@@ -132,8 +128,8 @@ class BalanceScreen extends ConsumerWidget {
     );
   }
 
-  void _requestSettlement(BuildContext context, WidgetRef ref,
-      String tourId, DebtTransaction debt, String currency) async {
+  void _requestSettlement(BuildContext context, WidgetRef ref, String tourId,
+      DebtTransaction debt, String currency) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -225,18 +221,15 @@ class _BalanceCard extends StatelessWidget {
                         ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
-                  // Balance bar
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: isSettled
                           ? 0
-                          : (balance.abs() /
-                                  (balance.abs() + 1))
+                          : (balance.abs() / (balance.abs() + 1))
                               .clamp(0.0, 1.0),
-                      backgroundColor: isDark
-                          ? AppColors.darkBorder
-                          : AppColors.lightBorder,
+                      backgroundColor:
+                          isDark ? AppColors.darkBorder : AppColors.lightBorder,
                       valueColor: AlwaysStoppedAnimation(balanceColor),
                       minHeight: 4,
                     ),
@@ -293,14 +286,12 @@ class _DebtCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isInvolved = debt.fromUserId == currentUserId ||
-        debt.toUserId == currentUserId;
+    final isInvolved =
+        debt.fromUserId == currentUserId || debt.toUserId == currentUserId;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: isInvolved
-          ? AppColors.primaryBlue.withOpacity(0.06)
-          : null,
+      color: isInvolved ? AppColors.primaryBlue.withOpacity(0.06) : null,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -328,8 +319,7 @@ class _DebtCard extends StatelessWidget {
                       ),
                     ),
                     TextSpan(
-                      text:
-                          '\n$currency ${debt.amount.toStringAsFixed(2)}',
+                      text: '\n$currency ${debt.amount.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontFamily: 'Outfit',

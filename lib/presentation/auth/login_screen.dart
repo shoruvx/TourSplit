@@ -66,12 +66,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String _formatError(String error) {
-    if (error.contains('user-not-found')) return 'No account found with this email.';
+    if (error.contains('user-not-found'))
+      return 'No account found with this email.';
     if (error.contains('wrong-password')) return 'Incorrect password.';
     if (error.contains('invalid-email')) return 'Please enter a valid email.';
-    if (error.contains('too-many-requests')) return 'Too many attempts. Try again later.';
-    if (error.contains('network-request-failed')) return 'No internet connection.';
-    if (error.contains('10') || error.contains('sign_in_failed') || error.contains('developer_error')) {
+    if (error.contains('too-many-requests'))
+      return 'Too many attempts. Try again later.';
+    if (error.contains('network-request-failed'))
+      return 'No internet connection.';
+    if (error.contains('10') ||
+        error.contains('sign_in_failed') ||
+        error.contains('developer_error')) {
       return 'Google Sign-In requires SHA-1 fingerprint added in Firebase Console.';
     }
     return error.length > 80 ? error.substring(0, 80) : error;
@@ -92,7 +97,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 48),
-                // Logo / Brand
                 Center(
                   child: Container(
                     width: 88,
@@ -117,11 +121,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             gradient: AppColors.primaryGradient,
                             borderRadius: BorderRadius.circular(24),
                           ),
-                          child: const Icon(Icons.travel_explore, color: Colors.white, size: 42),
+                          child: const Icon(Icons.travel_explore,
+                              color: Colors.white, size: 42),
                         ),
                       ),
                     ),
-                  ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.8, 0.8)),
+                  )
+                      .animate()
+                      .fadeIn(duration: 400.ms)
+                      .scale(begin: const Offset(0.8, 0.8)),
                 ),
                 const SizedBox(height: 20),
                 Center(
@@ -134,7 +142,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           fontFamily: 'Outfit',
                           letterSpacing: -0.5,
                         ),
-                      ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.1),
+                      )
+                          .animate()
+                          .fadeIn(delay: 100.ms, duration: 400.ms)
+                          .slideY(begin: 0.1),
                       const SizedBox(height: 6),
                       Text(
                         'Split the costs, keep the memories.',
@@ -143,14 +154,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           fontFamily: 'Outfit',
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFF5EEAD4) : const Color(0xFF0D9488),
+                          color: isDark
+                              ? const Color(0xFF5EEAD4)
+                              : const Color(0xFF0D9488),
                         ),
                       ).animate().fadeIn(delay: 150.ms, duration: 400.ms),
                     ],
                   ),
                 ),
                 const SizedBox(height: 32),
-
                 Form(
                   key: _formKey,
                   child: Column(
@@ -162,7 +174,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         keyboardType: TextInputType.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Email is required';
+                          if (v == null || v.isEmpty)
+                            return 'Email is required';
                           if (!v.contains('@')) return 'Enter a valid email';
                           return null;
                         },
@@ -180,12 +193,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ? Icons.visibility_off_outlined
                                 : Icons.visibility_outlined,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscurePassword = !_obscurePassword),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Password is required';
-                          if (v.length < 6) return 'Password must be at least 6 characters';
+                          if (v == null || v.isEmpty)
+                            return 'Password is required';
+                          if (v.length < 6)
+                            return 'Password must be at least 6 characters';
                           return null;
                         },
                       ).animate().fadeIn(delay: 250.ms, duration: 300.ms),
@@ -242,8 +257,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       : AppColors.lightBorder)),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text('or',
-                                style: theme.textTheme.bodySmall),
+                            child: Text('or', style: theme.textTheme.bodySmall),
                           ),
                           Expanded(
                               child: Divider(
@@ -265,7 +279,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 32),
                 Center(
                   child: Row(
@@ -278,7 +291,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       TextButton(
                         onPressed: () => context.go('/register'),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),

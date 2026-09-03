@@ -13,10 +13,10 @@ class ExpenseModel {
   final String category;
   final String paidByUserId;
   final String paidByName;
-  final Map<String, double>? payers; // userId -> amount contributed (for multi-contributor expenses)
+  final Map<String, double>? payers;
   final SplitType splitType;
-  final List<String> splitAmong; // userIds
-  final Map<String, double>? customSplits; // userId -> amount
+  final List<String> splitAmong;
+  final Map<String, double>? customSplits;
   final String? description;
   final DateTime date;
   final ExpenseStatus status;
@@ -47,7 +47,6 @@ class ExpenseModel {
   bool get isApproved => status == ExpenseStatus.approved;
   bool get isRejected => status == ExpenseStatus.rejected;
 
-  /// Returns each member's contribution toward paying this expense
   Map<String, double> get contributions {
     if (payers != null && payers!.isNotEmpty) {
       return payers!;
@@ -55,10 +54,8 @@ class ExpenseModel {
     return {paidByUserId: amount};
   }
 
-  /// Whether this expense was contributed to by multiple people
   bool get isMultiPayer => payers != null && payers!.length > 1;
 
-  /// Returns each member's share of this expense
   Map<String, double> get splits {
     if (splitType == SplitType.custom && customSplits != null) {
       return customSplits!;
@@ -99,8 +96,7 @@ class ExpenseModel {
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
       status: _parseStatus(data['status']),
       addedByUserId: data['addedBy'] ?? '',
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -140,9 +136,8 @@ class ExpenseModel {
         'customSplits': customSplits,
         'description': description,
         'date': Timestamp.fromDate(date),
-        'status': status.name == 'pendingApproval'
-            ? 'pending_approval'
-            : status.name,
+        'status':
+            status.name == 'pendingApproval' ? 'pending_approval' : status.name,
         'addedBy': addedByUserId,
         'createdAt': Timestamp.fromDate(createdAt),
       };

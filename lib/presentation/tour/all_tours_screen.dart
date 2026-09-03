@@ -58,7 +58,6 @@ class AllToursScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              // Active Tours Section
               if (activeTours.isNotEmpty) ...[
                 _SectionTitle(title: 'Active Tours (${activeTours.length})'),
                 const SizedBox(height: 12),
@@ -76,8 +75,6 @@ class AllToursScreen extends ConsumerWidget {
                     )),
                 const SizedBox(height: 24),
               ],
-
-              // Past / Completed Tours Section
               if (pastTours.isNotEmpty) ...[
                 _SectionTitle(title: 'Completed Tours (${pastTours.length})'),
                 const SizedBox(height: 12),
@@ -124,13 +121,19 @@ class AllToursScreen extends ConsumerWidget {
             const SizedBox(height: 20),
             const Text(
               'No Tours Found',
-              style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               'You have not joined or created any tours yet.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+              style: TextStyle(
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary),
             ),
             const SizedBox(height: 28),
             ElevatedButton.icon(
@@ -236,14 +239,16 @@ class _TourCard extends ConsumerWidget {
                   ),
                   if (isCurrentActive) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.primaryTeal.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.check_circle_rounded, size: 14, color: AppColors.primaryTeal),
+                          Icon(Icons.check_circle_rounded,
+                              size: 14, color: AppColors.primaryTeal),
                           SizedBox(width: 4),
                           Text(
                             'Active',
@@ -279,19 +284,24 @@ class _TourCard extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Text(
                         '${tour.memberIds.length} Members',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(width: 12),
                       if (isAdmin)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.amber.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
                             'Admin',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange),
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange),
                           ),
                         ),
                     ],
@@ -301,16 +311,22 @@ class _TourCard extends ConsumerWidget {
                       style: TextButton.styleFrom(padding: EdgeInsets.zero),
                       onPressed: () async {
                         if (tour.isActive) {
-                          await ref.read(tourRepositoryProvider).completeTour(tour.id);
+                          await ref
+                              .read(tourRepositoryProvider)
+                              .completeTour(tour.id);
                         } else {
-                          await ref.read(tourRepositoryProvider).reopenTour(tour.id);
+                          await ref
+                              .read(tourRepositoryProvider)
+                              .reopenTour(tour.id);
                         }
                       },
                       child: Text(
                         tour.isActive ? 'End Tour' : 'Reactivate',
                         style: TextStyle(
                           fontSize: 12,
-                          color: tour.isActive ? AppColors.danger : AppColors.primaryTeal,
+                          color: tour.isActive
+                              ? AppColors.danger
+                              : AppColors.primaryTeal,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

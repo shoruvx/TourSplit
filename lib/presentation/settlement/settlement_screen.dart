@@ -45,7 +45,8 @@ class SettlementScreen extends ConsumerWidget {
         _handleBack(context);
       },
       child: tourStream.when(
-        loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
         data: (tour) {
           if (tour == null) return const Scaffold();
@@ -60,7 +61,8 @@ class SettlementScreen extends ConsumerWidget {
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primaryTeal),
+                  icon: const Icon(Icons.add_circle_outline_rounded,
+                      color: AppColors.primaryTeal),
                   tooltip: 'Record Settlement',
                   onPressed: () => _showCustomSettlementDialog(
                     context,
@@ -76,7 +78,6 @@ class SettlementScreen extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('$e')),
               data: (settlements) {
-                // Compute current active suggested debts
                 final approvedExpenses = expensesStream.maybeWhen(
                   data: (list) => list.where((e) => e.isApproved).toList(),
                   orElse: () => <ExpenseModel>[],
@@ -88,15 +89,20 @@ class SettlementScreen extends ConsumerWidget {
                 final approvedSettlements =
                     settlements.where((s) => s.isApproved).toList();
 
-                var balances = BalanceService.calculateBalances(members, approvedExpenses);
-                balances = BalanceService.applySettlements(balances, approvedSettlements);
-                final suggestedDebts = BalanceService.simplifyDebts(balances, members);
+                var balances =
+                    BalanceService.calculateBalances(members, approvedExpenses);
+                balances = BalanceService.applySettlements(
+                    balances, approvedSettlements);
+                final suggestedDebts =
+                    BalanceService.simplifyDebts(balances, members);
 
-                // Group existing settlements into pending and resolved
                 final pending = settlements.where((s) => s.isPending).toList();
-                final resolved = settlements.where((s) => !s.isPending).toList();
+                final resolved =
+                    settlements.where((s) => !s.isPending).toList();
 
-                if (suggestedDebts.isEmpty && pending.isEmpty && resolved.isEmpty) {
+                if (suggestedDebts.isEmpty &&
+                    pending.isEmpty &&
+                    resolved.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -106,17 +112,19 @@ class SettlementScreen extends ConsumerWidget {
                         const SizedBox(height: 16),
                         Text(
                           'All Settled Up',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Outfit',
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Outfit',
+                                  ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'No outstanding balances or pending settlements.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.grey,
+                                  ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -127,7 +135,6 @@ class SettlementScreen extends ConsumerWidget {
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // 1. Suggested Debt Settlements
                     if (suggestedDebts.isNotEmpty) ...[
                       _SectionLabel(
                         label: 'Suggested Settlements',
@@ -149,8 +156,6 @@ class SettlementScreen extends ConsumerWidget {
                           ).animate().fadeIn()),
                       const SizedBox(height: 20),
                     ],
-
-                    // 2. Pending Approvals
                     if (pending.isNotEmpty) ...[
                       _SectionLabel(
                         label: 'Pending Approval',
@@ -163,13 +168,13 @@ class SettlementScreen extends ConsumerWidget {
                             isAdmin: isAdmin,
                             currentUserId: user.uid,
                             currency: tour.currencySymbol,
-                            onApprove: () => _resolve(context, ref, tourId, s, SettlementStatus.approved),
-                            onReject: () => _resolve(context, ref, tourId, s, SettlementStatus.rejected),
+                            onApprove: () => _resolve(context, ref, tourId, s,
+                                SettlementStatus.approved),
+                            onReject: () => _resolve(context, ref, tourId, s,
+                                SettlementStatus.rejected),
                           ).animate().fadeIn()),
                       const SizedBox(height: 20),
                     ],
-
-                    // 3. Settlement History
                     if (resolved.isNotEmpty) ...[
                       _SectionLabel(
                         label: 'History',
@@ -194,7 +199,6 @@ class SettlementScreen extends ConsumerWidget {
     );
   }
 
-  /// Dialog to record an automated suggested settlement
   void _showSettleConfirmationDialog(
     BuildContext context,
     WidgetRef ref,
@@ -230,7 +234,8 @@ class SettlementScreen extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       '${debt.fromUserName} pays ${debt.toUserName}',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14),
                     ),
                   ),
                   Text(
@@ -246,13 +251,15 @@ class SettlementScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Payment Method / Note:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const Text('Payment Method / Note:',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
             const SizedBox(height: 6),
             TextField(
               controller: noteCtrl,
               decoration: InputDecoration(
                 hintText: 'e.g. bKash, Cash, Bank Transfer',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 isDense: true,
               ),
             ),
@@ -288,7 +295,6 @@ class SettlementScreen extends ConsumerWidget {
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
       );
 
-      // If user recording it is admin or recipient, automatically approve it
       final currentUid = ref.read(currentUserProvider).valueOrNull?.uid;
       if (isAdmin || currentUid == debt.toUserId) {
         await repo.resolveSettlement(
@@ -314,7 +320,6 @@ class SettlementScreen extends ConsumerWidget {
     }
   }
 
-  /// Dialog to record any arbitrary custom settlement between two members
   void _showCustomSettlementDialog(
     BuildContext context,
     WidgetRef ref,
@@ -330,7 +335,10 @@ class SettlementScreen extends ConsumerWidget {
     }
 
     String fromUid = currentUserId;
-    String toUid = members.firstWhere((m) => m.userId != currentUserId, orElse: () => members.last).userId;
+    String toUid = members
+        .firstWhere((m) => m.userId != currentUserId,
+            orElse: () => members.last)
+        .userId;
     final amountCtrl = TextEditingController();
     final noteCtrl = TextEditingController(text: 'Cash');
 
@@ -339,67 +347,83 @@ class SettlementScreen extends ConsumerWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: const Text('Record Settlement'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Payer (Who paid?):', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Payer (Who paid?):',
+                      style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     value: fromUid,
                     isExpanded: true,
                     decoration: InputDecoration(
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                     items: members.map((m) {
-                      return DropdownMenuItem(value: m.userId, child: Text(m.displayName));
+                      return DropdownMenuItem(
+                          value: m.userId, child: Text(m.displayName));
                     }).toList(),
                     onChanged: (val) {
                       if (val != null) setS(() => fromUid = val);
                     },
                   ),
                   const SizedBox(height: 14),
-                  const Text('Recipient (Who received?):', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Recipient (Who received?):',
+                      style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     value: toUid,
                     isExpanded: true,
                     decoration: InputDecoration(
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                     items: members.map((m) {
-                      return DropdownMenuItem(value: m.userId, child: Text(m.displayName));
+                      return DropdownMenuItem(
+                          value: m.userId, child: Text(m.displayName));
                     }).toList(),
                     onChanged: (val) {
                       if (val != null) setS(() => toUid = val);
                     },
                   ),
                   const SizedBox(height: 14),
-                  const Text('Amount:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Amount:',
+                      style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: amountCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       prefixText: '${tour.currencySymbol} ',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Note:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Note:',
+                      style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: noteCtrl,
                     decoration: InputDecoration(
                       hintText: 'e.g. bKash, Cash',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                   ),
                 ],
@@ -432,7 +456,8 @@ class SettlementScreen extends ConsumerWidget {
 
     if (confirmed == true) {
       final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
-      final fromName = members.firstWhere((m) => m.userId == fromUid).displayName;
+      final fromName =
+          members.firstWhere((m) => m.userId == fromUid).displayName;
       final toName = members.firstWhere((m) => m.userId == toUid).displayName;
 
       final repo = ref.read(settlementRepositoryProvider);
@@ -573,12 +598,16 @@ class _SuggestedDebtCard extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: debt.fromUserName,
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.negative),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.negative),
                       ),
                       const TextSpan(text: ' pays '),
                       TextSpan(
                         text: debt.toUserName,
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.positive),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.positive),
                       ),
                     ],
                   ),
@@ -599,12 +628,14 @@ class _SuggestedDebtCard extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: onSettle,
             icon: const Icon(Icons.check_rounded, size: 16),
-            label: const Text('Settle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            label: const Text('Settle',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
           ),
@@ -707,7 +738,8 @@ class _SettlementCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -728,7 +760,10 @@ class _SettlementCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 'Note: ${settlement.note}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontStyle: FontStyle.italic),
               ),
             ],
             const SizedBox(height: 6),
@@ -736,9 +771,8 @@ class _SettlementCard extends StatelessWidget {
               'Requested ${DateFormat('MMM d, y').format(settlement.requestedAt)}',
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-
-            // Admin or recipient approve/reject buttons
-            if ((isAdmin || settlement.toUserId == currentUserId) && settlement.isPending) ...[
+            if ((isAdmin || settlement.toUserId == currentUserId) &&
+                settlement.isPending) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -748,10 +782,12 @@ class _SettlementCard extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.negative),
                         minimumSize: const Size(0, 36),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       child: const Text('Reject',
-                          style: TextStyle(color: AppColors.negative, fontFamily: 'Outfit')),
+                          style: TextStyle(
+                              color: AppColors.negative, fontFamily: 'Outfit')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -762,9 +798,11 @@ class _SettlementCard extends StatelessWidget {
                         backgroundColor: AppColors.positive,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(0, 36),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text('Approve', style: TextStyle(fontFamily: 'Outfit')),
+                      child: const Text('Approve',
+                          style: TextStyle(fontFamily: 'Outfit')),
                     ),
                   ),
                 ],

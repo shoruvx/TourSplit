@@ -17,8 +17,7 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
       _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState
-    extends ConsumerState<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   bool _isLoading = false;
@@ -44,8 +43,8 @@ class _ForgotPasswordScreenState
       if (mounted) setState(() => _emailSent = true);
     } catch (e) {
       if (mounted) {
-        setState(() =>
-            _errorMessage = 'Could not send reset email. Please check your email address.');
+        setState(() => _errorMessage =
+            'Could not send reset email. Please check your email address.');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -69,7 +68,9 @@ class _ForgotPasswordScreenState
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _emailSent ? _buildSuccessState(theme) : _buildForm(theme, isDark),
+            child: _emailSent
+                ? _buildSuccessState(theme)
+                : _buildForm(theme, isDark),
           ),
         ),
       ),

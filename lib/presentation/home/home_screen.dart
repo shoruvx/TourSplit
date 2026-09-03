@@ -74,7 +74,6 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// Shown when the user has no active tour (Matching Screenshot 1)
 class _NoActiveTourScreen extends StatelessWidget {
   final String displayName;
   final String? noticeMessage;
@@ -99,28 +98,31 @@ class _NoActiveTourScreen extends StatelessWidget {
               if (noticeMessage != null) ...[
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
                     color: AppColors.warning.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                    border: Border.all(
+                        color: AppColors.warning.withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                      const Icon(Icons.info_outline,
+                          color: AppColors.warning, size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           noticeMessage!,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13),
                         ),
                       ),
                     ],
                   ),
                 ),
               ],
-              // Top Header matching Screenshot 1
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -147,8 +149,6 @@ class _NoActiveTourScreen extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-
-              // Center Empty State
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -187,13 +187,12 @@ class _NoActiveTourScreen extends StatelessWidget {
                       ),
                     ).animate().fadeIn(delay: 200.ms),
                     const SizedBox(height: 32),
-
-                    // Create Tour Button
                     SizedBox(
                       width: 220,
                       child: ElevatedButton.icon(
                         onPressed: () => context.push('/tour/create'),
-                        icon: const Icon(Icons.add_rounded, color: Colors.white),
+                        icon:
+                            const Icon(Icons.add_rounded, color: Colors.white),
                         label: const Text(
                           'Create Tour',
                           style: TextStyle(
@@ -214,13 +213,12 @@ class _NoActiveTourScreen extends StatelessWidget {
                       ),
                     ).animate().fadeIn(delay: 250.ms),
                     const SizedBox(height: 14),
-
-                    // Join with Code or QR Button
                     SizedBox(
                       width: 220,
                       child: OutlinedButton.icon(
                         onPressed: () => context.push('/tour/join'),
-                        icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                        icon:
+                            const Icon(Icons.qr_code_scanner_rounded, size: 18),
                         label: const Text('Join Tour'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -249,7 +247,6 @@ class _NoActiveTourScreen extends StatelessWidget {
   }
 }
 
-/// Main dashboard when user has an active tour (Matching Screenshot 3)
 class _ActiveTourDashboard extends ConsumerStatefulWidget {
   final String tourId;
   final String userId;
@@ -260,12 +257,13 @@ class _ActiveTourDashboard extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_ActiveTourDashboard> createState() => _ActiveTourDashboardState();
+  ConsumerState<_ActiveTourDashboard> createState() =>
+      _ActiveTourDashboardState();
 }
 
 class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
-  int _selectedPillTab = 0; // 0 = Expenses, 1 = Balances, 2 = Settlements
-  bool _showSpreadsheetView = true; // Default to clean spreadsheet ledger view
+  int _selectedPillTab = 0;
+  bool _showSpreadsheetView = true;
   String? _lastNotifiedJoinRequestId;
   String? _lastNotifiedUpdateVersion;
   bool _isJoinDialogActive = false;
@@ -282,15 +280,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           backgroundColor: isDark ? const Color(0xFF131D2E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Glowing Beacon Icon
                 Container(
                   width: 72,
                   height: 72,
@@ -309,7 +308,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   ),
                 ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
                 const SizedBox(height: 18),
-
                 const Text(
                   'New Member Request! 👥',
                   textAlign: TextAlign.center,
@@ -330,16 +328,18 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Member Identity Card
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFCBD5E1),
                     ),
                   ),
                   child: Row(
@@ -375,9 +375,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                             ),
                             const SizedBox(height: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                                color: AppColors.primaryTeal
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: const Text(
@@ -397,24 +399,24 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Action Buttons
                 Row(
                   children: [
-                    // Reject
                     Expanded(
                       flex: 4,
                       child: OutlinedButton(
                         onPressed: () async {
                           Navigator.of(ctx).pop();
-                          await ref.read(tourRepositoryProvider).rejectJoinRequest(
-                            tourId: tour.id,
-                            userId: request.userId,
-                          );
+                          await ref
+                              .read(tourRepositoryProvider)
+                              .rejectJoinRequest(
+                                tourId: tour.id,
+                                userId: request.userId,
+                              );
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Declined request from ${request.displayName}'),
+                                content: Text(
+                                    'Declined request from ${request.displayName}'),
                                 backgroundColor: AppColors.negative,
                               ),
                             );
@@ -423,7 +425,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           side: const BorderSide(color: AppColors.negative),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                         ),
                         child: const Text(
                           'Decline',
@@ -436,27 +439,29 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-
-                    // Approve
                     Expanded(
                       flex: 6,
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           Navigator.of(ctx).pop();
-                          await ref.read(tourRepositoryProvider).approveJoinRequest(
-                            tourId: tour.id,
-                            request: request,
-                          );
+                          await ref
+                              .read(tourRepositoryProvider)
+                              .approveJoinRequest(
+                                tourId: tour.id,
+                                request: request,
+                              );
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Approved! ${request.displayName} is now a member 🎉'),
+                                content: Text(
+                                    'Approved! ${request.displayName} is now a member 🎉'),
                                 backgroundColor: AppColors.positive,
                               ),
                             );
                           }
                         },
-                        icon: const Icon(Icons.check_rounded, color: Colors.white, size: 20),
+                        icon: const Icon(Icons.check_rounded,
+                            color: Colors.white, size: 20),
                         label: const Text(
                           'Approve',
                           style: TextStyle(
@@ -469,7 +474,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryTeal,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                           elevation: 3,
                         ),
                       ),
@@ -505,15 +511,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final tourStream = ref.watch(tourStreamProvider(widget.tourId));
     final membersStream = ref.watch(tourMembersStreamProvider(widget.tourId));
     final expensesStream = ref.watch(tourExpensesStreamProvider(widget.tourId));
-    final settlementsStream = ref.watch(tourSettlementsStreamProvider(widget.tourId));
+    final settlementsStream =
+        ref.watch(tourSettlementsStreamProvider(widget.tourId));
 
     return tourStream.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (tour) {
         if (tour == null) return const SizedBox();
 
-        // Security & state check: verify user is still an active member
         final isMember = tour.memberIds.contains(widget.userId);
         final isMemberInSubcollection = membersStream.maybeWhen(
           data: (members) => members.any((m) => m.userId == widget.userId),
@@ -525,13 +532,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
           });
           return _NoActiveTourScreen(
-            displayName: ref.read(currentUserProvider).valueOrNull?.firstName ?? 'User',
+            displayName:
+                ref.read(currentUserProvider).valueOrNull?.firstName ?? 'User',
             noticeMessage: 'You are no longer a member of "${tour.name}".',
           );
         }
 
         final isAdmin = tour.isAdmin(widget.userId);
-        final joinRequestsStream = ref.watch(tourPendingJoinRequestsProvider(widget.tourId));
+        final joinRequestsStream =
+            ref.watch(tourPendingJoinRequestsProvider(widget.tourId));
 
         final approvedExpenses = expensesStream.maybeWhen(
           data: (expenses) => expenses.where((e) => e.isApproved).toList(),
@@ -544,34 +553,42 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         );
 
         final approvedSettlements = settlementsStream.maybeWhen(
-          data: (settlements) => settlements.where((s) => s.isApproved).toList(),
+          data: (settlements) =>
+              settlements.where((s) => s.isApproved).toList(),
           orElse: () => <SettlementModel>[],
         );
 
-        var computedBalances = BalanceService.calculateBalances(membersList, approvedExpenses);
-        computedBalances = BalanceService.applySettlements(computedBalances, approvedSettlements);
+        var computedBalances =
+            BalanceService.calculateBalances(membersList, approvedExpenses);
+        computedBalances = BalanceService.applySettlements(
+            computedBalances, approvedSettlements);
         final myNetBalance = computedBalances[widget.userId] ?? 0.0;
 
-        // Auto trigger prominent full-screen popup for incoming join requests on admin's device
         final pendingRequests = joinRequestsStream.valueOrNull ?? [];
-        if (isAdmin && pendingRequests.isNotEmpty && !_isJoinDialogActive && pendingRequests.first.id != _lastNotifiedJoinRequestId) {
+        if (isAdmin &&
+            pendingRequests.isNotEmpty &&
+            !_isJoinDialogActive &&
+            pendingRequests.first.id != _lastNotifiedJoinRequestId) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && !_isJoinDialogActive) {
               _lastNotifiedJoinRequestId = pendingRequests.first.id;
-              _showFullScreenJoinRequestPopup(context, tour, pendingRequests.first);
+              _showFullScreenJoinRequestPopup(
+                  context, tour, pendingRequests.first);
             }
           });
         }
 
-        // Live in-app update check & notification (GitHub Releases + Firestore)
         final updateInfo = ref.watch(appUpdateInfoStreamProvider).valueOrNull ??
             ref.watch(gitHubUpdateFutureProvider).valueOrNull;
         final packageInfo = ref.watch(currentAppVersionProvider).valueOrNull;
         if (updateInfo != null && packageInfo != null) {
-          final isNewer = AppUpdateService.isVersionNewer(updateInfo.latestVersion, packageInfo.version);
-          if (isNewer && _lastNotifiedUpdateVersion != updateInfo.latestVersion) {
+          final isNewer = AppUpdateService.isVersionNewer(
+              updateInfo.latestVersion, packageInfo.version);
+          if (isNewer &&
+              _lastNotifiedUpdateVersion != updateInfo.latestVersion) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && _lastNotifiedUpdateVersion != updateInfo.latestVersion) {
+              if (mounted &&
+                  _lastNotifiedUpdateVersion != updateInfo.latestVersion) {
                 _lastNotifiedUpdateVersion = updateInfo.latestVersion;
                 AppUpdateService.showUpdateDialog(
                   context,
@@ -583,7 +600,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           }
         }
 
-        final totalSpent = approvedExpenses.fold(0.0, (sum, e) => sum + e.amount);
+        final totalSpent =
+            approvedExpenses.fold(0.0, (sum, e) => sum + e.amount);
         final memberCount = membersList.length;
         final expenseCount = expensesStream.maybeWhen(
           data: (expenses) => expenses.length,
@@ -594,17 +612,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         return Scaffold(
           body: CustomScrollView(
             slivers: [
-              // Sleek Tour Header with Multi-Tour Switcher
               _TourDashboardAppBar(
                 tour: tour,
                 isAdmin: isAdmin,
               ),
-
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    // Pending Join Requests Banner for Admins
                     if (isAdmin) ...[
                       joinRequestsStream.when(
                         loading: () => const SizedBox(),
@@ -618,8 +634,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         },
                       ),
                     ],
-
-                    // 1. Consolidated 4-Metric Card
                     _ConsolidatedMetricsCard(
                       currencySymbol: tour.currencySymbol,
                       totalSpent: totalSpent,
@@ -627,17 +641,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       memberCount: memberCount,
                       expenseCount: expenseCount,
                     ).animate().fadeIn(delay: 100.ms),
-
                     const SizedBox(height: 10),
-
-                    // 1.5 Outside Balance Visibility (Requested: visible from the outside)
                     _MyBalanceCard(
                       balance: myNetBalance,
                       currencySymbol: tour.currencySymbol,
                       onSettleUp: () => context.push('/settlement'),
                     ).animate().fadeIn(delay: 120.ms),
-
-                    // Optional Budget Progress Indicator
                     if (tour.budget != null && tour.budget! > 0) ...[
                       const SizedBox(height: 12),
                       _BudgetProgressBar(
@@ -646,21 +655,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         currencySymbol: tour.currencySymbol,
                       ),
                     ],
-
                     const SizedBox(height: 16),
-
-                    // 2. Action Buttons Row (Report, QR, + Add Expense)
                     Row(
                       children: [
-                        // Report Button
                         _SquareActionButton(
                           icon: Icons.description_outlined,
                           tooltip: 'Reports & PDF',
                           onTap: () => context.push('/reports'),
                         ),
                         const SizedBox(width: 8),
-
-                        // QR Code Button
                         _SquareActionButton(
                           icon: Icons.qr_code_rounded,
                           tooltip: 'Tour QR',
@@ -671,12 +674,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           ),
                         ),
                         const SizedBox(width: 10),
-
-                        // Prominent + Add Expense Button
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: () => context.push('/expense/add'),
-                            icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                            icon: const Icon(Icons.add_rounded,
+                                color: Colors.white, size: 20),
                             label: const Text(
                               'Add Expense',
                               style: TextStyle(
@@ -698,20 +700,13 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ),
                       ],
                     ).animate().fadeIn(delay: 150.ms),
-
                     const SizedBox(height: 16),
-
-                    // 3. Pill Tab Bar (Expenses | Balances | Settlements)
                     _PillTabBar(
                       selectedIndex: _selectedPillTab,
                       onTabChanged: (i) => setState(() => _selectedPillTab = i),
                     ).animate().fadeIn(delay: 200.ms),
-
                     const SizedBox(height: 16),
-
-                    // 4. Tab Content View
                     if (_selectedPillTab == 0) ...[
-                      // Pending Approvals (admin only)
                       if (isAdmin) ...[
                         _PendingApprovalsSection(
                           tourId: widget.tourId,
@@ -719,17 +714,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ),
                         const SizedBox(height: 16),
                       ],
-
-                      // Expenses Tab
-                      _buildExpensesTab(expensesStream, tour.currencySymbol, tour.startDate),
+                      _buildExpensesTab(
+                          expensesStream, tour.currencySymbol, tour.startDate),
                     ] else if (_selectedPillTab == 1) ...[
-                      // Balances Tab
-                      _buildBalancesTab(membersList, computedBalances, tour.currencySymbol),
+                      _buildBalancesTab(
+                          membersList, computedBalances, tour.currencySymbol),
                     ] else ...[
-                      // Settlements Tab
-                      _buildSettlementsTab(membersList, computedBalances, tour.currencySymbol),
+                      _buildSettlementsTab(
+                          membersList, computedBalances, tour.currencySymbol),
                     ],
-
                     const SizedBox(height: 60),
                   ]),
                 ),
@@ -741,8 +734,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     );
   }
 
-  Widget _buildExpensesTab(
-      AsyncValue expensesStream, String currencySymbol, DateTime tourStartDate) {
+  Widget _buildExpensesTab(AsyncValue expensesStream, String currencySymbol,
+      DateTime tourStartDate) {
     return expensesStream.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('$e')),
@@ -757,14 +750,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Mode Switcher Header
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _showSpreadsheetView ? 'Daily Expense Ledger' : 'All Expenses',
+                    _showSpreadsheetView
+                        ? 'Daily Expense Ledger'
+                        : 'All Expenses',
                     style: const TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
@@ -774,10 +768,14 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface : const Color(0xFFE2E8F0),
+                      color: isDark
+                          ? AppColors.darkSurface
+                          : const Color(0xFFE2E8F0),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: isDark ? AppColors.darkBorder : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : const Color(0xFFCBD5E1),
                         width: 1,
                       ),
                     ),
@@ -788,13 +786,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           icon: Icons.table_chart_rounded,
                           label: 'Sheet',
                           isSelected: _showSpreadsheetView,
-                          onTap: () => setState(() => _showSpreadsheetView = true),
+                          onTap: () =>
+                              setState(() => _showSpreadsheetView = true),
                         ),
                         _ViewToggleButton(
                           icon: Icons.view_agenda_rounded,
                           label: 'Cards',
                           isSelected: !_showSpreadsheetView,
-                          onTap: () => setState(() => _showSpreadsheetView = false),
+                          onTap: () =>
+                              setState(() => _showSpreadsheetView = false),
                         ),
                       ],
                     ),
@@ -802,9 +802,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 ],
               ),
             ),
-
             if (_showSpreadsheetView) ...[
-              // Grouped by Day Summary Tables (Day 1, Day 2, etc. sorted chronologically)
               ..._groupExpensesByDay(list, tourStartDate).map((group) {
                 return DaySummaryTable(
                   dayNumber: group.dayNumber,
@@ -815,7 +813,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 );
               }),
             ] else ...[
-              // Classic Cards View
               ...list.map((e) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -833,10 +830,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     );
   }
 
-  List<({int dayNumber, DateTime date, List<ExpenseModel> expenses})> _groupExpensesByDay(
-      List<ExpenseModel> expenses, DateTime tourStartDate) {
-    // Midnight base date for accurate calendar day difference
-    final baseDate = DateTime(tourStartDate.year, tourStartDate.month, tourStartDate.day);
+  List<({int dayNumber, DateTime date, List<ExpenseModel> expenses})>
+      _groupExpensesByDay(List<ExpenseModel> expenses, DateTime tourStartDate) {
+    final baseDate =
+        DateTime(tourStartDate.year, tourStartDate.month, tourStartDate.day);
     final map = <DateTime, List<ExpenseModel>>{};
 
     for (final exp in expenses) {
@@ -844,15 +841,13 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       map.putIfAbsent(d, () => []).add(exp);
     }
 
-    // Sort distinct dates chronologically
     final sortedDates = map.keys.toList()..sort();
-    final result = <({int dayNumber, DateTime date, List<ExpenseModel> expenses})>[];
+    final result =
+        <({int dayNumber, DateTime date, List<ExpenseModel> expenses})>[];
 
     for (final date in sortedDates) {
       final diffDays = date.difference(baseDate).inDays;
-      // Day 1, Day 2, etc. relative to tour start date
       final dayNumber = diffDays >= 0 ? diffDays + 1 : 1;
-      // Sort expenses within the day by timestamp
       final dayExpenses = map[date]!..sort((a, b) => a.date.compareTo(b.date));
 
       result.add((dayNumber: dayNumber, date: date, expenses: dayExpenses));
@@ -904,7 +899,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             final isNegative = balance < -0.01;
             final color = isPositive
                 ? AppColors.positive
-                : (isNegative ? AppColors.negative : (isDark ? Colors.white70 : Colors.black54));
+                : (isNegative
+                    ? AppColors.negative
+                    : (isDark ? Colors.white70 : Colors.black54));
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -932,14 +929,17 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           m.role == 'admin' ? 'Admin' : 'Member',
                           style: TextStyle(
                             fontSize: 11,
-                            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
                           ),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
@@ -993,11 +993,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.handshake_outlined, size: 22, color: AppColors.primaryTeal),
+                  Icon(Icons.handshake_outlined,
+                      size: 22, color: AppColors.primaryTeal),
                   SizedBox(width: 8),
                   Text(
                     'Smart Debt Settlement',
-                    style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -1018,12 +1022,14 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.check_circle_rounded, color: AppColors.positive, size: 22),
+                  Icon(Icons.check_circle_rounded,
+                      color: AppColors.positive, size: 22),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'All debts settled up',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -1033,12 +1039,17 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             ...debts.map((d) {
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                  color: isDark
+                      ? const Color(0xFF1E293B)
+                      : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Row(
@@ -1057,12 +1068,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                               children: [
                                 TextSpan(
                                   text: d.fromUserName,
-                                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.negative),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.negative),
                                 ),
                                 const TextSpan(text: ' pays '),
                                 TextSpan(
                                   text: d.toUserName,
-                                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.positive),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.positive),
                                 ),
                               ],
                             ),
@@ -1086,12 +1101,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         minimumSize: const Size(0, 32),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                         elevation: 0,
                       ),
-                      child: const Text('Settle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      child: const Text('Settle',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -1108,7 +1127,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
               ),
             ),
@@ -1140,7 +1160,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   Expanded(
                     child: Text(
                       '${debt.fromUserName} pays ${debt.toUserName}',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13),
                     ),
                   ),
                   Text(
@@ -1156,13 +1177,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text('Note:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text('Note:',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 4),
             TextField(
               controller: noteCtrl,
               decoration: InputDecoration(
                 hintText: 'e.g. bKash, Cash',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 isDense: true,
               ),
             ),
@@ -1199,7 +1222,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       );
 
       final currentUid = ref.read(currentUserProvider).valueOrNull?.uid;
-      // Auto-approve if recorder is recipient or admin
       await repo.resolveSettlement(
         tourId: widget.tourId,
         settlementId: settlement.id,
@@ -1219,7 +1241,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
   }
 }
 
-/// Dedicated Outside Balance Visibility Card (Shows current user net status)
 class _MyBalanceCard extends StatelessWidget {
   final double balance;
   final String currencySymbol;
@@ -1247,7 +1268,9 @@ class _MyBalanceCard extends StatelessWidget {
 
     final amountText = isPositive
         ? '+$currencySymbol${balance.toStringAsFixed(0)}'
-        : (isNegative ? '-$currencySymbol${(-balance).toStringAsFixed(0)}' : '${currencySymbol}0');
+        : (isNegative
+            ? '-$currencySymbol${(-balance).toStringAsFixed(0)}'
+            : '${currencySymbol}0');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1277,7 +1300,9 @@ class _MyBalanceCard extends StatelessWidget {
             child: Icon(
               isPositive
                   ? Icons.arrow_upward_rounded
-                  : (isNegative ? Icons.arrow_downward_rounded : Icons.check_circle_outline_rounded),
+                  : (isNegative
+                      ? Icons.arrow_downward_rounded
+                      : Icons.check_circle_outline_rounded),
               color: color,
               size: 20,
             ),
@@ -1332,7 +1357,6 @@ class _MyBalanceCard extends StatelessWidget {
   }
 }
 
-/// 4-Metric Consolidated Card (Matching Screenshot 3)
 class _ConsolidatedMetricsCard extends StatelessWidget {
   final String currencySymbol;
   final double totalSpent;
@@ -1435,7 +1459,9 @@ class _MetricColumn extends StatelessWidget {
               fontFamily: 'Outfit',
               fontSize: 11,
               fontWeight: FontWeight.w500,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.lightTextSecondary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1459,7 +1485,6 @@ class _MetricDivider extends StatelessWidget {
   }
 }
 
-/// Budget Progress Bar
 class _BudgetProgressBar extends StatelessWidget {
   final double budget;
   final double spent;
@@ -1493,7 +1518,10 @@ class _BudgetProgressBar extends StatelessWidget {
             children: [
               Text(
                 'Budget: $currencySymbol${budget.toStringAsFixed(0)}',
-                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13),
               ),
               Text(
                 '${(ratio * 100).toStringAsFixed(0)}% Spent',
@@ -1512,7 +1540,8 @@ class _BudgetProgressBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: ratio,
               minHeight: 8,
-              backgroundColor: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+              backgroundColor:
+                  isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
               valueColor: AlwaysStoppedAnimation<Color>(
                 ratio > 0.9 ? AppColors.danger : AppColors.primaryTeal,
               ),
@@ -1524,7 +1553,6 @@ class _BudgetProgressBar extends StatelessWidget {
   }
 }
 
-/// Square Action Button
 class _SquareActionButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -1559,7 +1587,6 @@ class _SquareActionButton extends StatelessWidget {
   }
 }
 
-/// Pill Tab Bar (Matching Screenshot 3)
 class _PillTabBar extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onTabChanged;
@@ -1597,7 +1624,8 @@ class _PillTabBar extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primaryTeal : Colors.transparent,
+                  color:
+                      isSelected ? AppColors.primaryTeal : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: isSelected
                       ? [
@@ -1618,7 +1646,9 @@ class _PillTabBar extends StatelessWidget {
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
                         ? Colors.white
-                        : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                        : (isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary),
                   ),
                 ),
               ),
@@ -1630,7 +1660,6 @@ class _PillTabBar extends StatelessWidget {
   }
 }
 
-/// Sleek Dashboard App Bar (Matching Screenshot 3)
 class _TourDashboardAppBar extends StatelessWidget {
   final TourModel tour;
   final bool isAdmin;
@@ -1679,7 +1708,9 @@ class _TourDashboardAppBar extends StatelessWidget {
                 '${tour.status == TourStatus.active ? '🟢 Active' : '⚪ Completed'} · ${tour.currency} · ${DateFormat('MMM d').format(tour.startDate)}',
                 style: TextStyle(
                   fontSize: 12,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                   fontWeight: FontWeight.normal,
                 ),
               ),
@@ -1714,7 +1745,6 @@ class _TourDashboardAppBar extends StatelessWidget {
   }
 }
 
-/// Empty state when no expenses exist
 class _EmptyExpensesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1758,10 +1788,13 @@ class _EmptyExpensesCard extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: () => context.push('/expense/add'),
             icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-            label: const Text('Add Expense', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            label: const Text('Add Expense',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
           ),
@@ -1771,7 +1804,6 @@ class _EmptyExpensesCard extends StatelessWidget {
   }
 }
 
-/// Pending Approvals banner
 class _PendingApprovalsSection extends ConsumerWidget {
   final String tourId;
   final String currency;
@@ -1803,11 +1835,13 @@ class _PendingApprovalsSection extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.pending_actions_rounded, color: AppColors.warning),
+                  const Icon(Icons.pending_actions_rounded,
+                      color: AppColors.warning),
                   const SizedBox(width: 8),
                   Text(
                     '${pending.length} Pending Approval',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                 ],
               ),
@@ -1823,12 +1857,20 @@ class _PendingApprovalsSection extends ConsumerWidget {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.check_circle_outline, color: AppColors.positive),
-                          onPressed: () => ref.read(expenseRepositoryProvider).updateExpenseStatus(tourId, e.id, ExpenseStatus.approved),
+                          icon: const Icon(Icons.check_circle_outline,
+                              color: AppColors.positive),
+                          onPressed: () => ref
+                              .read(expenseRepositoryProvider)
+                              .updateExpenseStatus(
+                                  tourId, e.id, ExpenseStatus.approved),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.cancel_outlined, color: AppColors.negative),
-                          onPressed: () => ref.read(expenseRepositoryProvider).updateExpenseStatus(tourId, e.id, ExpenseStatus.rejected),
+                          icon: const Icon(Icons.cancel_outlined,
+                              color: AppColors.negative),
+                          onPressed: () => ref
+                              .read(expenseRepositoryProvider)
+                              .updateExpenseStatus(
+                                  tourId, e.id, ExpenseStatus.rejected),
                         ),
                       ],
                     ),
@@ -1841,7 +1883,6 @@ class _PendingApprovalsSection extends ConsumerWidget {
   }
 }
 
-/// Pending Join Requests Card on Dashboard
 class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
   final String tourId;
   final List<JoinRequestModel> requests;
@@ -1859,14 +1900,16 @@ class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.primaryTeal.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.4), width: 1.5),
+        border: Border.all(
+            color: AppColors.primaryTeal.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primaryTeal, size: 22),
+              const Icon(Icons.person_add_alt_1_rounded,
+                  color: AppColors.primaryTeal, size: 22),
               const SizedBox(width: 8),
               Text(
                 '${requests.length} Join Request${requests.length > 1 ? 's' : ''}',
@@ -1885,7 +1928,8 @@ class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
                 child: Row(
                   children: [
                     MemberAvatar(
-                      initials: r.displayName.isNotEmpty ? r.displayName[0] : '?',
+                      initials:
+                          r.displayName.isNotEmpty ? r.displayName[0] : '?',
                       photoUrl: r.photoUrl,
                       radius: 20,
                     ),
@@ -1896,17 +1940,20 @@ class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
                         children: [
                           Text(
                             r.displayName,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14),
                           ),
                           Text(
                             r.email,
-                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.grey),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: AppColors.danger),
+                      icon: const Icon(Icons.close_rounded,
+                          color: AppColors.danger),
                       tooltip: 'Reject',
                       onPressed: () => ref
                           .read(tourRepositoryProvider)
@@ -1916,12 +1963,18 @@ class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
                       onPressed: () => ref
                           .read(tourRepositoryProvider)
                           .approveJoinRequest(tourId: tourId, request: r),
-                      icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                      label: const Text('Approve', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.check_rounded,
+                          size: 16, color: Colors.white),
+                      label: const Text('Approve',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ],
@@ -1984,4 +2037,3 @@ class _ViewToggleButton extends StatelessWidget {
     );
   }
 }
-

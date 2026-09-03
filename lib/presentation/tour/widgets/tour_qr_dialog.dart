@@ -15,10 +15,12 @@ class TourQrDialog extends StatelessWidget {
     required this.inviteCode,
   });
 
-  static void show(BuildContext context, {required String tourName, required String inviteCode}) {
+  static void show(BuildContext context,
+      {required String tourName, required String inviteCode}) {
     showDialog(
       context: context,
-      builder: (ctx) => TourQrDialog(tourName: tourName, inviteCode: inviteCode),
+      builder: (ctx) =>
+          TourQrDialog(tourName: tourName, inviteCode: inviteCode),
     );
   }
 
@@ -68,13 +70,13 @@ class TourQrDialog extends StatelessWidget {
             Text(
               'Scan this code to join this tour instantly',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-
-            // QR Code Container
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -104,8 +106,6 @@ class TourQrDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Invite Code text display
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
@@ -126,8 +126,6 @@ class TourQrDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Action buttons
             Row(
               children: [
                 Expanded(

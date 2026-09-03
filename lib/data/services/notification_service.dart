@@ -14,15 +14,15 @@ class NotificationService {
 
   static Future<void> initialize() async {
     try {
-      // Request permission (with timeout — may hang on some devices/emulators)
       final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      ).timeout(const Duration(seconds: 5));
+      await messaging
+          .requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+          )
+          .timeout(const Duration(seconds: 5));
 
-      // Android init
       const androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosSettings = DarwinInitializationSettings(
@@ -38,26 +38,21 @@ class NotificationService {
         ),
       );
 
-      // Create notification channel on Android
       await _localNotifications
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_channel);
 
-      // Handle foreground FCM messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         _showLocalNotification(message);
       });
 
-      // Set foreground notification presentation for iOS
       await messaging.setForegroundNotificationPresentationOptions(
         alert: true,
         badge: true,
         sound: true,
       );
-    } catch (e) {
-      // Notification setup failed — app still functions normally without push notifications
-    }
+    } catch (e) {}
   }
 
   static Future<void> _showLocalNotification(RemoteMessage message) async {

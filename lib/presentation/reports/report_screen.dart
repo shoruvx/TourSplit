@@ -41,24 +41,29 @@ class ReportScreen extends ConsumerWidget {
         if (tour == null) return const Scaffold();
 
         return membersStream.when(
-          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
           data: (members) => expensesStream.when(
-            loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+            loading: () => const Scaffold(
+                body: Center(child: CircularProgressIndicator())),
             error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
             data: (expenses) => settlementsStream.when(
-              loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+              loading: () => const Scaffold(
+                  body: Center(child: CircularProgressIndicator())),
               error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
               data: (settlements) {
                 final approvedSettlements =
                     settlements.where((s) => s.isApproved).toList();
-                var balances = BalanceService.calculateBalances(members, expenses);
-                balances = BalanceService.applySettlements(balances, approvedSettlements);
+                var balances =
+                    BalanceService.calculateBalances(members, expenses);
+                balances = BalanceService.applySettlements(
+                    balances, approvedSettlements);
                 final debts = BalanceService.simplifyDebts(balances, members);
 
-                final totalSpent = expenses.fold(0.0, (sum, e) => sum + e.amount);
+                final totalSpent =
+                    expenses.fold(0.0, (sum, e) => sum + e.amount);
 
-                // Group by category
                 final byCategory = <String, double>{};
                 for (final e in expenses) {
                   byCategory[e.category] =
@@ -78,7 +83,6 @@ class ReportScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Summary card
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
@@ -109,13 +113,17 @@ class ReportScreen extends ConsumerWidget {
                               const SizedBox(height: 16),
                               Row(
                                 children: [
-                                  _StatChip(label: 'Total Spent',
-                                      value: '${tour.currencySymbol} ${totalSpent.toStringAsFixed(0)}'),
+                                  _StatChip(
+                                      label: 'Total Spent',
+                                      value:
+                                          '${tour.currencySymbol} ${totalSpent.toStringAsFixed(0)}'),
                                   const SizedBox(width: 12),
-                                  _StatChip(label: 'Expenses',
+                                  _StatChip(
+                                      label: 'Expenses',
                                       value: '${expenses.length}'),
                                   const SizedBox(width: 12),
-                                  _StatChip(label: 'Members',
+                                  _StatChip(
+                                      label: 'Members',
                                       value: '${members.length}'),
                                 ],
                               ),
@@ -123,16 +131,15 @@ class ReportScreen extends ConsumerWidget {
                           ),
                         ).animate().fadeIn().scale(),
                         const SizedBox(height: 24),
-
-                        // By category
                         Text('By Category',
-                            style: Theme.of(context).textTheme.titleMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 12),
                         ...byCategory.entries.map((e) {
-                          final pct = totalSpent > 0
-                              ? e.value / totalSpent
-                              : 0.0;
+                          final pct =
+                              totalSpent > 0 ? e.value / totalSpent : 0.0;
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: Row(
@@ -149,11 +156,10 @@ class ReportScreen extends ConsumerWidget {
                                     child: LinearProgressIndicator(
                                       value: pct,
                                       minHeight: 8,
-                                      backgroundColor: Theme.of(context)
-                                          .dividerColor,
-                                      valueColor:
-                                          const AlwaysStoppedAnimation(
-                                              AppColors.primaryBlue),
+                                      backgroundColor:
+                                          Theme.of(context).dividerColor,
+                                      valueColor: const AlwaysStoppedAnimation(
+                                          AppColors.primaryBlue),
                                     ),
                                   ),
                                 ),
@@ -170,13 +176,16 @@ class ReportScreen extends ConsumerWidget {
                           );
                         }),
                         const SizedBox(height: 24),
-
-                        // Daily Expense Ledger (Day 1, Day 2, etc.)
                         Text('Daily Expense Ledger',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700, fontFamily: 'Outfit')),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Outfit')),
                         const SizedBox(height: 12),
-                        ..._groupExpensesByDay(expenses, tour.startDate).map((g) {
+                        ..._groupExpensesByDay(expenses, tour.startDate)
+                            .map((g) {
                           return DaySummaryTable(
                             dayNumber: g.dayNumber,
                             date: g.date,
@@ -185,10 +194,10 @@ class ReportScreen extends ConsumerWidget {
                           );
                         }),
                         const SizedBox(height: 20),
-
-                        // Final Balances
                         Text('Final Balances',
-                            style: Theme.of(context).textTheme.titleMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 12),
                         ...members.map((m) {
@@ -196,12 +205,11 @@ class ReportScreen extends ConsumerWidget {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(m.displayName,
-                                    style: const TextStyle(
-                                        fontFamily: 'Outfit')),
+                                    style:
+                                        const TextStyle(fontFamily: 'Outfit')),
                                 Text(
                                   b == 0
                                       ? 'Settled'
@@ -221,12 +229,18 @@ class ReportScreen extends ConsumerWidget {
                           );
                         }),
                         const SizedBox(height: 32),
-
                         GradientButton(
                           onPressed: () => _generateAndSharePdf(
-                              context, tour.name, tour.startDate, expenses, members,
-                              balances, debts, tour.currencySymbol,
-                              byCategory, totalSpent),
+                              context,
+                              tour.name,
+                              tour.startDate,
+                              expenses,
+                              members,
+                              balances,
+                              debts,
+                              tour.currencySymbol,
+                              byCategory,
+                              totalSpent),
                           label: 'Export PDF Report',
                           icon: Icons.picture_as_pdf_rounded,
                         ).animate().fadeIn(delay: 200.ms),
@@ -243,9 +257,10 @@ class ReportScreen extends ConsumerWidget {
     );
   }
 
-  static List<({int dayNumber, DateTime date, List<ExpenseModel> expenses})> _groupExpensesByDay(
-      List<ExpenseModel> expenses, DateTime tourStartDate) {
-    final baseDate = DateTime(tourStartDate.year, tourStartDate.month, tourStartDate.day);
+  static List<({int dayNumber, DateTime date, List<ExpenseModel> expenses})>
+      _groupExpensesByDay(List<ExpenseModel> expenses, DateTime tourStartDate) {
+    final baseDate =
+        DateTime(tourStartDate.year, tourStartDate.month, tourStartDate.day);
     final map = <DateTime, List<ExpenseModel>>{};
 
     for (final exp in expenses) {
@@ -254,7 +269,8 @@ class ReportScreen extends ConsumerWidget {
     }
 
     final sortedDates = map.keys.toList()..sort();
-    final result = <({int dayNumber, DateTime date, List<ExpenseModel> expenses})>[];
+    final result =
+        <({int dayNumber, DateTime date, List<ExpenseModel> expenses})>[];
 
     for (final date in sortedDates) {
       final diffDays = date.difference(baseDate).inDays;
@@ -287,10 +303,10 @@ class ReportScreen extends ConsumerWidget {
       margin: const pw.EdgeInsets.all(32),
       build: (ctx) => [
         pw.Text(tourName,
-            style: pw.TextStyle(
-                fontSize: 26, fontWeight: pw.FontWeight.bold)),
+            style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 6),
-        pw.Text('Tour Expense Report — Generated ${DateFormat('MMM d, y').format(DateTime.now())}',
+        pw.Text(
+            'Tour Expense Report — Generated ${DateFormat('MMM d, y').format(DateTime.now())}',
             style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
         pw.SizedBox(height: 16),
         pw.Divider(),
@@ -298,7 +314,8 @@ class ReportScreen extends ConsumerWidget {
         pw.Text('SUMMARY',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
         pw.SizedBox(height: 6),
-        pw.Text('Total Spent: $currencySymbol ${totalSpent.toStringAsFixed(2)}'),
+        pw.Text(
+            'Total Spent: $currencySymbol ${totalSpent.toStringAsFixed(2)}'),
         pw.Text('Total Expenses: ${expenses.length}'),
         pw.Text('Members: ${members.length}'),
         pw.SizedBox(height: 16),
@@ -344,28 +361,32 @@ class ReportScreen extends ConsumerWidget {
           ...debts.map((d) => pw.Text(
               '${d.fromUserName} → ${d.toUserName}: $currencySymbol ${d.amount.toStringAsFixed(2)}')),
         pw.SizedBox(height: 20),
-
-        // SPREADSHEET DAY-BY-DAY TABLES
         pw.Text('DAILY EXPENSE LEDGER',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
         pw.SizedBox(height: 8),
-
         ...dayGroups.expand((g) {
           final dayTotal = g.expenses.fold(0.0, (s, e) => s + e.amount);
           return [
             pw.Container(
               color: PdfColor.fromHex('00897B'),
-              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding:
+                  const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(
                     'Day ${g.dayNumber} (${DateFormat('EEEE, MMM d').format(g.date)})',
-                    style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 11),
+                    style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 11),
                   ),
                   pw.Text(
                     'Total: $currencySymbol ${dayTotal.toStringAsFixed(2)}',
-                    style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 11),
+                    style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 11),
                   ),
                 ],
               ),
@@ -378,19 +399,29 @@ class ReportScreen extends ConsumerWidget {
                   children: [
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('Expense Item', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      child: pw.Text('Expense Item',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('Cost', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      child: pw.Text('Cost',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('Payment Made by', textAlign: pw.TextAlign.center, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      child: pw.Text('Payment Made by',
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('Notes', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      child: pw.Text('Notes',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     ),
                   ],
                 ),
@@ -403,19 +434,26 @@ class ReportScreen extends ConsumerWidget {
                     children: [
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(e.title, style: const pw.TextStyle(fontSize: 9)),
+                        child: pw.Text(e.title,
+                            style: const pw.TextStyle(fontSize: 9)),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text('$currencySymbol ${e.amount.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 9)),
+                        child: pw.Text(
+                            '$currencySymbol ${e.amount.toStringAsFixed(2)}',
+                            textAlign: pw.TextAlign.right,
+                            style: const pw.TextStyle(fontSize: 9)),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(payer, textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 9)),
+                        child: pw.Text(payer,
+                            textAlign: pw.TextAlign.center,
+                            style: const pw.TextStyle(fontSize: 9)),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(notes, style: const pw.TextStyle(fontSize: 9)),
+                        child: pw.Text(notes,
+                            style: const pw.TextStyle(fontSize: 9)),
                       ),
                     ],
                   );
@@ -454,9 +492,7 @@ class _StatChip extends StatelessWidget {
                 color: Colors.white)),
         Text(label,
             style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 11,
-                color: Colors.white70)),
+                fontFamily: 'Outfit', fontSize: 11, color: Colors.white70)),
       ],
     );
   }

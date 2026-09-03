@@ -3,7 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isLoggedIn() {
       return request.auth != null;
     }
@@ -17,61 +16,50 @@ service cloud.firestore {
         request.auth.uid == get(/databases/$(database)/documents/tours/$(tourId)).data.adminId;
     }
 
-    // Users collection
     match /users/{userId} {
       allow read: if isLoggedIn();
       allow create, update: if isOwner(userId);
       allow delete: if false;
     }
 
-    // Tours collection
     match /tours/{tourId} {
-      // Logged in users can read tour info (needed for invite code lookup)
       allow read: if isLoggedIn();
       allow create: if isLoggedIn();
-      // Any logged in user can update (needed to join tour by adding themselves to members)
       allow update: if isLoggedIn();
       allow delete: if isTourAdmin(tourId);
 
-      // Members subcollection
       match /members/{memberId} {
         allow read: if isLoggedIn();
         allow create, update: if isLoggedIn();
         allow delete: if isTourAdmin(tourId);
       }
 
-      // Expenses subcollection
       match /expenses/{expenseId} {
         allow read, create, update: if isLoggedIn();
         allow delete: if isTourAdmin(tourId);
       }
 
-      // Settlements subcollection
       match /settlements/{settlementId} {
         allow read, create, update: if isLoggedIn();
         allow delete: if isTourAdmin(tourId);
       }
 
-      // Categories subcollection
       match /categories/{categoryId} {
         allow read: if isLoggedIn();
         allow create, update, delete: if isTourAdmin(tourId);
       }
 
-      // Join requests subcollection
       match /join_requests/{requestId} {
         allow read, create, update, delete: if isLoggedIn();
       }
     }
 
-    // Invites collection
     match /invites/{inviteId} {
       allow create: if isLoggedIn();
       allow update: if isLoggedIn();
       allow delete: if false;
     }
 
-    // App config & update versions
     match /app_config/{configId} {
       allow read: if true;
       allow write: if isLoggedIn();

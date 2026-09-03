@@ -21,12 +21,11 @@ import '../../presentation/settlement/settlement_screen.dart';
 import '../../presentation/reports/report_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 
-/// A ChangeNotifier that wraps a Riverpod ref so GoRouter can
-/// listen for auth changes without recreating the router.
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this._ref) {
     _ref.listen<AsyncValue>(authStateProvider, (_, next) {
-      debugPrint('[ROUTER] authState changed: ${next.valueOrNull?.email ?? "null (signed out)"}');
+      debugPrint(
+          '[ROUTER] authState changed: ${next.valueOrNull?.email ?? "null (signed out)"}');
       notifyListeners();
     });
   }
@@ -45,22 +44,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authStateProvider);
       final currentUser = FirebaseAuth.instance.currentUser;
       final isLoggedIn = currentUser != null || authState.valueOrNull != null;
-      debugPrint('[ROUTER] redirect check for ${state.matchedLocation} (currentUser: ${currentUser?.email}, loggedIn: $isLoggedIn, auth loading: ${authState.isLoading})');
+      debugPrint(
+          '[ROUTER] redirect check for ${state.matchedLocation} (currentUser: ${currentUser?.email}, loggedIn: $isLoggedIn, auth loading: ${authState.isLoading})');
 
       final isAuthRoute = state.matchedLocation.startsWith('/login') ||
           state.matchedLocation.startsWith('/register') ||
           state.matchedLocation.startsWith('/forgot-password');
 
-      // If user is already logged in and on an auth screen, send straight to /home
       if (isLoggedIn && isAuthRoute) return '/home';
 
-      // If definitely logged out, send to login
       if (!isLoggedIn && !authState.isLoading && !isAuthRoute) return '/login';
 
       return null;
     },
     routes: [
-      // Auth routes
       GoRoute(
         path: '/login',
         name: 'login',
@@ -76,15 +73,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
-
-      // Main app
       GoRoute(
         path: '/home',
         name: 'home',
         builder: (context, state) => const HomeScreen(),
       ),
-
-      // Tour routes
       GoRoute(
         path: '/tours',
         name: 'all-tours',
@@ -110,8 +103,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'tour-members',
         builder: (context, state) => const MemberManagementScreen(),
       ),
-
-      // Expense routes
       GoRoute(
         path: '/expense/add',
         name: 'add-expense',
@@ -132,8 +123,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           expenseId: state.pathParameters['expenseId']!,
         ),
       ),
-
-      // Balance & Settlement
       GoRoute(
         path: '/balance',
         name: 'balance',
@@ -144,15 +133,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'settlement',
         builder: (context, state) => const SettlementScreen(),
       ),
-
-      // Reports
       GoRoute(
         path: '/reports',
         name: 'reports',
         builder: (context, state) => const ReportScreen(),
       ),
-
-      // Profile
       GoRoute(
         path: '/profile',
         name: 'profile',

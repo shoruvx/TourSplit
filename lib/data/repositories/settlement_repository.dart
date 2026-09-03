@@ -75,14 +75,14 @@ class SettlementRepository {
 final settlementRepositoryProvider =
     Provider<SettlementRepository>((_) => SettlementRepository());
 
-/// Stream all settlements for a tour
 final tourSettlementsStreamProvider =
     StreamProvider.family<List<SettlementModel>, String>((ref, tourId) {
   return ref.watch(settlementRepositoryProvider).watchSettlements(tourId);
 });
 
-/// Stream pending settlements
 final pendingSettlementsStreamProvider =
     StreamProvider.family<List<SettlementModel>, String>((ref, tourId) {
-  return ref.watch(settlementRepositoryProvider).watchPendingSettlements(tourId);
+  return ref
+      .watch(settlementRepositoryProvider)
+      .watchPendingSettlements(tourId);
 });

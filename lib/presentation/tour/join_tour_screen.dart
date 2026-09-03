@@ -18,7 +18,7 @@ class JoinTourScreen extends ConsumerStatefulWidget {
 }
 
 class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
-  int _selectedTab = 0; // 0 = Enter Code, 1 = Scan QR
+  int _selectedTab = 0;
   final List<TextEditingController> _codeControllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
@@ -61,12 +61,12 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
       if (tour == null) {
         setState(() {
           _selectedTab = 0;
-          _errorMessage = 'No tour found with this code. Please check and try again.';
+          _errorMessage =
+              'No tour found with this code. Please check and try again.';
         });
         return;
       }
 
-      // If already a full member, switch active tour immediately
       if (tour.memberIds.contains(user.uid)) {
         await tourRepo.switchActiveTour(user.uid, tour.id);
         if (mounted) {
@@ -81,7 +81,6 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         return;
       }
 
-      // Join tour directly and set active tour immediately
       await tourRepo.joinTour(
         tourId: tour.id,
         user: user,
@@ -127,13 +126,15 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // Segmented Tab Selector (Code / QR)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurface : const Color(0xFFE2E8F0),
+                    color: isDark
+                        ? AppColors.darkSurface
+                        : const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -158,8 +159,6 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
                   ),
                 ),
               ),
-
-              // Tab Body
               Expanded(
                 child: _selectedTab == 0
                     ? _buildCodeInputView(theme, isDark)
@@ -188,8 +187,6 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
             ),
           ),
           const SizedBox(height: 32),
-
-          // 6 PIN boxes
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Row(
@@ -199,58 +196,59 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
                   width: 46,
                   height: 56,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                child: TextFormField(
-                  controller: _codeControllers[i],
-                  focusNode: _focusNodes[i],
-                  textAlign: TextAlign.center,
-                  textCapitalization: TextCapitalization.characters,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryTeal,
-                  ),
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(1),
-                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-                  ],
-                  decoration: InputDecoration(
-                    contentPadding: EdgeInsets.zero,
-                    filled: true,
-                    fillColor: isDark ? AppColors.darkSurface : Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  child: TextFormField(
+                    controller: _codeControllers[i],
+                    focusNode: _focusNodes[i],
+                    textAlign: TextAlign.center,
+                    textCapitalization: TextCapitalization.characters,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryTeal,
+                    ),
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(1),
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                    ],
+                    decoration: InputDecoration(
+                      contentPadding: EdgeInsets.zero,
+                      filled: true,
+                      fillColor: isDark ? AppColors.darkSurface : Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryTeal,
+                          width: 2,
+                        ),
                       ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: AppColors.primaryTeal,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                  onChanged: (val) {
-                    if (val.isNotEmpty) {
-                      _codeControllers[i].text = val.toUpperCase();
-                      if (i < 5) {
-                        _focusNodes[i + 1].requestFocus();
-                      } else {
-                        _focusNodes[i].unfocus();
-                        _submitCode(_enteredCode);
+                    onChanged: (val) {
+                      if (val.isNotEmpty) {
+                        _codeControllers[i].text = val.toUpperCase();
+                        if (i < 5) {
+                          _focusNodes[i + 1].requestFocus();
+                        } else {
+                          _focusNodes[i].unfocus();
+                          _submitCode(_enteredCode);
+                        }
+                      } else if (i > 0) {
+                        _focusNodes[i - 1].requestFocus();
                       }
-                    } else if (i > 0) {
-                      _focusNodes[i - 1].requestFocus();
-                    }
-                  },
-                ),
-              );
-            }),
+                    },
+                  ),
+                );
+              }),
             ),
           ),
-
           if (_errorMessage != null) ...[
             const SizedBox(height: 20),
             Container(
@@ -258,7 +256,8 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
               decoration: BoxDecoration(
                 color: AppColors.danger.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -268,14 +267,14 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: const TextStyle(color: AppColors.danger, fontSize: 13),
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
           ],
-
           const SizedBox(height: 40),
           GradientButton(
             onPressed: () => _submitCode(_enteredCode),

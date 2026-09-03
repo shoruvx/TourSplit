@@ -21,12 +21,14 @@ class MemberAvatar extends StatelessWidget {
       return CircleAvatar(
         radius: radius,
         backgroundImage: NetworkImage(photoUrl!),
-        backgroundColor: backgroundColor ?? AppColors.primaryBlue.withOpacity(0.2),
+        backgroundColor:
+            backgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.2),
       );
     }
     return CircleAvatar(
       radius: radius,
-      backgroundColor: backgroundColor ?? AppColors.primaryBlue.withOpacity(0.15),
+      backgroundColor:
+          backgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.15),
       child: Text(
         initials,
         style: TextStyle(
@@ -40,7 +42,6 @@ class MemberAvatar extends StatelessWidget {
   }
 }
 
-/// A row of overlapping member avatars
 class MemberAvatarStack extends StatelessWidget {
   final List<String> initials;
   final List<String?> photoUrls;
@@ -62,7 +63,8 @@ class MemberAvatarStack extends StatelessWidget {
 
     return SizedBox(
       height: radius * 2,
-      width: visible.length * (radius * 1.4) + (overflow > 0 ? radius * 1.6 : 0),
+      width:
+          visible.length * (radius * 1.4) + (overflow > 0 ? radius * 1.6 : 0),
       child: Stack(
         children: [
           ...List.generate(visible.length, (i) {

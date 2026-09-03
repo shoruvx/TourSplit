@@ -25,7 +25,8 @@ class AppUpdateInfo {
       latestVersion: data['latestVersion'] ?? '1.0.0',
       buildNumber: (data['buildNumber'] as num?)?.toInt() ?? 1,
       minSupportedVersion: data['minSupportedVersion'] ?? '1.0.0',
-      releaseNotes: data['releaseNotes'] ?? 'Bug fixes and performance improvements.',
+      releaseNotes:
+          data['releaseNotes'] ?? 'Bug fixes and performance improvements.',
       apkUrl: data['apkUrl'] ?? '',
       forceUpdate: data['forceUpdate'] ?? false,
       releasedAt: (data['releasedAt'] as Timestamp?)?.toDate(),
@@ -39,6 +40,8 @@ class AppUpdateInfo {
         'releaseNotes': releaseNotes,
         'apkUrl': apkUrl,
         'forceUpdate': forceUpdate,
-        'releasedAt': releasedAt != null ? Timestamp.fromDate(releasedAt!) : FieldValue.serverTimestamp(),
+        'releasedAt': releasedAt != null
+            ? Timestamp.fromDate(releasedAt!)
+            : FieldValue.serverTimestamp(),
       };
 }

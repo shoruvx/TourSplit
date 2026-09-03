@@ -9,7 +9,6 @@ import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/services/notification_service.dart';
 
-/// Background FCM message handler (must be top-level)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -19,31 +18,24 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   debugPrint('[APP] main() started');
 
-  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   debugPrint('[APP] Firebase initialized');
 
-  // Initialize Hive for local offline cache
   await Hive.initFlutter();
   debugPrint('[APP] Hive initialized');
 
-  // Set up background FCM handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   debugPrint('[APP] calling runApp()');
-  // Launch the app immediately — don't block on notification setup
-  // (FCM/Play Services may hang on some devices)
   runApp(
     const ProviderScope(
       child: TourExpenseTrackerApp(),
     ),
   );
 
-  // Initialize notifications in the background, non-blocking
   NotificationService.initialize().catchError((e) {
-    // Notification setup failed — app still works without it
     debugPrint('[APP] NotificationService init failed: $e');
   });
 }
@@ -64,7 +56,6 @@ class TourExpenseTrackerApp extends ConsumerWidget {
       themeMode: ThemeMode.system,
       routerConfig: router,
       builder: (context, child) {
-        // Catch widget errors visually
         ErrorWidget.builder = (details) {
           debugPrint('[APP] Widget error: ${details.exception}');
           return Material(

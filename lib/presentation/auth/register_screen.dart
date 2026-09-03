@@ -48,7 +48,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _errorMessage = null;
     });
     try {
-      // Check username availability
       final isAvailable = await ref
           .read(authServiceProvider)
           .isUsernameAvailable(_usernameCtrl.text.trim());
@@ -130,7 +129,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         fit: BoxFit.cover,
                       ),
                     ),
-                  ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.8, 0.8)),
+                  )
+                      .animate()
+                      .fadeIn(duration: 400.ms)
+                      .scale(begin: const Offset(0.8, 0.8)),
                 ),
                 const SizedBox(height: 16),
                 Center(
@@ -152,19 +154,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           fontFamily: 'Outfit',
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFF5EEAD4) : const Color(0xFF0D9488),
+                          color: isDark
+                              ? const Color(0xFF5EEAD4)
+                              : const Color(0xFF0D9488),
                         ),
                       ).animate().fadeIn(delay: 100.ms),
                     ],
                   ),
                 ),
                 const SizedBox(height: 28),
-
                 Form(
                   key: _formKey,
                   child: Column(
                     children: [
-                      // First + Last Name row
                       Row(
                         children: [
                           Expanded(
@@ -174,9 +176,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               hint: 'John',
                               prefixIcon: Icons.person_outline,
                               textCapitalization: TextCapitalization.words,
-                              validator: (v) => v == null || v.isEmpty
-                                  ? 'Required'
-                                  : null,
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -186,9 +187,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               label: 'Last Name',
                               hint: 'Doe',
                               textCapitalization: TextCapitalization.words,
-                              validator: (v) => v == null || v.isEmpty
-                                  ? 'Required'
-                                  : null,
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                             ),
                           ),
                         ],
@@ -200,7 +200,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         hint: 'johndoe',
                         prefixIcon: Icons.alternate_email_rounded,
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Username is required';
+                          if (v == null || v.isEmpty)
+                            return 'Username is required';
                           if (v.length < 3) return 'At least 3 characters';
                           if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v))
                             return 'Only letters, numbers and _';
@@ -215,7 +216,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         keyboardType: TextInputType.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Email is required';
+                          if (v == null || v.isEmpty)
+                            return 'Email is required';
                           if (!v.contains('@')) return 'Enter a valid email';
                           return null;
                         },
@@ -233,11 +235,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 ? Icons.visibility_off_outlined
                                 : Icons.visibility_outlined,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscurePassword = !_obscurePassword),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Password is required';
+                          if (v == null || v.isEmpty)
+                            return 'Password is required';
                           if (v.length < 6) return 'At least 6 characters';
                           return null;
                         },
@@ -255,16 +258,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 ? Icons.visibility_off_outlined
                                 : Icons.visibility_outlined,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscureConfirm = !_obscureConfirm),
+                          onPressed: () => setState(
+                              () => _obscureConfirm = !_obscureConfirm),
                         ),
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (v != _passwordCtrl.text) return 'Passwords do not match';
+                          if (v != _passwordCtrl.text)
+                            return 'Passwords do not match';
                           return null;
                         },
                       ).animate().fadeIn(delay: 350.ms, duration: 300.ms),
-
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 16),
                         Container(
@@ -283,8 +286,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               Expanded(
                                 child: Text(
                                   _errorMessage!,
-                                  style:
-                                      TextStyle(color: AppColors.danger, fontSize: 13),
+                                  style: TextStyle(
+                                      color: AppColors.danger, fontSize: 13),
                                 ),
                               ),
                             ],
@@ -300,7 +303,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 24),
                 Center(
                   child: Row(
@@ -313,7 +315,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       TextButton(
                         onPressed: () => context.go('/login'),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),

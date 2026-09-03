@@ -14,8 +14,7 @@ class TourSettingsScreen extends ConsumerStatefulWidget {
   const TourSettingsScreen({super.key});
 
   @override
-  ConsumerState<TourSettingsScreen> createState() =>
-      _TourSettingsScreenState();
+  ConsumerState<TourSettingsScreen> createState() => _TourSettingsScreenState();
 }
 
 class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
@@ -68,8 +67,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel')),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('End Tour'),
           ),
@@ -82,8 +80,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     }
   }
 
-  Future<void> _deleteTour(BuildContext context, String tourId, String tourName) async {
-    // Step 1: Warn the user
+  Future<void> _deleteTour(
+      BuildContext context, String tourId, String tourName) async {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -92,7 +90,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
           children: [
             const Icon(Icons.delete_forever_rounded, color: AppColors.danger),
             const SizedBox(width: 8),
-            const Text('Delete Tour?', style: TextStyle(color: AppColors.danger)),
+            const Text('Delete Tour?',
+                style: TextStyle(color: AppColors.danger)),
           ],
         ),
         content: Text(
@@ -112,14 +111,15 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     );
     if (proceed != true || !mounted) return;
 
-    // Step 2: Confirm by typing tour name
     final confirmCtrl = TextEditingController();
     final typed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Confirm Deletion', style: TextStyle(color: AppColors.danger)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Confirm Deletion',
+              style: TextStyle(color: AppColors.danger)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,7 +132,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                 onChanged: (_) => setS(() {}),
                 decoration: InputDecoration(
                   hintText: tourName,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -242,12 +243,9 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                   const Divider(),
                   const SizedBox(height: 16),
                   Text('Danger Zone',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(
-                              color: AppColors.danger,
-                              fontWeight: FontWeight.w700)),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppColors.danger,
+                          fontWeight: FontWeight.w700)),
                   if (!tour.isActive)
                     OutlinedButton.icon(
                       onPressed: () async {

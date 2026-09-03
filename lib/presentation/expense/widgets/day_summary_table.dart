@@ -35,8 +35,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
     _isExpanded = widget.initialExpanded;
   }
 
-  double get _dayTotal =>
-      widget.expenses.fold(0.0, (sum, e) => sum + e.amount);
+  double get _dayTotal => widget.expenses.fold(0.0, (sum, e) => sum + e.amount);
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +62,6 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Interactive Day Header Bar (Tapping collapses/expands)
           InkWell(
             onTap: () {
               setState(() => _isExpanded = !_isExpanded);
@@ -103,7 +101,8 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(8),
@@ -136,8 +135,6 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
               ),
             ),
           ),
-
-          // 2. Collapsible Body (Table headers & rows)
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
             crossFadeState: _isExpanded
@@ -147,14 +144,18 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
             secondChild: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Table Column Headers
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
                     border: Border(
                       bottom: BorderSide(
-                        color: isDark ? AppColors.darkBorder : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : const Color(0xFFCBD5E1),
                         width: 1,
                       ),
                     ),
@@ -169,7 +170,9 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                             fontFamily: 'Outfit',
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ),
@@ -182,7 +185,9 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                             fontFamily: 'Outfit',
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ),
@@ -196,7 +201,9 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                             fontFamily: 'Outfit',
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ),
@@ -209,25 +216,28 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                             fontFamily: 'Outfit',
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-
-                // Table Rows
                 ...widget.expenses.asMap().entries.map((entry) {
                   final idx = entry.key;
                   final exp = entry.value;
                   final isEven = idx % 2 == 0;
                   final rowBg = isDark
-                      ? (isEven ? Colors.transparent : Colors.white.withValues(alpha: 0.03))
+                      ? (isEven
+                          ? Colors.transparent
+                          : Colors.white.withValues(alpha: 0.03))
                       : (isEven ? Colors.white : const Color(0xFFF8FAFC));
 
                   final payerName = exp.paidByName.split(' ').first;
-                  final note = exp.description != null && exp.description!.trim().isNotEmpty
+                  final note = exp.description != null &&
+                          exp.description!.trim().isNotEmpty
                       ? exp.description!.trim()
                       : (exp.category != 'Other' ? exp.category : '');
 
@@ -236,12 +246,15 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                         ? () => widget.onExpenseTap!(exp)
                         : null,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: rowBg,
                         border: Border(
                           bottom: BorderSide(
-                            color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : const Color(0xFFE2E8F0),
                             width: 0.8,
                           ),
                         ),
@@ -249,7 +262,6 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Expense Item
                           Expanded(
                             flex: 5,
                             child: Text(
@@ -258,18 +270,19 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                                 fontFamily: 'Outfit',
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? AppColors.darkText : const Color(0xFF0F172A),
+                                color: isDark
+                                    ? AppColors.darkText
+                                    : const Color(0xFF0F172A),
                               ),
                             ),
                           ),
-
-                          // Cost
                           Expanded(
                             flex: 4,
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: isDark
                                       ? const Color(0xFF0F2E28)
@@ -277,7 +290,8 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
                                     color: isDark
-                                        ? const Color(0xFF10B981).withValues(alpha: 0.45)
+                                        ? const Color(0xFF10B981)
+                                            .withValues(alpha: 0.45)
                                         : const Color(0xFFA7F3D0),
                                     width: 1,
                                   ),
@@ -290,15 +304,15 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                                     fontFamily: 'Outfit',
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
-                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF065F46),
+                                    color: isDark
+                                        ? const Color(0xFF34D399)
+                                        : const Color(0xFF065F46),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-
-                          // Payer
                           Expanded(
                             flex: 3,
                             child: Text(
@@ -307,13 +321,13 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                               style: TextStyle(
                                 fontFamily: 'Outfit',
                                 fontSize: 12,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                color: isDark
+                                    ? const Color(0xFFCBD5E1)
+                                    : const Color(0xFF334155),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-
-                          // Notes
                           Expanded(
                             flex: 3,
                             child: Text(
@@ -322,7 +336,9 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                               style: TextStyle(
                                 fontFamily: 'Outfit',
                                 fontSize: 11,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
                                 fontStyle: FontStyle.italic,
                               ),
                               maxLines: 2,

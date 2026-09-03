@@ -6,12 +6,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../../core/constants/app_constants.dart';
 
-/// Reactive stream of the current Firebase auth user
 final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
 });
 
-/// Provider for the current logged-in UserModel from Firestore
 final currentUserProvider = StreamProvider<UserModel?>((ref) {
   final authState = ref.watch(authStateProvider);
   return authState.when(
@@ -25,7 +23,6 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
         if (doc.exists) {
           return UserModel.fromFirestore(doc);
         } else {
-          // Document missing in Firestore: auto-create profile from auth credentials
           final nameParts = (user.displayName ?? '').split(' ');
           final emailPrefix = (user.email ?? 'user').split('@').first;
           final userModel = UserModel(
@@ -51,7 +48,7 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
         }
       });
     },
-    loading: () => const Stream.empty(), // Stay in loading until auth emits
+    loading: () => const Stream.empty(),
     error: (_, __) => Stream.value(null),
   );
 });
@@ -64,7 +61,6 @@ class AuthService {
         '57491876636-hssqr3kr22ul02175nrufl5953h88po6.apps.googleusercontent.com',
   );
 
-  /// Register with email + password, save user doc to Firestore
   Future<UserModel> registerWithEmail({
     required String email,
     required String password,
@@ -78,7 +74,6 @@ class AuthService {
     );
     final user = credential.user!;
 
-    // Update display name
     await user.updateDisplayName('$firstName $lastName');
 
     final userModel = UserModel(
@@ -98,7 +93,6 @@ class AuthService {
     return userModel;
   }
 
-  /// Sign in with email + password — creates Firestore doc if missing
   Future<User> signInWithEmail({
     required String email,
     required String password,
@@ -109,7 +103,6 @@ class AuthService {
     );
     final user = credential.user!;
 
-    // Ensure Firestore user document exists (may be missing if created before rules were set)
     final doc = await _firestore
         .collection(AppConstants.usersCollection)
         .doc(user.uid)
@@ -121,7 +114,8 @@ class AuthService {
         uid: user.uid,
         email: email,
         username: email.split('@').first.toLowerCase(),
-        firstName: nameParts.isNotEmpty ? nameParts.first : email.split('@').first,
+        firstName:
+            nameParts.isNotEmpty ? nameParts.first : email.split('@').first,
         lastName: nameParts.length > 1 ? nameParts.last : '',
         createdAt: DateTime.now(),
       );
@@ -134,7 +128,6 @@ class AuthService {
     return user;
   }
 
-  /// Sign in with Google
   Future<UserModel?> signInWithGoogle() async {
     final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return null;
@@ -148,14 +141,12 @@ class AuthService {
     final userCredential = await _auth.signInWithCredential(credential);
     final user = userCredential.user!;
 
-    // Check if user exists in Firestore
     final doc = await _firestore
         .collection(AppConstants.usersCollection)
         .doc(user.uid)
         .get();
 
     if (!doc.exists) {
-      // New Google user — create profile
       final nameParts = (user.displayName ?? '').split(' ');
       final firstName = nameParts.isNotEmpty ? nameParts.first : '';
       final lastName = nameParts.length > 1 ? nameParts.last : '';
@@ -181,18 +172,15 @@ class AuthService {
     return UserModel.fromFirestore(doc);
   }
 
-  /// Send password reset email
   Future<void> sendPasswordResetEmail(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
-  /// Sign out from Firebase and Google
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
 
-  /// Update FCM token in user doc
   Future<void> updateFcmToken(String uid, String token) async {
     await _firestore
         .collection(AppConstants.usersCollection)
@@ -200,7 +188,6 @@ class AuthService {
         .update({'fcmToken': token});
   }
 
-  /// Check if username is available
   Future<bool> isUsernameAvailable(String username) async {
     try {
       final query = await _firestore
@@ -210,7 +197,7 @@ class AuthService {
           .get();
       return query.docs.isEmpty;
     } catch (_) {
-      return true; // Allow registration if rules restrict unauthenticated user queries
+      return true;
     }
   }
 

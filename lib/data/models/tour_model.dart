@@ -61,11 +61,9 @@ class TourModel {
       status: data['status'] == 'completed'
           ? TourStatus.completed
           : TourStatus.active,
-      startDate:
-          (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startDate: (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       endDate: (data['endDate'] as Timestamp?)?.toDate(),
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       memberIds: List<String>.from(data['members'] ?? []),
       adminIds: rawAdminIds,
       budget: (data['budget'] as num?)?.toDouble(),
@@ -121,9 +119,9 @@ class TourMemberModel {
   final String displayName;
   final String email;
   final String? photoUrl;
-  final String role; // 'admin' | 'member'
+  final String role;
   final DateTime joinedAt;
-  final double balance; // positive = owed, negative = owes
+  final double balance;
 
   const TourMemberModel({
     required this.userId,
@@ -194,7 +192,7 @@ class JoinRequestModel {
   final String displayName;
   final String email;
   final String? photoUrl;
-  final String status; // 'pending', 'approved', 'rejected'
+  final String status;
   final DateTime requestedAt;
 
   const JoinRequestModel({
@@ -232,7 +230,8 @@ class JoinRequestModel {
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'],
       status: data['status'] ?? 'pending',
-      requestedAt: (data['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      requestedAt:
+          (data['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -247,4 +246,3 @@ class JoinRequestModel {
         'requestedAt': Timestamp.fromDate(requestedAt),
       };
 }
-

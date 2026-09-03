@@ -61,7 +61,8 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
     if (direct.length == 6 && RegExp(r'^[A-Z0-9]{6}$').hasMatch(direct)) {
       return direct;
     }
-    final match = RegExp(r'\b([A-Z0-9]{6})\b', caseSensitive: false).firstMatch(clean);
+    final match =
+        RegExp(r'\b([A-Z0-9]{6})\b', caseSensitive: false).firstMatch(clean);
     if (match != null) {
       return match.group(1)!.toUpperCase();
     }
@@ -75,7 +76,6 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Camera Viewport
           MobileScanner(
             controller: _controller,
             onDetect: _handleBarcode,
@@ -87,16 +87,19 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 48),
+                      const Icon(Icons.camera_alt_outlined,
+                          color: Colors.white70, size: 48),
                       const SizedBox(height: 12),
                       const Text(
                         'Camera permission needed',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Please allow camera access to scan QR codes: ${error.errorDetails?.message ?? error.toString()}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -105,8 +108,6 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
               );
             },
           ),
-
-          // Scanner Target Frame Overlay
           Container(
             width: 220,
             height: 220,
@@ -122,8 +123,6 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
               ],
             ),
           ),
-
-          // Top Controls (Torch & Flip Camera)
           Positioned(
             top: 16,
             right: 16,
@@ -140,7 +139,9 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
                       final isOn = state.torchState == TorchState.on;
                       return IconButton(
                         icon: Icon(
-                          isOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                          isOn
+                              ? Icons.flash_on_rounded
+                              : Icons.flash_off_rounded,
                           color: isOn ? Colors.amber : Colors.white,
                         ),
                         onPressed: () => _controller.toggleTorch(),
@@ -155,15 +156,14 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.cameraswitch_rounded, color: Colors.white),
+                    icon: const Icon(Icons.cameraswitch_rounded,
+                        color: Colors.white),
                     onPressed: () => _controller.switchCamera(),
                   ),
                 ),
               ],
             ),
           ),
-
-          // Instruction banner at bottom
           Positioned(
             bottom: 20,
             child: Container(
@@ -175,7 +175,8 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 16),
+                  Icon(Icons.qr_code_scanner_rounded,
+                      color: Colors.white, size: 16),
                   SizedBox(width: 8),
                   Text(
                     'Align QR code within the box',

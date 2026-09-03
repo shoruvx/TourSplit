@@ -8,13 +8,12 @@ import '../../core/theme/app_theme.dart';
 class FirstTimeGuideDialog extends StatefulWidget {
   const FirstTimeGuideDialog({super.key});
 
-  /// Check if the guide should be shown. If so, display it and mark as seen forever.
   static Future<void> checkAndShow(BuildContext context) async {
     try {
       final box = await Hive.openBox('app_preferences');
-      final hasSeen = box.get('has_seen_first_time_guide', defaultValue: false) as bool;
+      final hasSeen =
+          box.get('has_seen_first_time_guide', defaultValue: false) as bool;
       if (!hasSeen && context.mounted) {
-        // Mark as seen immediately so it NEVER appears again
         await box.put('has_seen_first_time_guide', true);
         if (context.mounted) {
           showDialog(
@@ -37,21 +36,25 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
   int _currentPage = 0;
   final PageController _pageController = PageController();
 
-  final List<({IconData icon, String title, String description})> _steps = const [
+  final List<({IconData icon, String title, String description})> _steps =
+      const [
     (
       icon: Icons.travel_explore_rounded,
       title: 'Create or Join Tours',
-      description: 'Start a tour with friends or join instantly using a 6-digit invite code or QR scan.',
+      description:
+          'Start a tour with friends or join instantly using a 6-digit invite code or QR scan.',
     ),
     (
       icon: Icons.receipt_long_rounded,
       title: 'Track & Split Expenses',
-      description: 'Log daily spending with categories, multiple payers, and equal or custom splits.',
+      description:
+          'Log daily spending with categories, multiple payers, and equal or custom splits.',
     ),
     (
       icon: Icons.handshake_rounded,
       title: 'Smart Settlement',
-      description: 'Real-time balances with minimum transactions to settle all debts effortlessly.',
+      description:
+          'Real-time balances with minimum transactions to settle all debts effortlessly.',
     ),
   ];
 
@@ -80,12 +83,12 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Top Bar: Dismiss/Skip button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.primaryTeal.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -101,7 +104,8 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 20, color: Colors.grey),
+                  icon: const Icon(Icons.close_rounded,
+                      size: 20, color: Colors.grey),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: _finish,
@@ -109,8 +113,6 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Page View Carousel
             SizedBox(
               height: 230,
               child: PageView.builder(
@@ -130,7 +132,8 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                              color:
+                                  AppColors.primaryTeal.withValues(alpha: 0.3),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
@@ -158,7 +161,9 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
                             fontFamily: 'Outfit',
                             fontSize: 13,
                             height: 1.45,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ),
@@ -168,8 +173,6 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Dots Indicator
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_steps.length, (i) {
@@ -182,15 +185,15 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.primaryTeal
-                        : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                        : (isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFCBD5E1)),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 );
               }),
             ),
             const SizedBox(height: 24),
-
-            // Next / Got It Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -208,7 +211,8 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
                   backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
                 child: Text(

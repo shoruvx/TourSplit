@@ -56,7 +56,6 @@ class ExpenseListTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Category icon
             Container(
               width: 44,
               height: 44,
@@ -89,8 +88,7 @@ class ExpenseListTile extends StatelessWidget {
                         expense.category,
                         style: theme.textTheme.bodySmall,
                       ),
-                      const Text(' · ',
-                          style: TextStyle(color: Colors.grey)),
+                      const Text(' · ', style: TextStyle(color: Colors.grey)),
                       Text(
                         'Paid by ${expense.paidByName.split(' ').first}',
                         style: theme.textTheme.bodySmall,
@@ -104,14 +102,18 @@ class ExpenseListTile extends StatelessWidget {
                       Icon(
                         Icons.access_time_rounded,
                         size: 11,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         DateFormat('MMM d · h:mm a').format(expense.date),
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontSize: 11,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
                         ),
                       ),
                     ],
@@ -122,9 +124,9 @@ class ExpenseListTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Glowing High-Contrast Amount Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isDark
@@ -148,7 +150,8 @@ class ExpenseListTile extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.18 : 0.1),
+                        color: const Color(0xFF10B981)
+                            .withValues(alpha: isDark ? 0.18 : 0.1),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -163,7 +166,9 @@ class ExpenseListTile extends StatelessWidget {
                           fontFamily: 'Outfit',
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                          color: isDark
+                              ? const Color(0xFF34D399)
+                              : const Color(0xFF059669),
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -173,7 +178,8 @@ class ExpenseListTile extends StatelessWidget {
                           fontFamily: 'Outfit',
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : const Color(0xFF064E3B),
+                          color:
+                              isDark ? Colors.white : const Color(0xFF064E3B),
                           letterSpacing: -0.2,
                         ),
                       ),
@@ -181,14 +187,15 @@ class ExpenseListTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 5),
-                // Status Indicator with colored dot
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: _statusColor.withValues(alpha: isDark ? 0.16 : 0.1),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: _statusColor.withValues(alpha: isDark ? 0.35 : 0.25),
+                      color:
+                          _statusColor.withValues(alpha: isDark ? 0.35 : 0.25),
                       width: 0.8,
                     ),
                   ),

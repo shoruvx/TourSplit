@@ -26,18 +26,20 @@ class MemberManagementScreen extends ConsumerWidget {
     final tourId = user.activeTourId!;
     final tourStream = ref.watch(tourStreamProvider(tourId));
     final membersStream = ref.watch(tourMembersStreamProvider(tourId));
-    final joinRequestsStream = ref.watch(tourPendingJoinRequestsProvider(tourId));
+    final joinRequestsStream =
+        ref.watch(tourPendingJoinRequestsProvider(tourId));
 
     return tourStream.when(
-      loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (tour) {
         if (tour == null) return const Scaffold();
         if (!tour.memberIds.contains(user.uid)) {
           return Scaffold(
             appBar: AppBar(title: const Text('Members')),
-            body: const Center(child: Text('You are no longer a member of this tour.')),
+            body: const Center(
+                child: Text('You are no longer a member of this tour.')),
           );
         }
         final isAdmin = tour.isAdmin(user.uid);
@@ -61,13 +63,10 @@ class MemberManagementScreen extends ConsumerWidget {
           ),
           body: Column(
             children: [
-              // Invite code banner
               _InviteCodeBanner(
                 tourName: tour.name,
                 inviteCode: tour.inviteCode,
               ),
-
-              // Pending Join Requests (Admins only)
               if (isAdmin)
                 joinRequestsStream.when(
                   loading: () => const SizedBox(),
@@ -80,8 +79,6 @@ class MemberManagementScreen extends ConsumerWidget {
                     );
                   },
                 ),
-
-              // Members list
               Expanded(
                 child: membersStream.when(
                   loading: () =>
@@ -108,10 +105,14 @@ class MemberManagementScreen extends ConsumerWidget {
                           currentUserId: user.uid,
                           currencySymbol: tour.currencySymbol,
                           onToggleAdmin: isAdmin && !isCreator
-                              ? () => _toggleAdminRole(context, ref, tour.id, member, isMemberAdmin)
+                              ? () => _toggleAdminRole(
+                                  context, ref, tour.id, member, isMemberAdmin)
                               : null,
-                          onRemove: isAdmin && !isCreator && member.userId != user.uid
-                              ? () => _removeMember(context, ref, tourId, member)
+                          onRemove: isAdmin &&
+                                  !isCreator &&
+                                  member.userId != user.uid
+                              ? () =>
+                                  _removeMember(context, ref, tourId, member)
                               : null,
                         ).animate().fadeIn(
                             delay: Duration(milliseconds: i * 60),
@@ -147,9 +148,8 @@ class MemberManagementScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
-              await ref
-                  .read(tourRepositoryProvider)
-                  .setMemberRole(tourId: tourId, userId: member.userId, role: newRole);
+              await ref.read(tourRepositoryProvider).setMemberRole(
+                  tourId: tourId, userId: member.userId, role: newRole);
               if (ctx.mounted) Navigator.pop(ctx);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -167,14 +167,15 @@ class MemberManagementScreen extends ConsumerWidget {
     );
   }
 
-  void _showInviteDialog(BuildContext context, WidgetRef ref,
-      TourModel tour, String inviterName) {
+  void _showInviteDialog(
+      BuildContext context, WidgetRef ref, TourModel tour, String inviterName) {
     final emailCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Invite Member',
-            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
+            style:
+                TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -227,16 +228,15 @@ class MemberManagementScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove Member'),
-        content:
-            Text('Remove ${member.displayName} from this tour?\n\nNote: All expenses previously paid or shared by this member will remain intact in the tour ledger.'),
+        content: Text(
+            'Remove ${member.displayName} from this tour?\n\nNote: All expenses previously paid or shared by this member will remain intact in the tour ledger.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.danger),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () async {
               try {
                 await ref
@@ -270,7 +270,6 @@ class MemberManagementScreen extends ConsumerWidget {
   }
 }
 
-/// Pending Join Requests Card for Admins
 class _PendingRequestsCard extends ConsumerWidget {
   final String tourId;
   final List<JoinRequestModel> requests;
@@ -297,7 +296,8 @@ class _PendingRequestsCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primaryTeal, size: 20),
+              const Icon(Icons.person_add_alt_1_rounded,
+                  color: AppColors.primaryTeal, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Join Requests (${requests.length})',
@@ -316,7 +316,8 @@ class _PendingRequestsCard extends ConsumerWidget {
                 child: Row(
                   children: [
                     MemberAvatar(
-                      initials: r.displayName.isNotEmpty ? r.displayName[0] : '?',
+                      initials:
+                          r.displayName.isNotEmpty ? r.displayName[0] : '?',
                       photoUrl: r.photoUrl,
                       radius: 18,
                     ),
@@ -327,27 +328,32 @@ class _PendingRequestsCard extends ConsumerWidget {
                         children: [
                           Text(
                             r.displayName,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           Text(
                             r.email,
                             style: TextStyle(
                               fontSize: 11,
-                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.cancel_outlined, color: AppColors.danger, size: 22),
+                      icon: const Icon(Icons.cancel_outlined,
+                          color: AppColors.danger, size: 22),
                       tooltip: 'Reject',
                       onPressed: () => ref
                           .read(tourRepositoryProvider)
                           .rejectJoinRequest(tourId: tourId, userId: r.userId),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.check_circle_rounded, color: AppColors.positive, size: 22),
+                      icon: const Icon(Icons.check_circle_rounded,
+                          color: AppColors.positive, size: 22),
                       tooltip: 'Approve',
                       onPressed: () => ref
                           .read(tourRepositoryProvider)
@@ -480,7 +486,9 @@ class _MemberCard extends StatelessWidget {
         ? AppColors.positive
         : member.balance < 0
             ? AppColors.negative
-            : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary);
+            : (isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.lightTextSecondary);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -513,7 +521,8 @@ class _MemberCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                            color:
+                                AppColors.primaryTeal.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
@@ -622,7 +631,8 @@ class _MemberCard extends StatelessWidget {
                   ),
                   const PopupMenuItem(
                     value: 'remove',
-                    child: Text('Remove Member', style: TextStyle(color: AppColors.danger)),
+                    child: Text('Remove Member',
+                        style: TextStyle(color: AppColors.danger)),
                   ),
                 ],
               ),

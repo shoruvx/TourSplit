@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-// Placeholder — routes to login/register
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
 

@@ -5,9 +5,9 @@ enum SettlementStatus { requested, approved, rejected }
 class SettlementModel {
   final String id;
   final String tourId;
-  final String fromUserId;   // owes money (negative balance)
+  final String fromUserId;
   final String fromUserName;
-  final String toUserId;     // is owed money
+  final String toUserId;
   final String toUserName;
   final double amount;
   final String currency;
@@ -106,7 +106,6 @@ class SettlementModel {
   }
 }
 
-/// Represents a simplified debt transaction (who owes whom and how much)
 class DebtTransaction {
   final String fromUserId;
   final String fromUserName;
