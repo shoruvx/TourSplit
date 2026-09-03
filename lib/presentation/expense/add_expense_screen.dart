@@ -555,7 +555,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    '≈ ${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / members.length).toStringAsFixed(2)} per person (divided by ${members.length})',
+                                    '≈ ${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / members.length).toStringAsFixed(2)} / person',
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
                                       fontSize: 12,
@@ -577,7 +577,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                           controller: _titleCtrl,
                           textCapitalization: TextCapitalization.sentences,
                           decoration: InputDecoration(
-                            hintText: 'e.g. Dhaka to Sitakundu, Lunch, Hotel',
+                            hintText: 'Title (e.g. Lunch)',
                             filled: true,
                             fillColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
                             border: OutlineInputBorder(
@@ -600,7 +600,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                           controller: _descCtrl,
                           textCapitalization: TextCapitalization.sentences,
                           decoration: InputDecoration(
-                            hintText: 'e.g. no due by anyone, extra water, etc.',
+                            hintText: 'Add note',
                             filled: true,
                             fillColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
                             border: OutlineInputBorder(

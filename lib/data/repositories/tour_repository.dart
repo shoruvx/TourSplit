@@ -12,6 +12,9 @@ class TourRepository {
   CollectionReference get _tours =>
       _db.collection(AppConstants.toursCollection);
 
+  CollectionReference get _users =>
+      _db.collection(AppConstants.usersCollection);
+
   /// Create a new tour, set admin as first member
   Future<TourModel> createTour({
     required String name,
@@ -206,6 +209,50 @@ class TourRepository {
     });
   }
 
+  /// Permanently delete a tour and all its subcollections (admin only)
+  Future<void> deleteTour(String tourId) async {
+    // Collect all member UIDs first to clear their activeTourId
+    final membersSnap = await _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .get();
+    final memberIds = membersSnap.docs.map((d) => d.id).toList();
+
+    // Delete subcollections in batches of 500
+    final subcollections = [
+      AppConstants.membersSubcollection,
+      AppConstants.expensesSubcollection,
+      'settlements',
+      'join_requests',
+    ];
+
+    for (final sub in subcollections) {
+      final snap = await _tours.doc(tourId).collection(sub).get();
+      const batchLimit = 499;
+      for (int i = 0; i < snap.docs.length; i += batchLimit) {
+        final batch = _db.batch();
+        final chunk = snap.docs.skip(i).take(batchLimit);
+        for (final doc in chunk) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    }
+
+    // Delete the tour doc itself
+    await _tours.doc(tourId).delete();
+
+    // Clear activeTourId for all members (best-effort)
+    for (final uid in memberIds) {
+      try {
+        await _db
+            .collection(AppConstants.usersCollection)
+            .doc(uid)
+            .update({'activeTourId': null});
+      } catch (_) {}
+    }
+  }
+
   /// Remove member from tour (admin only)
   Future<void> removeMember(String tourId, String userId) async {
     final batch = _db.batch();
@@ -362,6 +409,13 @@ class TourRepository {
     await _tours.doc(tourId).update({
       'members': FieldValue.arrayUnion([request.userId]),
     });
+
+    // 3. Update joining user's activeTourId so they are taken directly to the tour details
+    try {
+      await _users.doc(request.userId).set({
+        'activeTourId': tourId,
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   /// Reject a member's join request

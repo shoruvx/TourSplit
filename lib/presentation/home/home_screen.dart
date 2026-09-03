@@ -19,12 +19,17 @@ import '../widgets/member_avatar.dart';
 import '../expense/expense_list_tile.dart';
 import '../expense/widgets/day_summary_table.dart';
 import '../tour/widgets/tour_qr_dialog.dart';
+import '../widgets/first_time_guide_dialog.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirstTimeGuideDialog.checkAndShow(context);
+    });
+
     final currentUser = ref.watch(currentUserProvider);
 
     return currentUser.when(
@@ -129,15 +134,6 @@ class _NoActiveTourScreen extends StatelessWidget {
                           fontFamily: 'Outfit',
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Start planning!',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.lightTextSecondary,
-                        ),
-                      ),
                     ],
                   ),
                   Row(
@@ -182,13 +178,12 @@ class _NoActiveTourScreen extends StatelessWidget {
                     ).animate().fadeIn(delay: 150.ms),
                     const SizedBox(height: 8),
                     Text(
-                      'Plan your next adventure! Create a tour to start\ntracking expenses with your group.',
+                      'Create or join a tour to get started.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: isDark
                             ? AppColors.darkTextSecondary
                             : AppColors.lightTextSecondary,
-                        height: 1.4,
                       ),
                     ).animate().fadeIn(delay: 200.ms),
                     const SizedBox(height: 32),
@@ -639,7 +634,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     _MyBalanceCard(
                       balance: myNetBalance,
                       currencySymbol: tour.currencySymbol,
-                      onSettleUp: () => context.go('/settle'),
+                      onSettleUp: () => context.push('/settlement'),
                     ).animate().fadeIn(delay: 120.ms),
 
                     // Optional Budget Progress Indicator
@@ -1007,7 +1002,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 ],
               ),
               TextButton(
-                onPressed: () => context.go('/settle'),
+                onPressed: () => context.push('/settlement'),
                 child: const Text('View All'),
               ),
             ],
@@ -1023,11 +1018,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.check_circle_rounded, color: AppColors.positive, size: 24),
-                  SizedBox(width: 12),
+                  Icon(Icons.check_circle_rounded, color: AppColors.positive, size: 22),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'All debts are settled up! No outstanding balances.',
+                      'All debts settled up',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -1049,42 +1044,54 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: isDark ? Colors.white : Colors.black87,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RichText(
+                            text: TextSpan(
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: d.fromUserName,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.negative),
+                                ),
+                                const TextSpan(text: ' pays '),
+                                TextSpan(
+                                  text: d.toUserName,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.positive),
+                                ),
+                              ],
+                            ),
                           ),
-                          children: [
-                            TextSpan(
-                              text: d.fromUserName,
-                              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.negative),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$currencySymbol${d.amount.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryTeal,
+                              fontSize: 14,
                             ),
-                            const TextSpan(text: ' pays '),
-                            TextSpan(
-                              text: d.toUserName,
-                              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.positive),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryTeal.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => _quickSettleDebt(d, currencySymbol),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        minimumSize: const Size(0, 32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
                       ),
-                      child: Text(
-                        '$currencySymbol${d.amount.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryTeal,
-                          fontSize: 14,
-                        ),
-                      ),
+                      child: const Text('Settle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -1094,7 +1101,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => context.go('/settle'),
+                onPressed: () => context.push('/settlement'),
                 icon: const Icon(Icons.sync_alt_rounded, size: 18),
                 label: const Text('Record or Approve Settlements'),
                 style: ElevatedButton.styleFrom(
@@ -1109,6 +1116,106 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         ],
       ),
     );
+  }
+
+  void _quickSettleDebt(DebtTransaction debt, String currencySymbol) async {
+    final noteCtrl = TextEditingController(text: 'Cash');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Record Settlement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${debt.fromUserName} pays ${debt.toUserName}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                  Text(
+                    '$currencySymbol${debt.amount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryTeal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('Note:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: noteCtrl,
+              decoration: InputDecoration(
+                hintText: 'e.g. bKash, Cash',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Record Payment'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final repo = ref.read(settlementRepositoryProvider);
+      final settlement = await repo.requestSettlement(
+        tourId: widget.tourId,
+        fromUserId: debt.fromUserId,
+        fromUserName: debt.fromUserName,
+        toUserId: debt.toUserId,
+        toUserName: debt.toUserName,
+        amount: debt.amount,
+        currency: currencySymbol,
+        note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+      );
+
+      final currentUid = ref.read(currentUserProvider).valueOrNull?.uid;
+      // Auto-approve if recorder is recipient or admin
+      await repo.resolveSettlement(
+        tourId: widget.tourId,
+        settlementId: settlement.id,
+        status: SettlementStatus.approved,
+        resolvedByUserId: currentUid ?? widget.userId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Settlement recorded!'),
+            backgroundColor: AppColors.positive,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -1647,16 +1754,7 @@ class _EmptyExpensesCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Start tracking your trip spending by adding your first expense.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed: () => context.push('/expense/add'),
             icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),

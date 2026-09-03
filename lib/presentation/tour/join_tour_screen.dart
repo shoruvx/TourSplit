@@ -1,14 +1,11 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
-import '../../data/models/tour_model.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import 'widgets/tour_qr_scanner_view.dart';
@@ -28,13 +25,9 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
-  String? _pendingTourId;
-  String? _pendingTourName;
-  StreamSubscription<JoinRequestModel?>? _requestSub;
 
   @override
   void dispose() {
-    _requestSub?.cancel();
     for (final c in _codeControllers) {
       c.dispose();
     }
@@ -79,8 +72,8 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Switched to "${tour.name}"!'),
-              backgroundColor: AppColors.accent,
+              content: Text('Switched to "${tour.name}"'),
+              backgroundColor: AppColors.primaryTeal,
             ),
           );
           context.go('/home');
@@ -88,58 +81,32 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         return;
       }
 
-      // Submit join request for manual admin approval
-      await tourRepo.requestToJoinTour(
+      // Join tour directly and set active tour immediately
+      await tourRepo.joinTour(
         tourId: tour.id,
-        tourName: tour.name,
         user: user,
       );
+      await tourRepo.switchActiveTour(user.uid, tour.id);
 
-      setState(() {
-        _pendingTourId = tour.id;
-        _pendingTourName = tour.name;
-      });
-
-      // Listen for admin's real-time approval
-      _listenForApproval(tour.id, user.uid, tour.name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Joined "${tour.name}"! 🎉'),
+            backgroundColor: AppColors.positive,
+          ),
+        );
+        context.go('/home');
+      }
+      return;
     } catch (e, st) {
-      debugPrint('[JOIN_ERROR] Error submitting join request: $e\n$st');
+      debugPrint('[JOIN_ERROR] Error joining tour: $e\n$st');
       setState(() {
         _selectedTab = 0;
-        _errorMessage = 'Failed to submit join request. Please try again.';
+        _errorMessage = 'Failed to join tour. Please try again.';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _listenForApproval(String tourId, String userId, String tourName) {
-    _requestSub?.cancel();
-    final tourRepo = ref.read(tourRepositoryProvider);
-
-    _requestSub = tourRepo.watchUserJoinRequest(tourId, userId).listen((req) {
-      if (!mounted || req == null) return;
-
-      if (req.isApproved) {
-        _requestSub?.cancel();
-        tourRepo.switchActiveTour(userId, tourId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Request approved! Welcome to $tourName 🎉'),
-            backgroundColor: AppColors.positive,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-        context.go('/home');
-      } else if (req.isRejected) {
-        _requestSub?.cancel();
-        setState(() {
-          _pendingTourId = null;
-          _pendingTourName = null;
-          _errorMessage = 'The tour admin declined your join request.';
-        });
-      }
-    });
   }
 
   @override
@@ -158,119 +125,48 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
           ),
         ),
         body: SafeArea(
-          child: _pendingTourId != null
-              ? _buildWaitingForApprovalView(theme, isDark)
-              : Column(
-                  children: [
-                    // Segmented Tab Selector (Code / QR)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkSurface : const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _TabSelectorButton(
-                                label: 'Enter Code',
-                                icon: Icons.pin_rounded,
-                                isSelected: _selectedTab == 0,
-                                onTap: () => setState(() => _selectedTab = 0),
-                              ),
-                            ),
-                            Expanded(
-                              child: _TabSelectorButton(
-                                label: 'Scan QR',
-                                icon: Icons.qr_code_scanner_rounded,
-                                isSelected: _selectedTab == 1,
-                                onTap: () => setState(() => _selectedTab = 1),
-                              ),
-                            ),
-                          ],
+          child: Column(
+            children: [
+              // Segmented Tab Selector (Code / QR)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurface : const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _TabSelectorButton(
+                          label: 'Enter Code',
+                          icon: Icons.pin_rounded,
+                          isSelected: _selectedTab == 0,
+                          onTap: () => setState(() => _selectedTab = 0),
                         ),
                       ),
-                    ),
-
-                    // Tab Body
-                    Expanded(
-                      child: _selectedTab == 0
-                          ? _buildCodeInputView(theme, isDark)
-                          : _buildQrScannerView(theme, isDark),
-                    ),
-                  ],
+                      Expanded(
+                        child: _TabSelectorButton(
+                          label: 'Scan QR',
+                          icon: Icons.qr_code_scanner_rounded,
+                          isSelected: _selectedTab == 1,
+                          onTap: () => setState(() => _selectedTab = 1),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-        ),
-      ),
-    );
-  }
+              ),
 
-  /// Waiting for Admin Approval View
-  Widget _buildWaitingForApprovalView(ThemeData theme, bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+              // Tab Body
+              Expanded(
+                child: _selectedTab == 0
+                    ? _buildCodeInputView(theme, isDark)
+                    : _buildQrScannerView(theme, isDark),
               ),
-              child: const Icon(
-                Icons.hourglass_top_rounded,
-                color: AppColors.primaryTeal,
-                size: 52,
-              ),
-            ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
-                  begin: const Offset(0.95, 0.95),
-                  end: const Offset(1.05, 1.05),
-                  duration: 1200.ms,
-                ),
-            const SizedBox(height: 28),
-            Text(
-              'Join Request Sent!',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Outfit',
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Waiting for an admin of "$_pendingTourName" to review and approve your request.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            const SizedBox(height: 36),
-            OutlinedButton(
-              onPressed: () {
-                _requestSub?.cancel();
-                setState(() {
-                  _pendingTourId = null;
-                  _pendingTourName = null;
-                });
-              },
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: const Text('Cancel Request'),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -283,25 +179,26 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         children: [
           const SizedBox(height: 16),
           Text(
-            'Enter the 6-character code\nshared by your tour admin',
+            'Enter 6-character tour code',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: isDark
                   ? AppColors.darkTextSecondary
                   : AppColors.lightTextSecondary,
-              height: 1.4,
             ),
           ),
           const SizedBox(height: 32),
 
           // 6 PIN boxes
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(6, (i) {
-              return Container(
-                width: 46,
-                height: 56,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(6, (i) {
+                return Container(
+                  width: 46,
+                  height: 56,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
                 child: TextFormField(
                   controller: _codeControllers[i],
                   focusNode: _focusNodes[i],
@@ -351,6 +248,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
                 ),
               );
             }),
+            ),
           ),
 
           if (_errorMessage != null) ...[

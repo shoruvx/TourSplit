@@ -7,11 +7,23 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
+import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/models/settlement_model.dart';
+import '../../data/models/tour_model.dart';
+import '../../data/models/expense_model.dart';
+import '../../data/services/balance_service.dart';
 
 class SettlementScreen extends ConsumerWidget {
   const SettlementScreen({super.key});
+
+  void _handleBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,97 +34,438 @@ class SettlementScreen extends ConsumerWidget {
     final tourId = user.activeTourId!;
 
     final tourStream = ref.watch(tourStreamProvider(tourId));
-    final settlementsStream =
-        ref.watch(tourSettlementsStreamProvider(tourId));
+    final settlementsStream = ref.watch(tourSettlementsStreamProvider(tourId));
+    final expensesStream = ref.watch(tourExpensesStreamProvider(tourId));
+    final membersStream = ref.watch(tourMembersStreamProvider(tourId));
 
-    return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (tour) {
-        if (tour == null) return const Scaffold();
-        final isAdmin = tour.adminId == user.uid;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _handleBack(context);
+      },
+      child: tourStream.when(
+        loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
+        data: (tour) {
+          if (tour == null) return const Scaffold();
+          final isAdmin = tour.adminId == user.uid;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Settlements'),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              onPressed: () => context.pop(),
-            ),
-          ),
-          body: settlementsStream.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('$e')),
-            data: (settlements) {
-              if (settlements.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('💸',
-                          style: TextStyle(fontSize: 48)),
-                      const SizedBox(height: 16),
-                      Text('No settlements yet',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      Text(
-                        'Go to Balances → Settle Up to request one',
-                        style: Theme.of(context).textTheme.bodySmall,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Settlements'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                onPressed: () => _handleBack(context),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primaryTeal),
+                  tooltip: 'Record Settlement',
+                  onPressed: () => _showCustomSettlementDialog(
+                    context,
+                    ref,
+                    tour,
+                    membersStream.valueOrNull ?? [],
+                    user.uid,
                   ),
+                ),
+              ],
+            ),
+            body: settlementsStream.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (settlements) {
+                // Compute current active suggested debts
+                final approvedExpenses = expensesStream.maybeWhen(
+                  data: (list) => list.where((e) => e.isApproved).toList(),
+                  orElse: () => <ExpenseModel>[],
                 );
-              }
+                final members = membersStream.maybeWhen(
+                  data: (list) => list,
+                  orElse: () => <TourMemberModel>[],
+                );
+                final approvedSettlements =
+                    settlements.where((s) => s.isApproved).toList();
 
-              // Group into pending and resolved
-              final pending =
-                  settlements.where((s) => s.isPending).toList();
-              final resolved =
-                  settlements.where((s) => !s.isPending).toList();
+                var balances = BalanceService.calculateBalances(members, approvedExpenses);
+                balances = BalanceService.applySettlements(balances, approvedSettlements);
+                final suggestedDebts = BalanceService.simplifyDebts(balances, members);
 
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (pending.isNotEmpty) ...[
-                    _SectionLabel(
-                        label: 'Pending',
+                // Group existing settlements into pending and resolved
+                final pending = settlements.where((s) => s.isPending).toList();
+                final resolved = settlements.where((s) => !s.isPending).toList();
+
+                if (suggestedDebts.isEmpty && pending.isEmpty && resolved.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.check_circle_outline_rounded,
+                            size: 56, color: AppColors.positive),
+                        const SizedBox(height: 16),
+                        Text(
+                          'All Settled Up',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Outfit',
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'No outstanding balances or pending settlements.',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // 1. Suggested Debt Settlements
+                    if (suggestedDebts.isNotEmpty) ...[
+                      _SectionLabel(
+                        label: 'Suggested Settlements',
+                        color: AppColors.primaryTeal,
+                        count: suggestedDebts.length,
+                      ),
+                      const SizedBox(height: 8),
+                      ...suggestedDebts.map((d) => _SuggestedDebtCard(
+                            debt: d,
+                            currency: tour.currencySymbol,
+                            currentUserId: user.uid,
+                            onSettle: () => _showSettleConfirmationDialog(
+                              context,
+                              ref,
+                              tour,
+                              d,
+                              isAdmin,
+                            ),
+                          ).animate().fadeIn()),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // 2. Pending Approvals
+                    if (pending.isNotEmpty) ...[
+                      _SectionLabel(
+                        label: 'Pending Approval',
                         color: AppColors.warning,
-                        count: pending.length),
-                    const SizedBox(height: 8),
-                    ...pending.map((s) => _SettlementCard(
-                          settlement: s,
-                          isAdmin: isAdmin,
-                          currentUserId: user.uid,
-                          currency: tour.currencySymbol,
-                          onApprove: () => _resolve(context, ref,
-                              tourId, s, SettlementStatus.approved),
-                          onReject: () => _resolve(context, ref,
-                              tourId, s, SettlementStatus.rejected),
-                        ).animate().fadeIn()),
-                    const SizedBox(height: 20),
-                  ],
-                  if (resolved.isNotEmpty) ...[
-                    _SectionLabel(
+                        count: pending.length,
+                      ),
+                      const SizedBox(height: 8),
+                      ...pending.map((s) => _SettlementCard(
+                            settlement: s,
+                            isAdmin: isAdmin,
+                            currentUserId: user.uid,
+                            currency: tour.currencySymbol,
+                            onApprove: () => _resolve(context, ref, tourId, s, SettlementStatus.approved),
+                            onReject: () => _resolve(context, ref, tourId, s, SettlementStatus.rejected),
+                          ).animate().fadeIn()),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // 3. Settlement History
+                    if (resolved.isNotEmpty) ...[
+                      _SectionLabel(
                         label: 'History',
                         color: AppColors.accent,
-                        count: resolved.length),
-                    const SizedBox(height: 8),
-                    ...resolved.map((s) => _SettlementCard(
-                          settlement: s,
-                          isAdmin: isAdmin,
-                          currentUserId: user.uid,
-                          currency: tour.currencySymbol,
-                        ).animate().fadeIn()),
+                        count: resolved.length,
+                      ),
+                      const SizedBox(height: 8),
+                      ...resolved.map((s) => _SettlementCard(
+                            settlement: s,
+                            isAdmin: isAdmin,
+                            currentUserId: user.uid,
+                            currency: tour.currencySymbol,
+                          ).animate().fadeIn()),
+                    ],
                   ],
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Dialog to record an automated suggested settlement
+  void _showSettleConfirmationDialog(
+    BuildContext context,
+    WidgetRef ref,
+    TourModel tour,
+    DebtTransaction debt,
+    bool isAdmin,
+  ) async {
+    final noteCtrl = TextEditingController(text: 'Cash / Mobile Payment');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.handshake_rounded, color: AppColors.primaryTeal),
+            const SizedBox(width: 10),
+            const Text('Record Settlement'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${debt.fromUserName} pays ${debt.toUserName}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                  ),
+                  Text(
+                    '${tour.currencySymbol}${debt.amount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryTeal,
+                    ),
+                  ),
                 ],
-              );
-            },
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Payment Method / Note:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: noteCtrl,
+              decoration: InputDecoration(
+                hintText: 'e.g. bKash, Cash, Bank Transfer',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Record Payment'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final repo = ref.read(settlementRepositoryProvider);
+      final settlement = await repo.requestSettlement(
+        tourId: tour.id,
+        fromUserId: debt.fromUserId,
+        fromUserName: debt.fromUserName,
+        toUserId: debt.toUserId,
+        toUserName: debt.toUserName,
+        amount: debt.amount,
+        currency: tour.currency,
+        note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+      );
+
+      // If user recording it is admin or recipient, automatically approve it
+      final currentUid = ref.read(currentUserProvider).valueOrNull?.uid;
+      if (isAdmin || currentUid == debt.toUserId) {
+        await repo.resolveSettlement(
+          tourId: tour.id,
+          settlementId: settlement.id,
+          status: SettlementStatus.approved,
+          resolvedByUserId: currentUid ?? tour.adminId,
+        );
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isAdmin || currentUid == debt.toUserId
+                  ? 'Settlement recorded and approved!'
+                  : 'Settlement submitted for approval.',
+            ),
+            backgroundColor: AppColors.positive,
           ),
         );
-      },
+      }
+    }
+  }
+
+  /// Dialog to record any arbitrary custom settlement between two members
+  void _showCustomSettlementDialog(
+    BuildContext context,
+    WidgetRef ref,
+    TourModel tour,
+    List<TourMemberModel> members,
+    String currentUserId,
+  ) async {
+    if (members.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('At least 2 tour members required')),
+      );
+      return;
+    }
+
+    String fromUid = currentUserId;
+    String toUid = members.firstWhere((m) => m.userId != currentUserId, orElse: () => members.last).userId;
+    final amountCtrl = TextEditingController();
+    final noteCtrl = TextEditingController(text: 'Cash');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Record Settlement'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Payer (Who paid?):', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: fromUid,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    items: members.map((m) {
+                      return DropdownMenuItem(value: m.userId, child: Text(m.displayName));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setS(() => fromUid = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Recipient (Who received?):', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: toUid,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    items: members.map((m) {
+                      return DropdownMenuItem(value: m.userId, child: Text(m.displayName));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setS(() => toUid = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Amount:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      prefixText: '${tour.currencySymbol} ',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Note:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: noteCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'e.g. bKash, Cash',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryTeal,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  final amt = double.tryParse(amountCtrl.text.trim());
+                  if (amt == null || amt <= 0 || fromUid == toUid) {
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                child: const Text('Save Settlement'),
+              ),
+            ],
+          );
+        },
+      ),
     );
+
+    if (confirmed == true) {
+      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+      final fromName = members.firstWhere((m) => m.userId == fromUid).displayName;
+      final toName = members.firstWhere((m) => m.userId == toUid).displayName;
+
+      final repo = ref.read(settlementRepositoryProvider);
+      final settlement = await repo.requestSettlement(
+        tourId: tour.id,
+        fromUserId: fromUid,
+        fromUserName: fromName,
+        toUserId: toUid,
+        toUserName: toName,
+        amount: amt,
+        currency: tour.currency,
+        note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+      );
+
+      final isAdmin = tour.adminId == currentUserId;
+      if (isAdmin || currentUserId == toUid) {
+        await repo.resolveSettlement(
+          tourId: tour.id,
+          settlementId: settlement.id,
+          status: SettlementStatus.approved,
+          resolvedByUserId: currentUserId,
+        );
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Settlement recorded!'),
+            backgroundColor: AppColors.positive,
+          ),
+        );
+      }
+    }
   }
 
   void _resolve(BuildContext context, WidgetRef ref, String tourId,
@@ -159,7 +512,7 @@ class _SectionLabel extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -167,12 +520,96 @@ class _SectionLabel extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Outfit',
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SuggestedDebtCard extends StatelessWidget {
+  final DebtTransaction debt;
+  final String currency;
+  final String currentUserId;
+  final VoidCallback onSettle;
+
+  const _SuggestedDebtCard({
+    required this.debt,
+    required this.currency,
+    required this.currentUserId,
+    required this.onSettle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: debt.fromUserName,
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.negative),
+                      ),
+                      const TextSpan(text: ' pays '),
+                      TextSpan(
+                        text: debt.toUserName,
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.positive),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$currency${debt.amount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryTeal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: onSettle,
+            icon: const Icon(Icons.check_rounded, size: 16),
+            label: const Text('Settle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -197,6 +634,7 @@ class _SettlementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     Color statusColor;
     String statusText;
@@ -214,8 +652,15 @@ class _SettlementCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
+      color: isDark ? AppColors.darkSurface : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -250,20 +695,21 @@ class _SettlementCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
-                        '$currency ${settlement.amount.toStringAsFixed(2)}',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        '$currency${settlement.amount.toStringAsFixed(0)}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Outfit',
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
+                    color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -271,23 +717,25 @@ class _SettlementCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: statusColor,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            if (settlement.note != null && settlement.note!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Note: ${settlement.note}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+              ),
+            ],
+            const SizedBox(height: 6),
             Text(
               'Requested ${DateFormat('MMM d, y').format(settlement.requestedAt)}',
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-            if (settlement.resolvedAt != null)
-              Text(
-                'Resolved ${DateFormat('MMM d, y').format(settlement.resolvedAt!)}',
-                style: theme.textTheme.bodySmall,
-              ),
 
             // Admin or recipient approve/reject buttons
             if ((isAdmin || settlement.toUserId == currentUserId) && settlement.isPending) ...[
@@ -298,14 +746,12 @@ class _SettlementCard extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: onReject,
                       style: OutlinedButton.styleFrom(
-                        side:
-                            const BorderSide(color: AppColors.negative),
-                        minimumSize: const Size(0, 38),
+                        side: const BorderSide(color: AppColors.negative),
+                        minimumSize: const Size(0, 36),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       child: const Text('Reject',
-                          style: TextStyle(
-                              color: AppColors.negative,
-                              fontFamily: 'Outfit')),
+                          style: TextStyle(color: AppColors.negative, fontFamily: 'Outfit')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -314,10 +760,11 @@ class _SettlementCard extends StatelessWidget {
                       onPressed: onApprove,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.positive,
-                        minimumSize: const Size(0, 38),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 36),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text('Approve',
-                          style: TextStyle(fontFamily: 'Outfit')),
+                      child: const Text('Approve', style: TextStyle(fontFamily: 'Outfit')),
                     ),
                   ),
                 ],

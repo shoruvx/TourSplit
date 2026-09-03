@@ -156,7 +156,7 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
-                    hintText: 'e.g. Goa Trip 2026',
+                    hintText: 'Tour name',
                     hintStyle: TextStyle(
                       color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
                     ),
@@ -306,7 +306,7 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                   controller: _budgetCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    hintText: 'e.g. 50000',
+                    hintText: '0',
                     prefixText: '$_selectedCurrencySymbol ',
                     prefixStyle: const TextStyle(fontWeight: FontWeight.bold),
                     filled: true,
@@ -325,13 +325,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                     ),
                   ),
                 ).animate().fadeIn(delay: 300.ms),
-                const SizedBox(height: 4),
-                Text(
-                  'Track spending against a budget limit',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  ),
-                ),
                 const SizedBox(height: 20),
 
                 // Currency Dropdown

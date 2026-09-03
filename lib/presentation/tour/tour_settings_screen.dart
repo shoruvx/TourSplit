@@ -82,6 +82,105 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     }
   }
 
+  Future<void> _deleteTour(BuildContext context, String tourId, String tourName) async {
+    // Step 1: Warn the user
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever_rounded, color: AppColors.danger),
+            const SizedBox(width: 8),
+            const Text('Delete Tour?', style: TextStyle(color: AppColors.danger)),
+          ],
+        ),
+        content: Text(
+          'This will permanently delete "$tourName" including ALL expenses, settlements, and member data.\n\nThis CANNOT be undone!',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true || !mounted) return;
+
+    // Step 2: Confirm by typing tour name
+    final confirmCtrl = TextEditingController();
+    final typed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Confirm Deletion', style: TextStyle(color: AppColors.danger)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Type the tour name "$tourName" to confirm:',
+                  style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmCtrl,
+                onChanged: (_) => setS(() {}),
+                decoration: InputDecoration(
+                  hintText: tourName,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: confirmCtrl.text.trim() == tourName
+                    ? AppColors.danger
+                    : Colors.grey,
+              ),
+              onPressed: confirmCtrl.text.trim() == tourName
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              child: const Text('Delete Forever'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (typed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(tourRepositoryProvider).deleteTour(tourId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tour deleted permanently.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        context.go('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).valueOrNull;
@@ -183,6 +282,17 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                         side: const BorderSide(color: AppColors.danger),
                       ),
                     ).animate().fadeIn(delay: 250.ms),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => _deleteTour(context, tourId, tour.name),
+                    icon: const Icon(Icons.delete_forever_rounded,
+                        color: AppColors.danger),
+                    label: const Text('Delete Tour Permanently',
+                        style: TextStyle(color: AppColors.danger)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.danger),
+                    ),
+                  ).animate().fadeIn(delay: 300.ms),
                 ],
               ),
             ),
