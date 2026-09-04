@@ -27,7 +27,7 @@ class SettlementScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).valueOrNull;
+    final user = ref.watch(currentUserProvider).value;
     if (user == null || user.activeTourId == null) {
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
@@ -68,7 +68,7 @@ class SettlementScreen extends ConsumerWidget {
                     context,
                     ref,
                     tour,
-                    membersStream.valueOrNull ?? [],
+                    membersStream.value ?? [],
                     user.uid,
                   ),
                 ),
@@ -295,7 +295,7 @@ class SettlementScreen extends ConsumerWidget {
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
       );
 
-      final currentUid = ref.read(currentUserProvider).valueOrNull?.uid;
+      final currentUid = ref.read(currentUserProvider).value?.uid;
       if (isAdmin || currentUid == debt.toUserId) {
         await repo.resolveSettlement(
           tourId: tour.id,
@@ -495,7 +495,7 @@ class SettlementScreen extends ConsumerWidget {
 
   void _resolve(BuildContext context, WidgetRef ref, String tourId,
       SettlementModel s, SettlementStatus status) async {
-    final user = ref.read(currentUserProvider).valueOrNull;
+    final user = ref.read(currentUserProvider).value;
     if (user == null) return;
 
     await ref.read(settlementRepositoryProvider).resolveSettlement(

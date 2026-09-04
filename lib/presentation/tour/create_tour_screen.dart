@@ -79,7 +79,7 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = ref.read(currentUserProvider).valueOrNull;
+      final user = ref.read(currentUserProvider).value;
       if (user == null) return;
 
       final budgetText = _budgetCtrl.text.trim();
@@ -130,7 +130,7 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final user = ref.watch(currentUserProvider).valueOrNull;
+    final user = ref.watch(currentUserProvider).value;
 
     return PopScope(
       canPop: false,

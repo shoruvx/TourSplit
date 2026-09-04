@@ -25,7 +25,7 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this._ref) {
     _ref.listen<AsyncValue>(authStateProvider, (_, next) {
       debugPrint(
-          '[ROUTER] authState changed: ${next.valueOrNull?.email ?? "null (signed out)"}');
+          '[ROUTER] authState changed: ${next.value?.email ?? "null (signed out)"}');
       notifyListeners();
     });
   }
@@ -43,7 +43,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
       final currentUser = FirebaseAuth.instance.currentUser;
-      final isLoggedIn = currentUser != null || authState.valueOrNull != null;
+      final isLoggedIn = currentUser != null || authState.value != null;
       debugPrint(
           '[ROUTER] redirect check for ${state.matchedLocation} (currentUser: ${currentUser?.email}, loggedIn: $isLoggedIn, auth loading: ${authState.isLoading})');
 

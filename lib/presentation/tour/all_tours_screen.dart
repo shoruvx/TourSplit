@@ -15,7 +15,7 @@ class AllToursScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).valueOrNull;
+    final user = ref.watch(currentUserProvider).value;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (user == null) {

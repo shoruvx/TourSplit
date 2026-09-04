@@ -295,9 +295,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       final packageInfoAsync =
                           ref.watch(currentAppVersionProvider);
                       final updateInfo =
-                          ref.watch(appUpdateInfoStreamProvider).valueOrNull;
+                          ref.watch(appUpdateInfoStreamProvider).value;
                       final currentVer =
-                          packageInfoAsync.valueOrNull?.version ?? '1.0.0';
+                          packageInfoAsync.value?.version ?? '1.0.0';
                       final hasUpdate = updateInfo != null &&
                           AppUpdateService.isVersionNewer(
                               updateInfo.latestVersion, currentVer);

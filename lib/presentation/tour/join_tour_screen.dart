@@ -52,7 +52,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
     });
 
     try {
-      final user = ref.read(currentUserProvider).valueOrNull;
+      final user = ref.read(currentUserProvider).value;
       if (user == null) return;
 
       final tourRepo = ref.read(tourRepositoryProvider);

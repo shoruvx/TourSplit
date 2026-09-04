@@ -32,7 +32,7 @@ class NotificationService {
       );
 
       await _localNotifications.initialize(
-        const InitializationSettings(
+        settings: const InitializationSettings(
           android: androidSettings,
           iOS: iosSettings,
         ),
@@ -60,10 +60,10 @@ class NotificationService {
     if (notification == null) return;
 
     await _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channel.id,
           _channel.name,

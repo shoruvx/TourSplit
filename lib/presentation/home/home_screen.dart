@@ -87,7 +87,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currentUser = ref.watch(currentUserProvider).valueOrNull;
+    final currentUser = ref.watch(currentUserProvider).value;
 
     return Scaffold(
       body: SafeArea(
@@ -553,7 +553,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           });
           return _NoActiveTourScreen(
             displayName:
-                ref.read(currentUserProvider).valueOrNull?.firstName ?? 'User',
+                ref.read(currentUserProvider).value?.firstName ?? 'User',
             noticeMessage: 'You are no longer a member of "${tour.name}".',
           );
         }
@@ -584,7 +584,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             computedBalances, approvedSettlements);
         final myNetBalance = computedBalances[widget.userId] ?? 0.0;
 
-        final pendingRequests = joinRequestsStream.valueOrNull ?? [];
+        final pendingRequests = joinRequestsStream.value ?? [];
         if (isAdmin &&
             pendingRequests.isNotEmpty &&
             !_isJoinDialogActive &&
@@ -598,9 +598,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           });
         }
 
-        final updateInfo = ref.watch(appUpdateInfoStreamProvider).valueOrNull ??
-            ref.watch(gitHubUpdateFutureProvider).valueOrNull;
-        final packageInfo = ref.watch(currentAppVersionProvider).valueOrNull;
+        final updateInfo = ref.watch(appUpdateInfoStreamProvider).value ??
+            ref.watch(gitHubUpdateFutureProvider).value;
+        final packageInfo = ref.watch(currentAppVersionProvider).value;
         if (updateInfo != null && packageInfo != null) {
           final isNewer = AppUpdateService.isVersionNewer(
               updateInfo.latestVersion, packageInfo.version);
@@ -1241,7 +1241,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
       );
 
-      final currentUid = ref.read(currentUserProvider).valueOrNull?.uid;
+      final currentUid = ref.read(currentUserProvider).value?.uid;
       await repo.resolveSettlement(
         tourId: widget.tourId,
         settlementId: settlement.id,
@@ -1693,7 +1693,7 @@ class _TourDashboardAppBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currentUser = ref.watch(currentUserProvider).valueOrNull;
+    final currentUser = ref.watch(currentUserProvider).value;
 
     return SliverAppBar(
       pinned: true,

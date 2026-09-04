@@ -17,7 +17,7 @@ class MemberManagementScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).valueOrNull;
+    final user = ref.watch(currentUserProvider).value;
 
     if (user == null || user.activeTourId == null) {
       return const Scaffold(body: Center(child: Text('No active tour')));
