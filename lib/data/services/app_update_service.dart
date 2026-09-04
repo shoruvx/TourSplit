@@ -289,6 +289,27 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
   String _statusText = '';
   String? _errorMessage;
 
+  String _cleanNotes(String raw) {
+    if (raw.isEmpty) return 'Bug fixes and performance improvements.';
+    final lines = raw
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) =>
+            l.isNotEmpty &&
+            !l.toLowerCase().startsWith('## what\'s new') &&
+            !l.toLowerCase().startsWith('## release'))
+        .map((l) {
+      var line = l;
+      if (line.startsWith('### ')) line = line.substring(4).trim();
+      if (line.startsWith('## ')) line = line.substring(3).trim();
+      if (line.startsWith('# ')) line = line.substring(2).trim();
+      line = line.replaceAll('**', '');
+      if (line.startsWith('- ')) line = '• ${line.substring(2)}';
+      return line;
+    }).toList();
+    return lines.take(3).join('\n');
+  }
+
   void _startOtaUpdate() {
     if (!Platform.isAndroid) {
       AppUpdateService.launchDownload(widget.info.apkUrl);
@@ -326,7 +347,7 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
               setState(() {
                 _step = _UpdateStep.downloading;
                 _progress = pct;
-                _statusText = 'Downloading update... $pct%';
+                _statusText = 'Downloading... $pct%';
               });
               break;
             case OtaStatus.INSTALLING:
@@ -342,7 +363,7 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
             case OtaStatus.ALREADY_RUNNING_ERROR:
               setState(() {
                 _step = _UpdateStep.downloading;
-                _statusText = 'Update download in progress...';
+                _statusText = 'Update in progress...';
               });
               break;
             case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
@@ -359,7 +380,7 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
               setState(() {
                 _step = _UpdateStep.error;
                 _errorMessage =
-                    'Download encountered an issue (${event.status.name}). You can download directly via browser.';
+                    'Download issue (${event.status.name}). Use browser download below.';
               });
               break;
             case OtaStatus.CANCELED:
@@ -374,7 +395,7 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
           setState(() {
             _step = _UpdateStep.error;
             _errorMessage =
-                'Download failed ($err). You can download directly via browser.';
+                'Download failed. Use browser download below.';
           });
         },
       );
@@ -395,322 +416,295 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
       canPop: !widget.info.forceUpdate && _step != _UpdateStep.downloading,
       child: Dialog(
         backgroundColor: isDark ? const Color(0xFF131D2E) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.asset('assets/images/logo.png',
+                            fit: BoxFit.cover),
+                      ),
+                    ),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(3.5),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryTeal,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.rocket_launch_rounded,
+                            color: Colors.white, size: 12),
+                      ),
+                    ),
+                  ],
+                ).animate().scale(duration: 350.ms, curve: Curves.easeOutBack),
+                const SizedBox(height: 12),
+                const Text(
+                  'Update Available! 🚀',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Version v${widget.info.latestVersion} is ready to install',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? const Color(0xFF5EEAD4)
+                        : AppColors.primaryTeal,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Step View
+                if (_step == _UpdateStep.idle) ...[
                   Container(
-                    width: 76,
-                    height: 76,
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryTeal.withValues(alpha: 0.35),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 110),
+                      child: SingleChildScrollView(
+                        child: Text(
+                          _cleanNotes(widget.info.releaseNotes),
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12,
+                            height: 1.45,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      if (!widget.info.forceUpdate) ...[
+                        Expanded(
+                          flex: 4,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text(
+                              'Later',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Expanded(
+                        flex: 6,
+                        child: ElevatedButton.icon(
+                          onPressed: _startOtaUpdate,
+                          icon: const Icon(Icons.bolt_rounded,
+                              color: Colors.white, size: 18),
+                          label: const Text(
+                            'Update Now',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryTeal,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 11),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            elevation: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (_step == _UpdateStep.downloading ||
+                    _step == _UpdateStep.installing) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _statusText,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              '$_progress%',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primaryTeal,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: _progress / 100.0,
+                            minHeight: 8,
+                            backgroundColor: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFCBD5E1),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.primaryTeal),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _step == _UpdateStep.installing
+                              ? 'Opening package installer...'
+                              : 'Downloading from GitHub releases...',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
                         ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.asset('assets/images/logo.png',
-                          fit: BoxFit.cover),
-                    ),
                   ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryTeal,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.rocket_launch_rounded,
-                          color: Colors.white, size: 16),
+                ] else if (_step == _UpdateStep.error) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: AppColors.danger.withValues(alpha: 0.3)),
                     ),
-                  ),
-                ],
-              ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
-              const SizedBox(height: 18),
-              const Text(
-                'TourSplit Update Available! 🚀',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Version v${widget.info.latestVersion} is ready to install',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? const Color(0xFF5EEAD4)
-                      : AppColors.primaryTeal,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Step View
-              if (_step == _UpdateStep.idle) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF1E293B)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFCBD5E1),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.auto_awesome_rounded,
-                              size: 16, color: AppColors.primaryTeal),
-                          const SizedBox(width: 6),
-                          Text(
-                            "What's New in v${widget.info.latestVersion}",
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.error_outline_rounded,
+                            color: AppColors.danger, size: 28),
+                        const SizedBox(height: 6),
+                        Text(
+                          _errorMessage ?? 'Update could not be completed.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            height: 1.3,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.info.releaseNotes,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12.5,
-                          height: 1.4,
-                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _startOtaUpdate,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Try Again',
+                              style: TextStyle(fontSize: 12)),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    if (!widget.info.forceUpdate) ...[
+                      const SizedBox(width: 8),
                       Expanded(
-                        flex: 4,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: const Text(
-                            'Later',
+                        child: ElevatedButton.icon(
+                          onPressed: () => AppUpdateService.launchDownload(
+                              widget.info.apkUrl),
+                          icon: const Icon(Icons.download_rounded,
+                              color: Colors.white, size: 16),
+                          label: const Text(
+                            'Browser',
                             style: TextStyle(
                               fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    Expanded(
-                      flex: 6,
-                      child: ElevatedButton.icon(
-                        onPressed: _startOtaUpdate,
-                        icon: const Icon(Icons.flash_on_rounded,
-                            color: Colors.white, size: 20),
-                        label: const Text(
-                          'Update Now',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryTeal,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          elevation: 2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () =>
-                      AppUpdateService.launchDownload(widget.info.apkUrl),
-                  child: Text(
-                    'Or download APK via browser',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 12,
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ] else if (_step == _UpdateStep.downloading ||
-                  _step == _UpdateStep.installing) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF1E293B)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _statusText,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
                               fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                              color: Colors.white,
+                              fontSize: 12,
                             ),
                           ),
-                          Text(
-                            '$_progress%',
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primaryTeal,
-                              fontSize: 16,
-                            ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryTeal,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _progress / 100.0,
-                          minHeight: 10,
-                          backgroundColor: isDark
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFCBD5E1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.primaryTeal),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        _step == _UpdateStep.installing
-                            ? 'Opening package installer. Please confirm installation.'
-                            : 'Downloading directly from GitHub releases. Please keep app open.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 11.5,
-                          color: isDark ? Colors.white60 : Colors.black54,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: () =>
-                      AppUpdateService.launchDownload(widget.info.apkUrl),
-                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                  label: const Text('Download via browser instead'),
-                ),
-              ] else if (_step == _UpdateStep.error) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: AppColors.danger.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.error_outline_rounded,
-                          color: AppColors.danger, size: 36),
-                      const SizedBox(height: 8),
-                      Text(
-                        _errorMessage ?? 'Update could not be completed.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12.5,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _startOtaUpdate,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: const Text('Try Again'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () =>
-                            AppUpdateService.launchDownload(widget.info.apkUrl),
-                        icon: const Icon(Icons.download_rounded,
-                            color: Colors.white, size: 18),
-                        label: const Text(
-                          'Browser Download',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryTeal,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
