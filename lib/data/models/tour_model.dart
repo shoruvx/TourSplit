@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum TourStatus { active, completed }
+enum TourStatus { active, completed, deleted }
 
 class TourModel {
   final String id;
@@ -18,6 +18,7 @@ class TourModel {
   final String? coverImageUrl;
   final List<String> memberIds;
   final List<String> adminIds;
+  final bool isDeleted;
 
   const TourModel({
     required this.id,
@@ -35,19 +36,30 @@ class TourModel {
     this.adminIds = const [],
     this.budget,
     this.coverImageUrl,
+    this.isDeleted = false,
   });
 
-  bool get isActive => status == TourStatus.active;
+  bool get isActive => status == TourStatus.active && !isDeleted;
   bool isAdmin(String userId) => adminIds.contains(userId) || adminId == userId;
 
   factory TourModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
     final creatorAdminId = data['adminId'] ?? '';
     final rawAdminIds = data['adminIds'] != null
         ? List<String>.from(data['adminIds'])
         : <String>[creatorAdminId];
     if (creatorAdminId.isNotEmpty && !rawAdminIds.contains(creatorAdminId)) {
       rawAdminIds.add(creatorAdminId);
+    }
+
+    final rawStatus = data['status'] as String? ?? 'active';
+    final TourStatus tourStatus;
+    if (rawStatus == 'completed') {
+      tourStatus = TourStatus.completed;
+    } else if (rawStatus == 'deleted') {
+      tourStatus = TourStatus.deleted;
+    } else {
+      tourStatus = TourStatus.active;
     }
 
     return TourModel(
@@ -58,9 +70,7 @@ class TourModel {
       currencySymbol: data['currencySymbol'] ?? '৳',
       adminId: creatorAdminId,
       inviteCode: data['inviteCode'] ?? '',
-      status: data['status'] == 'completed'
-          ? TourStatus.completed
-          : TourStatus.active,
+      status: tourStatus,
       startDate: (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       endDate: (data['endDate'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -68,6 +78,7 @@ class TourModel {
       adminIds: rawAdminIds,
       budget: (data['budget'] as num?)?.toDouble(),
       coverImageUrl: data['coverImageUrl'],
+      isDeleted: data['isDeleted'] == true || tourStatus == TourStatus.deleted,
     );
   }
 
@@ -86,6 +97,7 @@ class TourModel {
         'members': memberIds,
         'budget': budget,
         'coverImageUrl': coverImageUrl,
+        'isDeleted': isDeleted,
       };
 
   TourModel copyWith({
@@ -96,6 +108,7 @@ class TourModel {
     TourStatus? status,
     DateTime? endDate,
     List<String>? memberIds,
+    bool? isDeleted,
   }) {
     return TourModel(
       id: id,
@@ -110,6 +123,7 @@ class TourModel {
       endDate: endDate ?? this.endDate,
       createdAt: createdAt,
       memberIds: memberIds ?? this.memberIds,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

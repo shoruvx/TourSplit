@@ -65,12 +65,16 @@ class AllToursScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (tours) {
-          if (tours.isEmpty) {
+          final validTours = tours
+              .where((t) => !t.isDeleted && t.status != TourStatus.deleted)
+              .toList();
+
+          if (validTours.isEmpty) {
             return _buildEmptyToursView(context, isDark);
           }
 
-          final activeTours = tours.where((t) => t.isActive).toList();
-          final pastTours = tours.where((t) => !t.isActive).toList();
+          final activeTours = validTours.where((t) => t.isActive).toList();
+          final pastTours = validTours.where((t) => !t.isActive).toList();
 
           return ListView(
             padding: const EdgeInsets.all(20),
@@ -83,6 +87,12 @@ class AllToursScreen extends ConsumerWidget {
                       isCurrentActive: t.id == user.activeTourId,
                       isAdmin: t.isAdmin(user.uid),
                       onSelect: () async {
+                        if (t.isDeleted || t.status == TourStatus.deleted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('This tour has been deleted.')),
+                          );
+                          return;
+                        }
                         await ref
                             .read(tourRepositoryProvider)
                             .switchActiveTour(user.uid, t.id);
@@ -100,6 +110,12 @@ class AllToursScreen extends ConsumerWidget {
                       isCurrentActive: t.id == user.activeTourId,
                       isAdmin: t.isAdmin(user.uid),
                       onSelect: () async {
+                        if (t.isDeleted || t.status == TourStatus.deleted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('This tour has been deleted.')),
+                          );
+                          return;
+                        }
                         await ref
                             .read(tourRepositoryProvider)
                             .switchActiveTour(user.uid, t.id);

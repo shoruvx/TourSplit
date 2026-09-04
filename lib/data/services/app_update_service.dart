@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -39,7 +40,10 @@ final gitHubUpdateFutureProvider = FutureProvider<AppUpdateInfo?>((ref) async {
 
 final latestUpdateInfoProvider = FutureProvider<AppUpdateInfo?>((ref) async {
   final ghUpdate = await AppUpdateService.fetchGitHubRelease();
-  if (ghUpdate != null) return ghUpdate;
+  if (ghUpdate != null) {
+    AppUpdateService.syncReleaseToFirestoreIfNewer(ghUpdate).catchError((_) {});
+    return ghUpdate;
+  }
 
   try {
     final firestoreDoc = await FirebaseFirestore.instance
@@ -57,14 +61,26 @@ class AppUpdateService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static String? _lastNotifiedVersion;
 
+  static const MethodChannel _installerChannel =
+      MethodChannel('com.shoruv.toursplit/installer');
+
   static bool isVersionNewer(String latest, String current) {
     try {
-      final latestParts =
-          latest.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-      final currentParts =
-          current.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final cleanLatest =
+          latest.split('+').first.replaceAll(RegExp(r'[^0-9.]'), '').trim();
+      final cleanCurrent =
+          current.split('+').first.replaceAll(RegExp(r'[^0-9.]'), '').trim();
 
-      for (int i = 0; i < 3; i++) {
+      final latestParts =
+          cleanLatest.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final currentParts =
+          cleanCurrent.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+      final maxLen = latestParts.length > currentParts.length
+          ? latestParts.length
+          : currentParts.length;
+
+      for (int i = 0; i < maxLen; i++) {
         final l = i < latestParts.length ? latestParts[i] : 0;
         final c = i < currentParts.length ? currentParts[i] : 0;
         if (l > c) return true;
@@ -73,6 +89,41 @@ class AppUpdateService {
       return false;
     } catch (_) {
       return latest != current;
+    }
+  }
+
+  static String cleanVersion(String version) {
+    return version
+        .split('+')
+        .first
+        .replaceAll(RegExp(r'[^0-9.]'), '')
+        .trim();
+  }
+
+  static Future<bool> isApkDownloaded(String version) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final cleanVer = cleanVersion(version);
+      final filename = 'TourSplit-v$cleanVer.apk';
+      final result = await _installerChannel
+          .invokeMethod<bool>('isApkDownloaded', {'filename': filename});
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> installDownloadedApk(String version) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final cleanVer = cleanVersion(version);
+      final filename = 'TourSplit-v$cleanVer.apk';
+      final result = await _installerChannel
+          .invokeMethod<bool>('installApk', {'filename': filename});
+      return result ?? false;
+    } catch (e) {
+      debugPrint('[INSTALLER] Error installing apk: $e');
+      return false;
     }
   }
 
@@ -191,15 +242,18 @@ class AppUpdateService {
               'https://github.com/$repository/releases/download/$rawTag/TourSplit.apk';
         }
 
-        return AppUpdateInfo(
+        final updateInfo = AppUpdateInfo(
           latestVersion: latestVersion,
-          buildNumber: 1,
+          buildNumber: 5,
+          minSupportedVersion: '1.0.1',
           releaseNotes:
               'TourSplit v$latestVersion is available on GitHub with the latest updates! 🎉',
           apkUrl: apkUrl,
           forceUpdate: false,
           releasedAt: DateTime.now(),
         );
+        syncReleaseToFirestoreIfNewer(updateInfo).catchError((_) {});
+        return updateInfo;
       }
     } catch (_) {}
 
@@ -235,16 +289,46 @@ class AppUpdateService {
     }
   }
 
+  static Future<void> syncReleaseToFirestoreIfNewer(AppUpdateInfo ghInfo) async {
+    try {
+      final doc =
+          await _firestore.collection('app_config').doc('version').get();
+      bool shouldUpdate = false;
+      if (!doc.exists) {
+        shouldUpdate = true;
+      } else {
+        final currentLatest =
+            (doc.data()?['latestVersion'] as String?) ?? '1.0.0';
+        if (isVersionNewer(ghInfo.latestVersion, currentLatest)) {
+          shouldUpdate = true;
+        }
+      }
+
+      if (shouldUpdate) {
+        await publishUpdate(
+          latestVersion: ghInfo.latestVersion,
+          buildNumber: ghInfo.buildNumber > 1 ? ghInfo.buildNumber : 5,
+          releaseNotes: ghInfo.releaseNotes,
+          apkUrl: ghInfo.apkUrl,
+          forceUpdate: ghInfo.forceUpdate,
+          minSupportedVersion: '1.0.1',
+        );
+      }
+    } catch (_) {}
+  }
+
   static Future<void> publishUpdate({
     required String latestVersion,
     required int buildNumber,
     required String releaseNotes,
     required String apkUrl,
     bool forceUpdate = false,
+    String minSupportedVersion = '1.0.1',
   }) async {
     await _firestore.collection('app_config').doc('version').set({
       'latestVersion': latestVersion,
       'buildNumber': buildNumber,
+      'minSupportedVersion': minSupportedVersion,
       'releaseNotes': releaseNotes,
       'apkUrl': apkUrl,
       'forceUpdate': forceUpdate,
@@ -288,6 +372,23 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
   int _progress = 0;
   String _statusText = '';
   String? _errorMessage;
+  bool _isDownloaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDownloadedApk();
+  }
+
+  Future<void> _checkDownloadedApk() async {
+    final downloaded =
+        await AppUpdateService.isApkDownloaded(widget.info.latestVersion);
+    if (mounted && downloaded) {
+      setState(() {
+        _isDownloaded = true;
+      });
+    }
+  }
 
   String _cleanNotes(String raw) {
     if (raw.isEmpty) return 'Bug fixes and performance improvements.';
@@ -308,6 +409,22 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
       return line;
     }).toList();
     return lines.take(3).join('\n');
+  }
+
+  Future<void> _triggerInstall() async {
+    setState(() {
+      _step = _UpdateStep.installing;
+      _progress = 100;
+      _statusText = 'Opening package installer...';
+      _errorMessage = null;
+    });
+
+    final success =
+        await AppUpdateService.installDownloadedApk(widget.info.latestVersion);
+    if (!success && mounted) {
+      // If launching existing file failed, fallback to downloading
+      _startOtaUpdate();
+    }
   }
 
   void _startOtaUpdate() {
@@ -331,11 +448,14 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
       _errorMessage = null;
     });
 
+    final filename =
+        'TourSplit-v${AppUpdateService.cleanVersion(widget.info.latestVersion)}.apk';
+
     try {
       OtaUpdate()
           .execute(
         widget.info.apkUrl,
-        destinationFilename: 'TourSplit-v${widget.info.latestVersion}.apk',
+        destinationFilename: filename,
         androidProviderAuthority: 'com.shoruv.toursplit.ota_update_provider',
       )
           .listen(
@@ -352,9 +472,10 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
               break;
             case OtaStatus.INSTALLING:
               setState(() {
+                _isDownloaded = true;
                 _step = _UpdateStep.installing;
                 _progress = 100;
-                _statusText = 'Launching installer...';
+                _statusText = 'Package ready to install';
               });
               break;
             case OtaStatus.INSTALLATION_DONE:
@@ -394,8 +515,7 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
           if (!mounted) return;
           setState(() {
             _step = _UpdateStep.error;
-            _errorMessage =
-                'Download failed. Use browser download below.';
+            _errorMessage = 'Download failed. Use browser download below.';
           });
         },
       );
@@ -473,7 +593,9 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Version v${widget.info.latestVersion} is ready to install',
+                  _isDownloaded
+                      ? 'Version v${widget.info.latestVersion} is downloaded & ready'
+                      : 'Version v${widget.info.latestVersion} is available',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 12,
@@ -487,6 +609,39 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
 
                 // Step View
                 if (_step == _UpdateStep.idle) ...[
+                  if (_isDownloaded) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.positive.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.positive.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.check_circle_rounded,
+                              color: AppColors.positive, size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'APK is already downloaded! Tap below to install.',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.positive,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -546,12 +701,17 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                       Expanded(
                         flex: 6,
                         child: ElevatedButton.icon(
-                          onPressed: _startOtaUpdate,
-                          icon: const Icon(Icons.bolt_rounded,
-                              color: Colors.white, size: 18),
-                          label: const Text(
-                            'Update Now',
-                            style: TextStyle(
+                          onPressed: _isDownloaded ? _triggerInstall : _startOtaUpdate,
+                          icon: Icon(
+                            _isDownloaded
+                                ? Icons.system_update_rounded
+                                : Icons.bolt_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _isDownloaded ? 'Install Now' : 'Update Now',
+                            style: const TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
@@ -570,8 +730,26 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                       ),
                     ],
                   ),
-                ] else if (_step == _UpdateStep.downloading ||
-                    _step == _UpdateStep.installing) ...[
+                  if (_isDownloaded) ...[
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: _startOtaUpdate,
+                      icon: const Icon(Icons.refresh_rounded, size: 14),
+                      label: const Text(
+                        'Re-download update package',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white60 : Colors.black54,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                      ),
+                    ),
+                  ],
+                ] else if (_step == _UpdateStep.downloading) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -621,15 +799,126 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          _step == _UpdateStep.installing
-                              ? 'Opening package installer...'
-                              : 'Downloading from GitHub releases...',
+                          'Downloading from GitHub releases...',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 11,
                             color: isDark ? Colors.white60 : Colors.black54,
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (_step == _UpdateStep.installing) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppColors.primaryTeal,
+                          size: 36,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Download Complete!',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'If the installer didn\'t appear or was dismissed, tap "Open Installer" below to install without re-downloading.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            height: 1.35,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _triggerInstall,
+                            icon: const Icon(Icons.system_update_rounded,
+                                color: Colors.white, size: 18),
+                            label: const Text(
+                              'Open Installer',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryTeal,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _startOtaUpdate,
+                              icon: const Icon(Icons.refresh_rounded, size: 13),
+                              label: const Text(
+                                'Re-download',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                foregroundColor:
+                                    isDark ? Colors.white60 : Colors.black54,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                              ),
+                            ),
+                            if (!widget.info.forceUpdate) ...[
+                              const SizedBox(width: 8),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: TextButton.styleFrom(
+                                  foregroundColor:
+                                      isDark ? Colors.white60 : Colors.black54,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                ),
+                                child: const Text(
+                                  'Dismiss',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -664,6 +953,32 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
+                      if (_isDownloaded) ...[
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _triggerInstall,
+                            icon: const Icon(Icons.system_update_rounded,
+                                color: Colors.white, size: 15),
+                            label: const Text(
+                              'Install',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryTeal,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(
                         child: OutlinedButton(
                           onPressed: _startOtaUpdate,

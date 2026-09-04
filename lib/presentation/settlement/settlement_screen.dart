@@ -573,46 +573,56 @@ class _SuggestedDebtCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 14,
-                      color: isDark ? Colors.white : Colors.black87,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        debt.fromUserName,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppColors.negative,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    children: [
-                      TextSpan(
-                        text: debt.fromUserName,
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(Icons.arrow_forward_rounded,
+                          size: 14, color: Colors.grey),
+                    ),
+                    Flexible(
+                      child: Text(
+                        debt.toUserName,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.negative),
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppColors.positive,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const TextSpan(text: ' pays '),
-                      TextSpan(
-                        text: debt.toUserName,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.positive),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   '$currency${debt.amount.toStringAsFixed(0)}',
                   style: const TextStyle(
@@ -625,15 +635,20 @@ class _SuggestedDebtCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 12),
           ElevatedButton.icon(
             onPressed: onSettle,
             icon: const Icon(Icons.check_rounded, size: 16),
             label: const Text('Settle',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: const Size(80, 36),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
               elevation: 0,
@@ -681,12 +696,12 @@ class _SettlementCard extends StatelessWidget {
         statusText = '✗ Rejected';
     }
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      color: isDark ? AppColors.darkSurface : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
           color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
         ),
       ),
@@ -697,46 +712,58 @@ class _SettlementCard extends StatelessWidget {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      RichText(
-                        text: TextSpan(
-                          style: theme.textTheme.bodyMedium,
-                          children: [
-                            TextSpan(
-                              text: settlement.fromUserName,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              settlement.fromUserName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.negative,
                                 fontFamily: 'Outfit',
+                                fontSize: 14,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const TextSpan(text: ' → '),
-                            TextSpan(
-                              text: settlement.toUserName,
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(Icons.arrow_forward_rounded,
+                                size: 14, color: Colors.grey),
+                          ),
+                          Flexible(
+                            child: Text(
+                              settlement.toUserName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.positive,
                                 fontFamily: 'Outfit',
+                                fontSize: 14,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         '$currency${settlement.amount.toStringAsFixed(0)}',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                           fontFamily: 'Outfit',
+                          color: AppColors.primaryTeal,
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

@@ -192,34 +192,57 @@ class TourRepository {
     });
   }
 
-  Future<void> deleteTour(String tourId) async {
+  Future<void> deleteTour(String tourId, {String? currentUserId}) async {
+    // 1. Immediately soft-mark as deleted and clear members list so real-time listeners drop it instantly
+    try {
+      await _tours.doc(tourId).update({
+        'isDeleted': true,
+        'status': 'deleted',
+        'members': [],
+      });
+    } catch (_) {}
+
+    // 2. Unconditionally clear current user's activeTourId if provided
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      try {
+        await _users.doc(currentUserId).update({'activeTourId': null});
+      } catch (_) {}
+    }
+
+    // 3. Collect member IDs from subcollection to clear their activeTourId
     final membersSnap = await _tours
         .doc(tourId)
         .collection(AppConstants.membersSubcollection)
         .get();
-    final memberIds = membersSnap.docs.map((d) => d.id).toList();
+    final memberIds = membersSnap.docs.map((d) => d.id).toSet();
+    if (currentUserId != null) memberIds.add(currentUserId);
 
     final subcollections = [
       AppConstants.membersSubcollection,
       AppConstants.expensesSubcollection,
-      'settlements',
+      AppConstants.settlementsSubcollection,
+      AppConstants.categoriesSubcollection,
       'join_requests',
     ];
 
     for (final sub in subcollections) {
-      final snap = await _tours.doc(tourId).collection(sub).get();
-      const batchLimit = 499;
-      for (int i = 0; i < snap.docs.length; i += batchLimit) {
-        final batch = _db.batch();
-        final chunk = snap.docs.skip(i).take(batchLimit);
-        for (final doc in chunk) {
-          batch.delete(doc.reference);
+      try {
+        final snap = await _tours.doc(tourId).collection(sub).get();
+        const batchLimit = 499;
+        for (int i = 0; i < snap.docs.length; i += batchLimit) {
+          final batch = _db.batch();
+          final chunk = snap.docs.skip(i).take(batchLimit);
+          for (final doc in chunk) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
         }
-        await batch.commit();
-      }
+      } catch (_) {}
     }
 
-    await _tours.doc(tourId).delete();
+    try {
+      await _tours.doc(tourId).delete();
+    } catch (_) {}
 
     for (final uid in memberIds) {
       try {
@@ -500,7 +523,11 @@ class TourRepository {
         .where('members', arrayContains: userId)
         .snapshots()
         .map((snap) {
-      final list = snap.docs.map((d) => TourModel.fromFirestore(d)).toList();
+      final list = snap.docs
+          .where((d) => d.exists)
+          .map((d) => TourModel.fromFirestore(d))
+          .where((t) => !t.isDeleted && t.status != TourStatus.deleted)
+          .toList();
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
     });

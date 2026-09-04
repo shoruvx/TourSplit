@@ -990,6 +990,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final debts = BalanceService.simplifyDebts(computedBalances, list);
 
+    final settlements =
+        ref.watch(tourSettlementsStreamProvider(widget.tourId)).value ?? [];
+    final pendingSettlements = settlements.where((s) => s.isPending).toList();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -1005,28 +1009,97 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.handshake_outlined,
-                      size: 22, color: AppColors.primaryTeal),
-                  SizedBox(width: 8),
-                  Text(
-                    'Smart Debt Settlement',
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.handshake_outlined,
+                        size: 18, color: AppColors.primaryTeal),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Smart Settlements',
                     style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700),
+                      fontFamily: 'Outfit',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
               TextButton(
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 onPressed: () => context.push('/settlement'),
-                child: const Text('View All'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(Icons.chevron_right_rounded,
+                        size: 16, color: AppColors.primaryTeal),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const Divider(height: 24),
+          if (pendingSettlements.isNotEmpty) ...[
+            InkWell(
+              onTap: () => context.push('/settlement'),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.pending_actions_rounded,
+                        color: AppColors.warning, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${pendingSettlements.length} settlement${pendingSettlements.length > 1 ? 's' : ''} waiting for approval',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        size: 12, color: AppColors.warning),
+                  ],
+                ),
+              ),
+            ),
+          ],
           if (debts.isEmpty) ...[
             Container(
               width: double.infinity,
@@ -1053,7 +1126,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           ] else ...[
             ...debts.map((d) {
               return Container(
-                margin: const EdgeInsets.only(bottom: 8),
+                margin: const EdgeInsets.only(bottom: 10),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
@@ -1068,64 +1141,79 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   ),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          RichText(
-                            text: TextSpan(
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 13,
-                                color: isDark ? Colors.white : Colors.black87,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  d.fromUserName,
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: AppColors.negative,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                              children: [
-                                TextSpan(
-                                  text: d.fromUserName,
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6),
+                                child: Icon(Icons.arrow_forward_rounded,
+                                    size: 13, color: Colors.grey),
+                              ),
+                              Flexible(
+                                child: Text(
+                                  d.toUserName,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.negative),
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: AppColors.positive,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const TextSpan(text: ' pays '),
-                                TextSpan(
-                                  text: d.toUserName,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.positive),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Text(
                             '$currencySymbol${d.amount.toStringAsFixed(0)}',
                             style: const TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w800,
                               color: AppColors.primaryTeal,
-                              fontSize: 14,
+                              fontSize: 15,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: () => _quickSettleDebt(d, currencySymbol),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        minimumSize: const Size(0, 32),
+                            horizontal: 14, vertical: 8),
+                        minimumSize: const Size(68, 34),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(10)),
                         elevation: 0,
                       ),
-                      child: const Text('Settle',
-                          style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700)),
+                      child: const Text(
+                        'Settle',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),

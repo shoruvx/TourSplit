@@ -162,23 +162,31 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(tourRepositoryProvider).deleteTour(tourId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tour deleted permanently.'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-        context.go('/home');
+      final currentUserId = ref.read(currentUserProvider).value?.uid;
+      await ref
+          .read(tourRepositoryProvider)
+          .deleteTour(tourId, currentUserId: currentUserId);
+
+      if (currentUserId != null) {
+        ref.invalidate(userToursStreamProvider(currentUserId));
       }
+      ref.invalidate(tourStreamProvider(tourId));
+      ref.invalidate(currentUserProvider);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tour deleted permanently.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      context.go('/home');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
-        );
-        setState(() => _isLoading = false);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
+      setState(() => _isLoading = false);
     }
   }
 

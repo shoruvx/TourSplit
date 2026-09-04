@@ -12,8 +12,11 @@ service cloud.firestore {
     }
 
     function isTourAdmin(tourId) {
-      return isLoggedIn() &&
-        request.auth.uid == get(/databases/$(database)/documents/tours/$(tourId)).data.adminId;
+      return isLoggedIn() && (
+        request.auth.uid == get(/databases/$(database)/documents/tours/$(tourId)).data.adminId ||
+        (get(/databases/$(database)/documents/tours/$(tourId)).data.adminIds != null &&
+         request.auth.uid in get(/databases/$(database)/documents/tours/$(tourId)).data.adminIds)
+      );
     }
 
     match /users/{userId} {
@@ -26,7 +29,11 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow create: if isLoggedIn();
       allow update: if isLoggedIn();
-      allow delete: if isTourAdmin(tourId);
+      allow delete: if isLoggedIn() && (
+        resource.data.adminId == request.auth.uid ||
+        (resource.data.adminIds != null && request.auth.uid in resource.data.adminIds) ||
+        isTourAdmin(tourId)
+      );
 
       match /members/{memberId} {
         allow read: if isLoggedIn();
