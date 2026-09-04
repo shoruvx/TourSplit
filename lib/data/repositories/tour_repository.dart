@@ -193,7 +193,19 @@ class TourRepository {
   }
 
   Future<void> deleteTour(String tourId, {String? currentUserId}) async {
-    // 1. Immediately soft-mark as deleted and clear members list so real-time listeners drop it instantly
+    // 1. Remove current user from members array and clear activeTourId immediately
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      try {
+        await _tours.doc(tourId).update({
+          'members': FieldValue.arrayRemove([currentUserId]),
+        });
+      } catch (_) {}
+      try {
+        await _users.doc(currentUserId).update({'activeTourId': null});
+      } catch (_) {}
+    }
+
+    // 2. Soft-mark as deleted and clear remaining members list so all listeners drop it instantly
     try {
       await _tours.doc(tourId).update({
         'isDeleted': true,
@@ -201,13 +213,6 @@ class TourRepository {
         'members': [],
       });
     } catch (_) {}
-
-    // 2. Unconditionally clear current user's activeTourId if provided
-    if (currentUserId != null && currentUserId.isNotEmpty) {
-      try {
-        await _users.doc(currentUserId).update({'activeTourId': null});
-      } catch (_) {}
-    }
 
     // 3. Collect member IDs from subcollection to clear their activeTourId
     final membersSnap = await _tours
