@@ -70,14 +70,31 @@ class ReportScreen extends ConsumerWidget {
                       (byCategory[e.category] ?? 0) + e.amount;
                 }
 
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Tour Report'),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      onPressed: () => context.pop(),
+                return PopScope(
+                  canPop: false,
+                  onPopInvokedWithResult: (didPop, _) {
+                    if (didPop) return;
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/home');
+                    }
+                  },
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Tour Report'),
+                      leading: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        tooltip: 'Back',
+                        onPressed: () {
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/home');
+                          }
+                        },
+                      ),
                     ),
-                  ),
                   body: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -248,7 +265,8 @@ class ReportScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                );
+                ),
+              );
               },
             ),
           ),

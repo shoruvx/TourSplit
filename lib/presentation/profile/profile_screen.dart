@@ -206,16 +206,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _initialized = true;
         }
 
-        return LoadingOverlay(
-          isLoading: _isLoading,
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('Profile'),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                onPressed: () => context.pop(),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+          child: LoadingOverlay(
+            isLoading: _isLoading,
+            child: Scaffold(
+              appBar: AppBar(
+                title: const Text('Profile'),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  tooltip: 'Back',
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/home');
+                    }
+                  },
+                ),
               ),
-            ),
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -470,7 +487,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

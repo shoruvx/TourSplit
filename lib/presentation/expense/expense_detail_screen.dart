@@ -27,34 +27,65 @@ class ExpenseDetailScreen extends ConsumerWidget {
     final expenseStream = ref.watch(
         singleExpenseStreamProvider((tourId: tourId, expenseId: expenseId)));
 
-    return expenseStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(),
-        body: Center(child: Text('Error: $e')),
-      ),
-      data: (expense) {
-        if (expense == null) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: Text('Expense not found or deleted')),
-          );
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
         }
+      },
+      child: expenseStream.when(
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (e, _) => Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              tooltip: 'Back',
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/home'),
+            ),
+          ),
+          body: Center(child: Text('Error: $e')),
+        ),
+        data: (expense) {
+          if (expense == null) {
+            return Scaffold(
+              appBar: AppBar(
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  tooltip: 'Back',
+                  onPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/home'),
+                ),
+              ),
+              body: const Center(child: Text('Expense not found or deleted')),
+            );
+          }
 
-        return tourStream.when(
-          loading: () =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
-          error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-          data: (tour) {
-            if (tour == null) return const Scaffold();
-            if (!tour.memberIds.contains(user.uid)) {
-              return Scaffold(
-                appBar: AppBar(),
-                body: const Center(
-                    child: Text('You are no longer a member of this tour.')),
-              );
-            }
+          return tourStream.when(
+            loading: () =>
+                const Scaffold(body: Center(child: CircularProgressIndicator())),
+            error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
+            data: (tour) {
+              if (tour == null) return const Scaffold();
+              if (!tour.memberIds.contains(user.uid)) {
+                return Scaffold(
+                  appBar: AppBar(
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                      tooltip: 'Back',
+                      onPressed: () =>
+                          context.canPop() ? context.pop() : context.go('/home'),
+                    ),
+                  ),
+                  body: const Center(
+                      child: Text('You are no longer a member of this tour.')),
+                );
+              }
             final isAdmin = tour.isAdmin(user.uid);
             final canEdit = isAdmin ||
                 expense.paidByUserId == user.uid ||
@@ -74,7 +105,9 @@ class ExpenseDetailScreen extends ConsumerWidget {
                     title: const Text('Expense Details'),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      onPressed: () => context.pop(),
+                      tooltip: 'Back',
+                      onPressed: () =>
+                          context.canPop() ? context.pop() : context.go('/home'),
                     ),
                     actions: [
                       if (canEdit)
@@ -275,7 +308,8 @@ class ExpenseDetailScreen extends ConsumerWidget {
           },
         );
       },
-    );
+    ),
+  );
   }
 
   String _splitLabel(SplitType type) {

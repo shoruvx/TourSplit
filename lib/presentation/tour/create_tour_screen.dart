@@ -132,17 +132,34 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(currentUserProvider).valueOrNull;
 
-    return LoadingOverlay(
-      isLoading: _isLoading,
-      child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.close_rounded),
-            onPressed: () => context.pop(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/tours');
+        }
+      },
+      child: LoadingOverlay(
+        isLoading: _isLoading,
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'Cancel',
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/tours');
+                }
+              },
+            ),
+            title: const Text('New Tour'),
+            centerTitle: true,
           ),
-          title: const Text('New Tour'),
-          centerTitle: true,
-        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -405,7 +422,8 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

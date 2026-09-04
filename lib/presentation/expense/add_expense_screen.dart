@@ -439,19 +439,36 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               }
             }
 
-            return LoadingOverlay(
-              isLoading: _isLoading,
-              child: Scaffold(
-                appBar: AppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => context.pop(),
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/home');
+                }
+              },
+              child: LoadingOverlay(
+                isLoading: _isLoading,
+                child: Scaffold(
+                  appBar: AppBar(
+                    leading: IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Cancel',
+                      onPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/home');
+                        }
+                      },
+                    ),
+                    title: Text(widget.existingExpense != null
+                        ? 'Edit Expense'
+                        : 'Add Expense'),
+                    centerTitle: true,
                   ),
-                  title: Text(widget.existingExpense != null
-                      ? 'Edit Expense'
-                      : 'Add Expense'),
-                  centerTitle: true,
-                ),
                 body: Form(
                   key: _formKey,
                   child: SingleChildScrollView(
@@ -1313,7 +1330,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   ),
                 ),
               ),
-            );
+            ),
+          );
           },
         );
       },

@@ -74,7 +74,7 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _NoActiveTourScreen extends StatelessWidget {
+class _NoActiveTourScreen extends ConsumerWidget {
   final String displayName;
   final String? noticeMessage;
 
@@ -84,9 +84,10 @@ class _NoActiveTourScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final currentUser = ref.watch(currentUserProvider).valueOrNull;
 
     return Scaffold(
       body: SafeArea(
@@ -140,9 +141,28 @@ class _NoActiveTourScreen extends StatelessWidget {
                   ),
                   Row(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.person_outline_rounded),
-                        onPressed: () => context.push('/profile'),
+                      InkWell(
+                        onTap: () => context.push('/profile'),
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primaryTeal.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: MemberAvatar(
+                            initials: currentUser?.initials.isNotEmpty == true
+                                ? currentUser!.initials
+                                : (displayName.isNotEmpty
+                                    ? displayName[0].toUpperCase()
+                                    : 'U'),
+                            photoUrl: currentUser?.photoUrl,
+                            radius: 18,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1660,7 +1680,7 @@ class _PillTabBar extends StatelessWidget {
   }
 }
 
-class _TourDashboardAppBar extends StatelessWidget {
+class _TourDashboardAppBar extends ConsumerWidget {
   final TourModel tour;
   final bool isAdmin;
 
@@ -1670,14 +1690,26 @@ class _TourDashboardAppBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final currentUser = ref.watch(currentUserProvider).valueOrNull;
 
     return SliverAppBar(
       pinned: true,
       elevation: 0,
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+        tooltip: 'All Tours',
+        onPressed: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.push('/tours');
+          }
+        },
+      ),
       title: InkWell(
         onTap: () => context.push('/tours'),
         borderRadius: BorderRadius.circular(10),
@@ -1720,11 +1752,6 @@ class _TourDashboardAppBar extends StatelessWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.luggage_outlined),
-          tooltip: 'All Tours',
-          onPressed: () => context.push('/tours'),
-        ),
-        IconButton(
           icon: const Icon(Icons.group_outlined),
           tooltip: 'Members',
           onPressed: () => context.push('/tour/members'),
@@ -1736,9 +1763,33 @@ class _TourDashboardAppBar extends StatelessWidget {
             onPressed: () => context.push('/tour/settings'),
           ),
         IconButton(
-          icon: const Icon(Icons.person_outline),
-          tooltip: 'Profile',
-          onPressed: () => context.push('/profile'),
+          icon: const Icon(Icons.luggage_outlined),
+          tooltip: 'All Tours',
+          onPressed: () => context.push('/tours'),
+        ),
+        InkWell(
+          onTap: () => context.push('/profile'),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, right: 14),
+            child: Container(
+              padding: const EdgeInsets.all(1.5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.primaryTeal.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+              ),
+              child: MemberAvatar(
+                initials: currentUser?.initials.isNotEmpty == true
+                    ? currentUser!.initials
+                    : 'U',
+                photoUrl: currentUser?.photoUrl,
+                radius: 15,
+              ),
+            ),
+          ),
         ),
       ],
     );

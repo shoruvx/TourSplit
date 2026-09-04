@@ -58,14 +58,31 @@ class BalanceScreen extends ConsumerWidget {
                     balances, approvedSettlements);
                 final debts = BalanceService.simplifyDebts(balances, members);
 
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Balances'),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      onPressed: () => context.pop(),
+                return PopScope(
+                  canPop: false,
+                  onPopInvokedWithResult: (didPop, _) {
+                    if (didPop) return;
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/home');
+                    }
+                  },
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Balances'),
+                      leading: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        tooltip: 'Back',
+                        onPressed: () {
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/home');
+                          }
+                        },
+                      ),
                     ),
-                  ),
                   body: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -119,7 +136,8 @@ class BalanceScreen extends ConsumerWidget {
                             ).animate().fadeIn()),
                     ],
                   ),
-                );
+                ),
+              );
               },
             ),
           ),

@@ -113,16 +113,33 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return LoadingOverlay(
-      isLoading: _isLoading,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Join Tour'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () => context.pop(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/tours');
+        }
+      },
+      child: LoadingOverlay(
+        isLoading: _isLoading,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Join Tour'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              tooltip: 'Back',
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/tours');
+                }
+              },
+            ),
           ),
-        ),
         body: SafeArea(
           child: Column(
             children: [
@@ -168,7 +185,8 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildCodeInputView(ThemeData theme, bool isDark) {

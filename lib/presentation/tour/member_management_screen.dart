@@ -37,20 +37,40 @@ class MemberManagementScreen extends ConsumerWidget {
         if (tour == null) return const Scaffold();
         if (!tour.memberIds.contains(user.uid)) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Members')),
+            appBar: AppBar(
+              title: const Text('Members'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                tooltip: 'Back',
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/home'),
+              ),
+            ),
             body: const Center(
                 child: Text('You are no longer a member of this tour.')),
           );
         }
         final isAdmin = tour.isAdmin(user.uid);
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Members'),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              onPressed: () => context.pop(),
-            ),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('Members'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                tooltip: 'Back',
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/home'),
+              ),
             actions: [
               if (isAdmin)
                 IconButton(
@@ -124,7 +144,8 @@ class MemberManagementScreen extends ConsumerWidget {
               ),
             ],
           ),
-        );
+        ),
+      );
       },
     );
   }

@@ -24,13 +24,30 @@ class AllToursScreen extends ConsumerWidget {
 
     final toursStream = ref.watch(userToursStreamProvider(user.uid));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Your Tours'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.pop(),
-        ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Your Tours'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            tooltip: 'Back',
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/home');
+              }
+            },
+          ),
         actions: [
           IconButton(
             icon: const Icon(Icons.qr_code_scanner_rounded),
@@ -95,7 +112,8 @@ class AllToursScreen extends ConsumerWidget {
           );
         },
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildEmptyToursView(BuildContext context, bool isDark) {
