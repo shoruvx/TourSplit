@@ -30,6 +30,14 @@ class HomeScreen extends ConsumerWidget {
       FirstTimeGuideDialog.checkAndShow(context);
     });
 
+    final updateInfo = ref.watch(gitHubUpdateFutureProvider).value ??
+        ref.watch(appUpdateInfoStreamProvider).value;
+    final packageInfo = ref.watch(currentAppVersionProvider).value;
+    if (updateInfo != null && packageInfo != null) {
+      AppUpdateService.promptUpdateIfNeeded(
+          context, updateInfo, packageInfo.version);
+    }
+
     final currentUser = ref.watch(currentUserProvider);
 
     return currentUser.when(
@@ -285,7 +293,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
   int _selectedPillTab = 0;
   bool _showSpreadsheetView = true;
   String? _lastNotifiedJoinRequestId;
-  String? _lastNotifiedUpdateVersion;
   bool _isJoinDialogActive = false;
 
   void _showFullScreenJoinRequestPopup(
@@ -598,26 +605,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           });
         }
 
-        final updateInfo = ref.watch(appUpdateInfoStreamProvider).value ??
-            ref.watch(gitHubUpdateFutureProvider).value;
+        final updateInfo = ref.watch(gitHubUpdateFutureProvider).value ??
+            ref.watch(appUpdateInfoStreamProvider).value;
         final packageInfo = ref.watch(currentAppVersionProvider).value;
         if (updateInfo != null && packageInfo != null) {
-          final isNewer = AppUpdateService.isVersionNewer(
-              updateInfo.latestVersion, packageInfo.version);
-          if (isNewer &&
-              _lastNotifiedUpdateVersion != updateInfo.latestVersion) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted &&
-                  _lastNotifiedUpdateVersion != updateInfo.latestVersion) {
-                _lastNotifiedUpdateVersion = updateInfo.latestVersion;
-                AppUpdateService.showUpdateDialog(
-                  context,
-                  info: updateInfo,
-                  currentVersion: packageInfo.version,
-                );
-              }
-            });
-          }
+          AppUpdateService.promptUpdateIfNeeded(
+              context, updateInfo, packageInfo.version);
         }
 
         final totalSpent =
@@ -946,7 +939,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           ),
                         ),
                         Text(
-                          m.role == 'admin' ? 'Admin' : 'Member',
+                          m.isOffline
+                              ? 'Offline Member'
+                              : (m.role == 'admin' ? 'Admin' : 'Member'),
                           style: TextStyle(
                             fontSize: 11,
                             color: isDark
@@ -1752,7 +1747,7 @@ class _TourDashboardAppBar extends ConsumerWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.group_outlined),
+          icon: const Icon(Icons.groups_rounded),
           tooltip: 'Members',
           onPressed: () => context.push('/tour/members'),
         ),
@@ -1762,11 +1757,6 @@ class _TourDashboardAppBar extends ConsumerWidget {
             tooltip: 'Tour Settings',
             onPressed: () => context.push('/tour/settings'),
           ),
-        IconButton(
-          icon: const Icon(Icons.luggage_outlined),
-          tooltip: 'All Tours',
-          onPressed: () => context.push('/tours'),
-        ),
         InkWell(
           onTap: () => context.push('/profile'),
           borderRadius: BorderRadius.circular(20),

@@ -1,7 +1,7 @@
 name: toursplit
 description: "TourSplit: Split the costs, keep the memories."
 publish_to: 'none'
-version: 1.0.4+4
+version: 1.0.5+5
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -58,6 +58,7 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.0
   package_info_plus: ^9.0.1
+  ota_update: ^7.1.0
 
 dev_dependencies:
   flutter_test:

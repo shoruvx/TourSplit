@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,20 +7,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:ota_update/ota_update.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/app_update_model.dart';
+import 'notification_service.dart';
 
 final appUpdateInfoStreamProvider = StreamProvider<AppUpdateInfo?>((ref) {
-  return FirebaseFirestore.instance
-      .collection('app_config')
-      .doc('version')
-      .snapshots()
-      .map((doc) {
-    if (!doc.exists) return null;
-    return AppUpdateInfo.fromFirestore(doc);
-  });
+  try {
+    return FirebaseFirestore.instance
+        .collection('app_config')
+        .doc('version')
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return null;
+      return AppUpdateInfo.fromFirestore(doc);
+    }).handleError((_) => null);
+  } catch (_) {
+    return const Stream.empty();
+  }
 });
 
 final currentAppVersionProvider = FutureProvider<PackageInfo>((ref) async {
@@ -48,6 +55,7 @@ final latestUpdateInfoProvider = FutureProvider<AppUpdateInfo?>((ref) async {
 
 class AppUpdateService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static String? _lastNotifiedVersion;
 
   static bool isVersionNewer(String latest, String current) {
     try {
@@ -68,15 +76,46 @@ class AppUpdateService {
     }
   }
 
+  static void notifyIfNewUpdate(AppUpdateInfo info, String currentVersion) {
+    if (isVersionNewer(info.latestVersion, currentVersion)) {
+      if (_lastNotifiedVersion != info.latestVersion) {
+        _lastNotifiedVersion = info.latestVersion;
+        NotificationService.showUpdateNotification(
+          latestVersion: info.latestVersion,
+          releaseNotes: info.releaseNotes,
+        );
+      }
+    }
+  }
+
+  static String? _lastPromptedDialogVersion;
+
+  static void promptUpdateIfNeeded(
+      BuildContext context, AppUpdateInfo info, String currentVersion) {
+    if (isVersionNewer(info.latestVersion, currentVersion)) {
+      notifyIfNewUpdate(info, currentVersion);
+      if (_lastPromptedDialogVersion != info.latestVersion) {
+        _lastPromptedDialogVersion = info.latestVersion;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            showUpdateDialog(context, info: info, currentVersion: currentVersion);
+          }
+        });
+      }
+    }
+  }
+
   static Future<AppUpdateInfo?> fetchGitHubRelease({String? repo}) async {
+    final repository = repo ?? AppConstants.githubRepo;
+
+    // 1. Try official GitHub API
     try {
-      final repository = repo ?? AppConstants.githubRepo;
       final uri =
           Uri.parse('https://api.github.com/repos/$repository/releases/latest');
       final response = await http.get(uri, headers: {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'TourSplit-App',
-      });
+      }).timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -114,6 +153,56 @@ class AppUpdateService {
         );
       }
     } catch (_) {}
+
+    // 2. Resilient Fallback: Query GitHub releases via redirect (zero API rate limit issues)
+    try {
+      final client = http.Client();
+      final request = http.Request(
+        'GET',
+        Uri.parse('https://github.com/$repository/releases/latest'),
+      )..followRedirects = false;
+
+      final streamedResponse =
+          await client.send(request).timeout(const Duration(seconds: 5));
+      final location = streamedResponse.headers['location'] ?? '';
+
+      if (location.isNotEmpty && location.contains('/releases/tag/')) {
+        final rawTag = location.split('/').last;
+        final latestVersion =
+            rawTag.startsWith('v') ? rawTag.substring(1) : rawTag;
+
+        final assetsUri = Uri.parse(
+            'https://github.com/$repository/releases/expanded_assets/$rawTag');
+        final assetsResp =
+            await http.get(assetsUri).timeout(const Duration(seconds: 5));
+
+        String apkUrl = '';
+        final match =
+            RegExp(r'href="([^"]+\.apk)"').firstMatch(assetsResp.body);
+        if (match != null) {
+          final matchedHref = match.group(1)!;
+          apkUrl = matchedHref.startsWith('http')
+              ? matchedHref
+              : 'https://github.com$matchedHref';
+        }
+
+        if (apkUrl.isEmpty) {
+          apkUrl =
+              'https://github.com/$repository/releases/download/$rawTag/TourSplit.apk';
+        }
+
+        return AppUpdateInfo(
+          latestVersion: latestVersion,
+          buildNumber: 1,
+          releaseNotes:
+              'TourSplit v$latestVersion is available on GitHub with the latest updates! 🎉',
+          apkUrl: apkUrl,
+          forceUpdate: false,
+          releasedAt: DateTime.now(),
+        );
+      }
+    } catch (_) {}
+
     return null;
   }
 
@@ -133,6 +222,7 @@ class AppUpdateService {
 
     if (updateInfo != null &&
         isVersionNewer(updateInfo.latestVersion, currentVer)) {
+      notifyIfNewUpdate(updateInfo, currentVer);
       showUpdateDialog(context, info: updateInfo, currentVersion: currentVer);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -170,194 +260,460 @@ class AppUpdateService {
     showDialog(
       context: context,
       barrierDismissible: !info.forceUpdate,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      builder: (ctx) => _UpdateDialogWidget(
+        info: info,
+        currentVersion: currentVersion,
+      ),
+    );
+  }
+}
 
-        return PopScope(
-          canPop: !info.forceUpdate,
-          child: Dialog(
-            backgroundColor: isDark ? const Color(0xFF131D2E) : Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-            insetPadding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+class _UpdateDialogWidget extends StatefulWidget {
+  final AppUpdateInfo info;
+  final String currentVersion;
+
+  const _UpdateDialogWidget({
+    required this.info,
+    required this.currentVersion,
+  });
+
+  @override
+  State<_UpdateDialogWidget> createState() => _UpdateDialogWidgetState();
+}
+
+enum _UpdateStep { idle, downloading, installing, error }
+
+class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
+  _UpdateStep _step = _UpdateStep.idle;
+  int _progress = 0;
+  String _statusText = '';
+  String? _errorMessage;
+
+  void _startOtaUpdate() {
+    if (!Platform.isAndroid) {
+      AppUpdateService.launchDownload(widget.info.apkUrl);
+      return;
+    }
+
+    if (widget.info.apkUrl.isEmpty) {
+      setState(() {
+        _step = _UpdateStep.error;
+        _errorMessage = 'Download URL is not available.';
+      });
+      return;
+    }
+
+    setState(() {
+      _step = _UpdateStep.downloading;
+      _progress = 0;
+      _statusText = 'Starting download...';
+      _errorMessage = null;
+    });
+
+    try {
+      OtaUpdate()
+          .execute(
+        widget.info.apkUrl,
+        destinationFilename: 'TourSplit-v${widget.info.latestVersion}.apk',
+        androidProviderAuthority: 'com.shoruv.toursplit.ota_update_provider',
+      )
+          .listen(
+        (OtaEvent event) {
+          if (!mounted) return;
+          switch (event.status) {
+            case OtaStatus.DOWNLOADING:
+              final pct = int.tryParse(event.value ?? '0') ?? _progress;
+              setState(() {
+                _step = _UpdateStep.downloading;
+                _progress = pct;
+                _statusText = 'Downloading update... $pct%';
+              });
+              break;
+            case OtaStatus.INSTALLING:
+              setState(() {
+                _step = _UpdateStep.installing;
+                _progress = 100;
+                _statusText = 'Launching installer...';
+              });
+              break;
+            case OtaStatus.INSTALLATION_DONE:
+              if (mounted) Navigator.of(context).pop();
+              break;
+            case OtaStatus.ALREADY_RUNNING_ERROR:
+              setState(() {
+                _step = _UpdateStep.downloading;
+                _statusText = 'Update download in progress...';
+              });
+              break;
+            case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
+              setState(() {
+                _step = _UpdateStep.error;
+                _errorMessage =
+                    'Install permission not granted. Please allow installing unknown apps or download via browser.';
+              });
+              break;
+            case OtaStatus.DOWNLOAD_ERROR:
+            case OtaStatus.CHECKSUM_ERROR:
+            case OtaStatus.INTERNAL_ERROR:
+            case OtaStatus.INSTALLATION_ERROR:
+              setState(() {
+                _step = _UpdateStep.error;
+                _errorMessage =
+                    'Download encountered an issue (${event.status.name}). You can download directly via browser.';
+              });
+              break;
+            case OtaStatus.CANCELED:
+              setState(() {
+                _step = _UpdateStep.idle;
+              });
+              break;
+          }
+        },
+        onError: (err) {
+          if (!mounted) return;
+          setState(() {
+            _step = _UpdateStep.error;
+            _errorMessage =
+                'Download failed ($err). You can download directly via browser.';
+          });
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _step = _UpdateStep.error;
+        _errorMessage = 'Could not start download: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return PopScope(
+      canPop: !widget.info.forceUpdate && _step != _UpdateStep.downloading,
+      child: Dialog(
+        backgroundColor: isDark ? const Color(0xFF131D2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.center,
                 children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  AppColors.primaryTeal.withValues(alpha: 0.35),
-                              blurRadius: 18,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.35),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Image.asset('assets/images/logo.png',
-                              fit: BoxFit.cover),
-                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset('assets/images/logo.png',
+                          fit: BoxFit.cover),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primaryTeal,
+                        shape: BoxShape.circle,
                       ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryTeal,
-                            shape: BoxShape.circle,
+                      child: const Icon(Icons.rocket_launch_rounded,
+                          color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+              const SizedBox(height: 18),
+              const Text(
+                'TourSplit Update Available! 🚀',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Version v${widget.info.latestVersion} is ready to install',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? const Color(0xFF5EEAD4)
+                      : AppColors.primaryTeal,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Step View
+              if (_step == _UpdateStep.idle) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFCBD5E1),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.auto_awesome_rounded,
+                              size: 16, color: AppColors.primaryTeal),
+                          const SizedBox(width: 6),
+                          Text(
+                            "What's New in v${widget.info.latestVersion}",
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                          child: const Icon(Icons.rocket_launch_rounded,
-                              color: Colors.white, size: 16),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.info.releaseNotes,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: isDark ? Colors.white70 : Colors.black87,
                         ),
                       ),
                     ],
-                  )
-                      .animate()
-                      .scale(duration: 400.ms, curve: Curves.easeOutBack),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'TourSplit Update Available! 🚀',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Version v${info.latestVersion} is ready to install',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? const Color(0xFF5EEAD4)
-                          : AppColors.primaryTeal,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1E293B)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF334155)
-                            : const Color(0xFFCBD5E1),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.auto_awesome_rounded,
-                                size: 16, color: AppColors.primaryTeal),
-                            const SizedBox(width: 6),
-                            Text(
-                              "What's New in v${info.latestVersion}",
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          info.releaseNotes,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 12.5,
-                            height: 1.4,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      if (!info.forceUpdate) ...[
-                        Expanded(
-                          flex: 4,
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                            ),
-                            child: const Text(
-                              'Later',
-                              style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    if (!widget.info.forceUpdate) ...[
                       Expanded(
-                        flex: 6,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            if (info.apkUrl.isNotEmpty) {
-                              await launchDownload(info.apkUrl);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        'Download URL is being configured by the admin.')),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.download_rounded,
-                              color: Colors.white, size: 20),
-                          label: const Text(
-                            'Update Now',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryTeal,
+                        flex: 4,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16)),
-                            elevation: 2,
                           ),
+                          child: const Text(
+                            'Later',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      flex: 6,
+                      child: ElevatedButton.icon(
+                        onPressed: _startOtaUpdate,
+                        icon: const Icon(Icons.flash_on_rounded,
+                            color: Colors.white, size: 20),
+                        label: const Text(
+                          'Update Now',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryTeal,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          elevation: 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () =>
+                      AppUpdateService.launchDownload(widget.info.apkUrl),
+                  child: Text(
+                    'Or download APK via browser',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ] else if (_step == _UpdateStep.downloading ||
+                  _step == _UpdateStep.installing) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _statusText,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            '$_progress%',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryTeal,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: _progress / 100.0,
+                          minHeight: 10,
+                          backgroundColor: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFCBD5E1),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppColors.primaryTeal),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        _step == _UpdateStep.installing
+                            ? 'Opening package installer. Please confirm installation.'
+                            : 'Downloading directly from GitHub releases. Please keep app open.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11.5,
+                          color: isDark ? Colors.white60 : Colors.black54,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () =>
+                      AppUpdateService.launchDownload(widget.info.apkUrl),
+                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                  label: const Text('Download via browser instead'),
+                ),
+              ] else if (_step == _UpdateStep.error) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error_outline_rounded,
+                          color: AppColors.danger, size: 36),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage ?? 'Update could not be completed.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _startOtaUpdate,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Text('Try Again'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            AppUpdateService.launchDownload(widget.info.apkUrl),
+                        icon: const Icon(Icons.download_rounded,
+                            color: Colors.white, size: 18),
+                        label: const Text(
+                          'Browser Download',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryTeal,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

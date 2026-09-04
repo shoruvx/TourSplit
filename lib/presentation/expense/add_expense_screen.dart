@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -972,7 +971,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                     ),
                                   ),
                                 ),
-                                label: Text(m.displayName),
+                                label: Text(
+                                    '${m.displayName}${m.isOffline ? ' (Offline)' : ''}'),
                                 selected: isSelected,
                                 selectedColor: AppColors.primaryTeal,
                                 backgroundColor: isDark
@@ -1057,7 +1057,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            m.displayName,
+                                            '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 13),
@@ -1200,7 +1200,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               final isIncluded =
                                   _selectedMemberIds.contains(m.userId);
                               return FilterChip(
-                                label: Text(m.displayName),
+                                label: Text(
+                                    '${m.displayName}${m.isOffline ? ' (Offline)' : ''}'),
                                 selected: isIncluded,
                                 selectedColor: AppColors.primaryTeal
                                     .withValues(alpha: 0.2),
@@ -1278,7 +1279,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                     child: Row(
                                       children: [
                                         Expanded(
-                                          child: Text(m.displayName,
+                                          child: Text(
+                                              '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
                                               style: const TextStyle(
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 13)),

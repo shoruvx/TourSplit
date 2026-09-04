@@ -77,6 +77,30 @@ class NotificationService {
     );
   }
 
+  static Future<void> showUpdateNotification({
+    required String latestVersion,
+    String? releaseNotes,
+  }) async {
+    try {
+      await _localNotifications.show(
+        id: 999991,
+        title: 'TourSplit Update Available! 🚀',
+        body: 'Version v$latestVersion is available. Tap to update with 1-click!',
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channel.id,
+            _channel.name,
+            channelDescription: _channel.description,
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+          ),
+          iOS: const DarwinNotificationDetails(),
+        ),
+      );
+    } catch (_) {}
+  }
+
   static Future<String?> getFcmToken() async {
     return await FirebaseMessaging.instance.getToken();
   }

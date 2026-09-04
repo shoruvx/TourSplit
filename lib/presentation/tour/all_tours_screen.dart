@@ -298,7 +298,7 @@ class _TourCard extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.people_alt_outlined, size: 16),
+                      const Icon(Icons.groups_rounded, size: 18),
                       const SizedBox(width: 6),
                       Text(
                         '${tour.memberIds.length} Members',

@@ -122,6 +122,7 @@ class TourMemberModel {
   final String role;
   final DateTime joinedAt;
   final double balance;
+  final bool isOffline;
 
   const TourMemberModel({
     required this.userId,
@@ -131,6 +132,7 @@ class TourMemberModel {
     required this.role,
     required this.joinedAt,
     this.balance = 0.0,
+    this.isOffline = false,
   });
 
   bool get isAdmin => role == 'admin';
@@ -150,6 +152,8 @@ class TourMemberModel {
 
   factory TourMemberModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final isOffline =
+        data['isOffline'] == true || doc.id.startsWith('offline_');
     return TourMemberModel(
       userId: doc.id,
       displayName: data['displayName'] ?? '',
@@ -158,6 +162,7 @@ class TourMemberModel {
       role: data['role'] ?? 'member',
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       balance: (data['balance'] as num?)?.toDouble() ?? 0.0,
+      isOffline: isOffline,
     );
   }
 
@@ -169,17 +174,24 @@ class TourMemberModel {
         'role': role,
         'joinedAt': Timestamp.fromDate(joinedAt),
         'balance': balance,
+        'isOffline': isOffline,
       };
 
-  TourMemberModel copyWith({double? balance, String? role}) {
+  TourMemberModel copyWith({
+    double? balance,
+    String? role,
+    String? displayName,
+    bool? isOffline,
+  }) {
     return TourMemberModel(
       userId: userId,
-      displayName: displayName,
+      displayName: displayName ?? this.displayName,
       email: email,
       photoUrl: photoUrl,
       role: role ?? this.role,
       joinedAt: joinedAt,
       balance: balance ?? this.balance,
+      isOffline: isOffline ?? this.isOffline,
     );
   }
 }

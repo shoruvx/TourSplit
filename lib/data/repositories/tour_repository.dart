@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -230,6 +231,67 @@ class TourRepository {
     }
   }
 
+  Future<TourMemberModel> addOfflineMember({
+    required String tourId,
+    required String name,
+  }) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) throw Exception('Name cannot be empty');
+
+    final memberId = 'offline_${const Uuid().v4()}';
+    final batch = _db.batch();
+
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayUnion([memberId]),
+    });
+
+    final memberRef = _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(memberId);
+
+    batch.set(memberRef, {
+      'userId': memberId,
+      'displayName': cleanName,
+      'email': '',
+      'photoUrl': null,
+      'role': 'member',
+      'isOffline': true,
+      'joinedAt': FieldValue.serverTimestamp(),
+      'balance': 0.0,
+    });
+
+    await batch.commit();
+
+    return TourMemberModel(
+      userId: memberId,
+      displayName: cleanName,
+      email: '',
+      photoUrl: null,
+      role: 'member',
+      isOffline: true,
+      joinedAt: DateTime.now(),
+      balance: 0.0,
+    );
+  }
+
+  Future<void> updateOfflineMemberName({
+    required String tourId,
+    required String memberId,
+    required String newName,
+  }) async {
+    final cleanName = newName.trim();
+    if (cleanName.isEmpty) return;
+
+    await _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(memberId)
+        .update({
+      'displayName': cleanName,
+    });
+  }
+
   Future<void> removeMember(String tourId, String userId) async {
     final batch = _db.batch();
     batch.update(_tours.doc(tourId), {
@@ -241,11 +303,13 @@ class TourRepository {
         .doc(userId));
     await batch.commit();
 
-    try {
-      await _db.collection(AppConstants.usersCollection).doc(userId).update({
-        'activeTourId': null,
-      });
-    } catch (_) {}
+    if (!userId.startsWith('offline_')) {
+      try {
+        await _db.collection(AppConstants.usersCollection).doc(userId).update({
+          'activeTourId': null,
+        });
+      } catch (_) {}
+    }
   }
 
   Future<void> clearUserActiveTour(String userId) async {

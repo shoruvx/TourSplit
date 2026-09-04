@@ -72,13 +72,20 @@ class MemberManagementScreen extends ConsumerWidget {
                     context.canPop() ? context.pop() : context.go('/home'),
               ),
             actions: [
-              if (isAdmin)
+              if (isAdmin) ...[
                 IconButton(
-                  icon: const Icon(Icons.person_add_rounded),
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  onPressed: () =>
+                      _showAddOfflineMemberDialog(context, ref, tour.id),
+                  tooltip: 'Add Offline Friend',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.mail_outline_rounded),
                   onPressed: () =>
                       _showInviteDialog(context, ref, tour, user.displayName),
-                  tooltip: 'Invite Member',
+                  tooltip: 'Invite by Email',
                 ),
+              ],
             ],
           ),
           body: Column(
@@ -87,6 +94,37 @@ class MemberManagementScreen extends ConsumerWidget {
                 tourName: tour.name,
                 inviteCode: tour.inviteCode,
               ),
+              if (isAdmin)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _showAddOfflineMemberDialog(context, ref, tour.id),
+                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                      label: const Text(
+                        'Add Offline Friend (Name Only)',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryTeal,
+                        side: BorderSide(
+                            color:
+                                AppColors.primaryTeal.withValues(alpha: 0.45)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ),
               if (isAdmin)
                 joinRequestsStream.when(
                   loading: () => const SizedBox(),
@@ -124,9 +162,13 @@ class MemberManagementScreen extends ConsumerWidget {
                           isAdmin: isAdmin,
                           currentUserId: user.uid,
                           currencySymbol: tour.currencySymbol,
-                          onToggleAdmin: isAdmin && !isCreator
+                          onToggleAdmin: isAdmin && !isCreator && !member.isOffline
                               ? () => _toggleAdminRole(
                                   context, ref, tour.id, member, isMemberAdmin)
+                              : null,
+                          onRename: isAdmin && member.isOffline
+                              ? () => _showRenameOfflineMemberDialog(
+                                  context, ref, tourId, member)
                               : null,
                           onRemove: isAdmin &&
                                   !isCreator &&
@@ -237,6 +279,221 @@ class MemberManagementScreen extends ConsumerWidget {
               }
             },
             child: const Text('Send Invite'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddOfflineMemberDialog(
+      BuildContext context, WidgetRef ref, String tourId) {
+    final nameCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person_add_alt_1_rounded,
+                  color: AppColors.primaryTeal, size: 22),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Add Offline Friend',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Add a friend using only their name. No phone, email, or device needed. You can track expenses & splits for them, and they will be visible to all members in this tour.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: nameCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Friend\'s Name',
+                  hintText: 'e.g. Alex, Rahim, John',
+                  prefixIcon: const Icon(Icons.badge_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Please enter a name';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            onPressed: () async {
+              if (formKey.currentState?.validate() == true) {
+                final name = nameCtrl.text.trim();
+                Navigator.pop(ctx);
+                try {
+                  await ref.read(tourRepositoryProvider).addOfflineMember(
+                        tourId: tourId,
+                        name: name,
+                      );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Offline friend "$name" added to tour!'),
+                        backgroundColor: AppColors.positive,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to add offline member: $e'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text(
+              'Add to Tour',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameOfflineMemberDialog(BuildContext context, WidgetRef ref,
+      String tourId, TourMemberModel member) {
+    final ctrl = TextEditingController(text: member.displayName);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Rename Offline Friend',
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
+        ),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: 'Friend\'s Name',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            validator: (val) {
+              if (val == null || val.trim().isEmpty) {
+                return 'Please enter a name';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            onPressed: () async {
+              if (formKey.currentState?.validate() == true) {
+                final newName = ctrl.text.trim();
+                Navigator.pop(ctx);
+                try {
+                  await ref
+                      .read(tourRepositoryProvider)
+                      .updateOfflineMemberName(
+                        tourId: tourId,
+                        memberId: member.userId,
+                        newName: newName,
+                      );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Renamed to "$newName"'),
+                        backgroundColor: AppColors.accent,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to rename: $e'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text(
+              'Save',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -484,6 +741,7 @@ class _MemberCard extends StatelessWidget {
   final String currentUserId;
   final String currencySymbol;
   final VoidCallback? onToggleAdmin;
+  final VoidCallback? onRename;
   final VoidCallback? onRemove;
 
   const _MemberCard({
@@ -494,6 +752,7 @@ class _MemberCard extends StatelessWidget {
     required this.currentUserId,
     required this.currencySymbol,
     this.onToggleAdmin,
+    this.onRename,
     this.onRemove,
   });
 
@@ -521,6 +780,9 @@ class _MemberCard extends StatelessWidget {
               initials: member.initials,
               photoUrl: member.photoUrl,
               radius: 22,
+              backgroundColor: member.isOffline
+                  ? Colors.blueGrey.withValues(alpha: 0.2)
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -529,13 +791,45 @@ class _MemberCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        member.displayName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          member.displayName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (member.isOffline) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: Colors.blueGrey.withValues(alpha: 0.35)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.cloud_off_rounded,
+                                  size: 10, color: Colors.blueGrey),
+                              SizedBox(width: 3),
+                              Text(
+                                'Offline',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.blueGrey,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       if (isCurrentUser) ...[
                         const SizedBox(width: 6),
                         Container(
@@ -597,11 +891,15 @@ class _MemberCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    member.email,
+                    member.isOffline
+                        ? 'Offline friend · Visible to all members'
+                        : member.email,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isDark
                           ? AppColors.darkTextSecondary
                           : AppColors.lightTextSecondary,
+                      fontStyle:
+                          member.isOffline ? FontStyle.italic : FontStyle.normal,
                     ),
                   ),
                 ],
@@ -641,19 +939,40 @@ class _MemberCard extends StatelessWidget {
                 onSelected: (val) {
                   if (val == 'role') {
                     onToggleAdmin?.call();
+                  } else if (val == 'rename') {
+                    onRename?.call();
                   } else if (val == 'remove') {
                     onRemove?.call();
                   }
                 },
                 itemBuilder: (ctx) => [
-                  PopupMenuItem(
-                    value: 'role',
-                    child: Text(isMemberAdmin ? 'Revoke Admin' : 'Make Admin'),
-                  ),
+                  if (!member.isOffline)
+                    PopupMenuItem(
+                      value: 'role',
+                      child: Text(isMemberAdmin ? 'Revoke Admin' : 'Make Admin'),
+                    ),
+                  if (member.isOffline)
+                    const PopupMenuItem(
+                      value: 'rename',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Rename Friend'),
+                        ],
+                      ),
+                    ),
                   const PopupMenuItem(
                     value: 'remove',
-                    child: Text('Remove Member',
-                        style: TextStyle(color: AppColors.danger)),
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline_rounded,
+                            size: 18, color: AppColors.danger),
+                        SizedBox(width: 8),
+                        Text('Remove Member',
+                            style: TextStyle(color: AppColors.danger)),
+                      ],
+                    ),
                   ),
                 ],
               ),

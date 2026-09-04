@@ -103,5 +103,50 @@ void main() {
       expect(debts.any((d) => d.fromUserId == 'user_c' && d.toUserId == 'user_a' && d.amount == 300), isTrue);
       expect(debts.any((d) => d.fromUserId == 'user_c' && d.toUserId == 'user_b' && d.amount == 100), isTrue);
     });
+
+    test('Offline member with name only is correctly included in splits and debts', () {
+      final offlineMember = TourMemberModel(
+        userId: 'offline_david',
+        displayName: 'David (Offline Friend)',
+        email: '',
+        role: 'member',
+        isOffline: true,
+        balance: 0,
+        joinedAt: DateTime.now(),
+      );
+
+      final allMembers = [...members, offlineMember];
+
+      // Alice paid 400 for dinner split among Alice, Bob, Charlie, and David (100 each)
+      final expense = ExpenseModel(
+        id: 'exp3',
+        tourId: 'tour1',
+        title: 'Dinner with David',
+        amount: 400,
+        currency: 'BDT',
+        category: 'Food',
+        paidByUserId: 'user_a',
+        paidByName: 'Alice',
+        splitType: SplitType.equal,
+        splitAmong: ['user_a', 'user_b', 'user_c', 'offline_david'],
+        date: DateTime.now(),
+        status: ExpenseStatus.approved,
+        addedByUserId: 'user_a',
+        createdAt: DateTime.now(),
+      );
+
+      final balances = BalanceService.calculateBalances(allMembers, [expense]);
+      // Alice paid 400, owes 100 -> net +300
+      expect(balances['user_a'], closeTo(300.0, 0.01));
+      // Bob, Charlie, David owe 100 each
+      expect(balances['user_b'], closeTo(-100.0, 0.01));
+      expect(balances['user_c'], closeTo(-100.0, 0.01));
+      expect(balances['offline_david'], closeTo(-100.0, 0.01));
+
+      final debts = BalanceService.simplifyDebts(balances, allMembers);
+      expect(debts.length, 3);
+      expect(debts.any((d) => d.fromUserId == 'offline_david' && d.fromUserName == 'David (Offline Friend)' && d.amount == 100), isTrue);
+    });
   });
 }
+
