@@ -190,12 +190,18 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           ),
                         ).animate().fadeIn().scale(),
                         const SizedBox(height: 24),
-                        _InfoRow(label: 'Category', value: expense.category),
+                        if (expense.category.isNotEmpty &&
+                            expense.category != 'General')
+                          _InfoRow(label: 'Category', value: expense.category),
                         _InfoRow(
                             label: 'Date',
                             value: DateFormat('EEEE, MMM d, y')
                                 .format(expense.date)),
-                        _InfoRow(label: 'Paid By', value: expense.paidByName),
+                        _InfoRow(
+                            label: 'Paid By',
+                            value: expense.isMultiPayer
+                                ? '${expense.paidByName} (${expense.payers!.length} people)'
+                                : expense.paidByName),
                         _InfoRow(
                             label: 'Split Type',
                             value: _splitLabel(expense.splitType)),

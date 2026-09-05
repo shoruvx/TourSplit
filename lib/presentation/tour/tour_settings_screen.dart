@@ -55,7 +55,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     }
   }
 
-  Future<void> _endTour(BuildContext context, String tourId) async {
+  Future<void> _endTour(String tourId) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -80,8 +80,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     }
   }
 
-  Future<void> _deleteTour(
-      BuildContext context, String tourId, String tourName) async {
+  Future<void> _deleteTour(String tourId, String tourName) async {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -190,6 +189,127 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     }
   }
 
+  Future<void> _leaveTour(String tourId, String tourName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Leave Tour?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to leave "$tourName"?\n\nYou will still be able to view all expenses and settlements recorded up to now in read-only mode from your tour list.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Leave Tour'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final currentUserId = ref.read(currentUserProvider).value?.uid;
+      if (currentUserId != null) {
+        await ref
+            .read(tourRepositoryProvider)
+            .leaveTour(tourId, currentUserId);
+        ref.invalidate(userToursStreamProvider(currentUserId));
+      }
+      ref.invalidate(tourStreamProvider(tourId));
+      ref.invalidate(currentUserProvider);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'You have left the tour. It is saved in read-only mode in your tour list.'),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+      context.go('/home');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to leave tour: $e')),
+      );
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _removeTourFromList(String tourId, String tourName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Remove Tour?'),
+          ],
+        ),
+        content: Text(
+          'Remove "$tourName" from your tour list? You will no longer see this tour in your list.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final currentUserId = ref.read(currentUserProvider).value?.uid;
+      if (currentUserId != null) {
+        await ref
+            .read(tourRepositoryProvider)
+            .removeTourForUser(tourId, currentUserId);
+        ref.invalidate(userToursStreamProvider(currentUserId));
+      }
+      ref.invalidate(tourStreamProvider(tourId));
+      ref.invalidate(currentUserProvider);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tour removed from your list.'),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+      context.go('/home');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove tour: $e')),
+      );
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
@@ -206,6 +326,9 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (tour) {
         if (tour == null) return const Scaffold();
+
+        final isAdmin = tour.creatorId == user.uid;
+        final isPastMember = tour.isPastMember(user.uid);
 
         if (!_initialized) {
           _nameCtrl.text = tour.name;
@@ -245,11 +368,39 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (isPastMember)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: Colors.amber.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.lock_clock_rounded,
+                              color: Colors.amber, size: 20),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'You have left or were removed from this tour. Settings are read-only.',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.amber,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   AppTextField(
                     controller: _nameCtrl,
                     label: 'Tour Name',
                     prefixIcon: Icons.map_rounded,
                     textCapitalization: TextCapitalization.words,
+                    enabled: !isPastMember && isAdmin,
                   ).animate().fadeIn(delay: 100.ms),
                   const SizedBox(height: 16),
                   AppTextField(
@@ -257,13 +408,16 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                     label: 'Description',
                     prefixIcon: Icons.description_outlined,
                     maxLines: 3,
+                    enabled: !isPastMember && isAdmin,
                   ).animate().fadeIn(delay: 150.ms),
-                  const SizedBox(height: 24),
-                  GradientButton(
-                    onPressed: () => _saveChanges(tourId),
-                    label: 'Save Changes',
-                    icon: Icons.save_rounded,
-                  ).animate().fadeIn(delay: 200.ms),
+                  if (!isPastMember && isAdmin) ...[
+                    const SizedBox(height: 24),
+                    GradientButton(
+                      onPressed: () => _saveChanges(tourId),
+                      label: 'Save Changes',
+                      icon: Icons.save_rounded,
+                    ).animate().fadeIn(delay: 200.ms),
+                  ],
                   const SizedBox(height: 32),
                   const Divider(),
                   const SizedBox(height: 16),
@@ -271,51 +425,89 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: AppColors.danger,
                           fontWeight: FontWeight.w700)),
-                  if (!tour.isActive)
+                  const SizedBox(height: 12),
+                  if (isPastMember)
                     OutlinedButton.icon(
-                      onPressed: () async {
-                        await ref
-                            .read(tourRepositoryProvider)
-                            .reopenTour(tourId);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Tour reactivated!'),
-                              backgroundColor: AppColors.accent,
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.refresh_rounded,
-                          color: AppColors.accent),
-                      label: const Text('Reactivate Tour',
-                          style: TextStyle(color: AppColors.accent)),
+                      onPressed: () =>
+                          _removeTourFromList(tourId, tour.name),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: AppColors.danger),
+                      label: const Text('Remove from My Tours',
+                          style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.accent),
+                        side: const BorderSide(color: AppColors.danger),
                       ),
                     ).animate().fadeIn(delay: 250.ms)
-                  else
+                  else if (!isAdmin) ...[
                     OutlinedButton.icon(
-                      onPressed: () => _endTour(context, tourId),
-                      icon: const Icon(Icons.flag_rounded,
+                      onPressed: () => _leaveTour(tourId, tour.name),
+                      icon: const Icon(Icons.logout_rounded,
                           color: AppColors.danger),
-                      label: const Text('End Tour',
+                      label: const Text('Leave Tour',
                           style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.danger),
                       ),
                     ).animate().fadeIn(delay: 250.ms),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => _deleteTour(context, tourId, tour.name),
-                    icon: const Icon(Icons.delete_forever_rounded,
-                        color: AppColors.danger),
-                    label: const Text('Delete Tour Permanently',
-                        style: TextStyle(color: AppColors.danger)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.danger),
-                    ),
-                  ).animate().fadeIn(delay: 300.ms),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _removeTourFromList(tourId, tour.name),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: AppColors.danger),
+                      label: const Text('Remove from My Tours',
+                          style: TextStyle(color: AppColors.danger)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.danger),
+                      ),
+                    ).animate().fadeIn(delay: 300.ms),
+                  ] else ...[
+                    if (!tour.isActive)
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          await ref
+                              .read(tourRepositoryProvider)
+                              .reopenTour(tourId);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Tour reactivated!'),
+                                backgroundColor: AppColors.accent,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.refresh_rounded,
+                            color: AppColors.accent),
+                        label: const Text('Reactivate Tour',
+                            style: TextStyle(color: AppColors.accent)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.accent),
+                        ),
+                      ).animate().fadeIn(delay: 250.ms)
+                    else
+                      OutlinedButton.icon(
+                        onPressed: () => _endTour(tourId),
+                        icon: const Icon(Icons.flag_rounded,
+                            color: AppColors.danger),
+                        label: const Text('End Tour',
+                            style: TextStyle(color: AppColors.danger)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.danger),
+                        ),
+                      ).animate().fadeIn(delay: 250.ms),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => _deleteTour(tourId, tour.name),
+                      icon: const Icon(Icons.delete_forever_rounded,
+                          color: AppColors.danger),
+                      label: const Text('Delete Tour Permanently',
+                          style: TextStyle(color: AppColors.danger)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.danger),
+                      ),
+                    ).animate().fadeIn(delay: 300.ms),
+                  ],
                 ],
               ),
             ),

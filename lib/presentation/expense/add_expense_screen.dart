@@ -41,20 +41,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _customCategoryCtrl = TextEditingController();
 
   bool _isLoading = false;
-
-  final List<Map<String, dynamic>> _quickCategories = [
-    {'name': 'Food', 'emoji': '🍔', 'icon': Icons.fastfood_rounded},
-    {'name': 'Transport', 'emoji': '🚗', 'icon': Icons.directions_car_rounded},
-    {'name': 'Hotel', 'emoji': '🏨', 'icon': Icons.hotel_rounded},
-    {'name': 'Snacks', 'emoji': '☕', 'icon': Icons.coffee_rounded},
-    {'name': 'Other', 'emoji': '✏️', 'icon': Icons.edit_note_rounded},
-  ];
-
-  String _selectedCategory = 'Food';
-  bool _isCustomCategory = false;
 
   int _splitMode = 0;
   DateTime _selectedDateTime = DateTime.now();
@@ -78,16 +66,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           .toStringAsFixed(exp.amount.truncateToDouble() == exp.amount ? 0 : 2);
       _descCtrl.text = exp.description ?? '';
       _selectedDateTime = exp.date;
-
-      final isPreset = _quickCategories.any((c) => c['name'] == exp.category);
-      if (isPreset) {
-        _selectedCategory = exp.category;
-        _isCustomCategory = false;
-      } else {
-        _selectedCategory = 'Other';
-        _isCustomCategory = true;
-        _customCategoryCtrl.text = exp.category;
-      }
 
       if (exp.payers != null && exp.payers!.length > 1) {
         _isMultiContributor = true;
@@ -130,7 +108,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _titleCtrl.dispose();
     _amountCtrl.dispose();
     _descCtrl.dispose();
-    _customCategoryCtrl.dispose();
     for (final ctrl in _customSplitControllers.values) {
       ctrl.dispose();
     }
@@ -169,7 +146,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       final val = double.tryParse(ctrl.text.trim()) ?? 0.0;
       sum += val;
     }
-    return sum;
+    return (sum * 100).round() / 100;
   }
 
   double get _totalContributions {
@@ -178,7 +155,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       final val = double.tryParse(ctrl.text.trim()) ?? 0.0;
       sum += val;
     }
-    return sum;
+    return (sum * 100).round() / 100;
   }
 
   Future<void> _submit(
@@ -257,10 +234,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       payersMap = {_paidByUserId!: totalAmount};
     }
 
-    final category =
-        _isCustomCategory && _customCategoryCtrl.text.trim().isNotEmpty
-            ? _customCategoryCtrl.text.trim()
-            : _selectedCategory;
+    final category = widget.existingExpense?.category ?? 'General';
 
     List<String> splitMembers;
     Map<String, double>? customSplitsMap;
@@ -269,9 +243,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (_splitMode == 0) {
       splitType = SplitType.equal;
       splitMembers = _members.map((m) => m.userId).toList();
+      customSplitsMap = null;
     } else if (_splitMode == 1) {
       splitType = SplitType.selected;
       splitMembers = _selectedMemberIds;
+      customSplitsMap = null;
       if (splitMembers.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -287,7 +263,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Custom split sum ($currentCustomTotal) must equal total expense ($totalAmount)'),
+                'Custom split sum (${tour.currencySymbol}${currentCustomTotal.toStringAsFixed(2)}) must equal total expense (${tour.currencySymbol}${totalAmount.toStringAsFixed(2)})'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -298,8 +274,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       splitMembers = [];
       for (final entry in _customSplitControllers.entries) {
         final amt = double.tryParse(entry.value.text.trim()) ?? 0.0;
-        if (amt > 0) {
-          customSplitsMap[entry.key] = amt;
+        final roundedAmt = (amt * 100).round() / 100;
+        if (roundedAmt > 0) {
+          customSplitsMap[entry.key] = roundedAmt;
           splitMembers.add(entry.key);
         }
       }
@@ -311,9 +288,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         final updateData = {
           'title': _titleCtrl.text.trim().isNotEmpty
               ? _titleCtrl.text.trim()
-              : category,
+              : 'Expense',
           'amount': totalAmount,
           'category': category,
+          'paidBy': finalPaidByUserId,
           'paidByUserId': finalPaidByUserId,
           'paidByName': finalPaidByName,
           'payers': payersMap,
@@ -350,7 +328,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         tourId: tour.id,
         title: _titleCtrl.text.trim().isNotEmpty
             ? _titleCtrl.text.trim()
-            : category,
+            : 'Expense',
         amount: totalAmount,
         currency: tour.currency,
         category: category,
@@ -689,100 +667,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        _SectionLabel(title: 'Category *'),
-                        const SizedBox(height: 8),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _quickCategories.map((cat) {
-                              final isSelected =
-                                  _selectedCategory == cat['name'] &&
-                                      !_isCustomCategory;
-                              final isCustomSelected =
-                                  cat['name'] == 'Other' && _isCustomCategory;
-                              final active = isSelected || isCustomSelected;
-
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 10),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      if (cat['name'] == 'Other') {
-                                        _isCustomCategory = true;
-                                      } else {
-                                        _isCustomCategory = false;
-                                        _selectedCategory = cat['name'];
-                                      }
-                                    });
-                                    HapticFeedback.selectionClick();
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: active
-                                          ? AppColors.primaryTeal
-                                              .withValues(alpha: 0.15)
-                                          : (isDark
-                                              ? AppColors.darkSurface
-                                              : const Color(0xFFF1F5F9)),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: active
-                                            ? AppColors.primaryTeal
-                                            : (isDark
-                                                ? AppColors.darkBorder
-                                                : AppColors.lightBorder),
-                                        width: active ? 2 : 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Text(cat['emoji'] as String,
-                                            style:
-                                                const TextStyle(fontSize: 18)),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          cat['name'] as String,
-                                          style: TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 13,
-                                            fontWeight: active
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                            color: active
-                                                ? AppColors.primaryTeal
-                                                : (isDark
-                                                    ? AppColors.darkText
-                                                    : AppColors.lightText),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                        if (_isCustomCategory) ...[
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: _customCategoryCtrl,
-                            decoration: InputDecoration(
-                              hintText:
-                                  'Enter custom category (e.g. Boat Ride, Tickets)',
-                              filled: true,
-                              fillColor: isDark
-                                  ? AppColors.darkSurface
-                                  : const Color(0xFFF1F5F9),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 20),
                         _SectionLabel(title: 'Expense Date *'),
                         const SizedBox(height: 8),
                         GestureDetector(
@@ -886,7 +770,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                           children: [
                             _SectionLabel(title: 'Paid By *'),
                             Container(
-                              padding: const EdgeInsets.all(3),
+                              padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                 color: isDark
                                     ? AppColors.darkSurface
@@ -904,27 +788,44 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                     behavior: HitTestBehavior.opaque,
                                     onTap: () => setState(
                                         () => _isMultiContributor = false),
-                                    child: Container(
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 150),
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
+                                          horizontal: 14, vertical: 7),
                                       decoration: BoxDecoration(
                                         color: !_isMultiContributor
                                             ? AppColors.primaryTeal
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(9),
                                       ),
-                                      child: Text(
-                                        'Single',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: !_isMultiContributor
-                                              ? Colors.white
-                                              : (isDark
-                                                  ? Colors.white60
-                                                  : Colors.black54),
-                                        ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.person_rounded,
+                                            size: 14.5,
+                                            color: !_isMultiContributor
+                                                ? Colors.white
+                                                : (isDark
+                                                    ? Colors.white60
+                                                    : Colors.black54),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            'Single',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: !_isMultiContributor
+                                                  ? Colors.white
+                                                  : (isDark
+                                                      ? Colors.white60
+                                                      : Colors.black54),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -941,27 +842,44 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                         }
                                       });
                                     },
-                                    child: Container(
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 150),
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
+                                          horizontal: 14, vertical: 7),
                                       decoration: BoxDecoration(
                                         color: _isMultiContributor
                                             ? AppColors.primaryTeal
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(9),
                                       ),
-                                      child: Text(
-                                        'Multiple',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: _isMultiContributor
-                                              ? Colors.white
-                                              : (isDark
-                                                  ? Colors.white60
-                                                  : Colors.black54),
-                                        ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.group_rounded,
+                                            size: 14.5,
+                                            color: _isMultiContributor
+                                                ? Colors.white
+                                                : (isDark
+                                                    ? Colors.white60
+                                                    : Colors.black54),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            'Multiple',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: _isMultiContributor
+                                                  ? Colors.white
+                                                  : (isDark
+                                                      ? Colors.white60
+                                                      : Colors.black54),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -1404,18 +1322,18 @@ class _SplitModeTab extends StatelessWidget {
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10.5, horizontal: 4),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primaryTeal : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(11),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 12.5,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
               color: isSelected
                   ? Colors.white
                   : (isDark

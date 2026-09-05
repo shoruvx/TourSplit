@@ -17,6 +17,7 @@ class TourModel {
   final double? budget;
   final String? coverImageUrl;
   final List<String> memberIds;
+  final List<String> pastMemberIds;
   final List<String> adminIds;
   final bool isDeleted;
 
@@ -33,6 +34,7 @@ class TourModel {
     this.endDate,
     required this.createdAt,
     required this.memberIds,
+    this.pastMemberIds = const [],
     this.adminIds = const [],
     this.budget,
     this.coverImageUrl,
@@ -40,7 +42,12 @@ class TourModel {
   });
 
   bool get isActive => status == TourStatus.active && !isDeleted;
+  String get creatorId => adminId;
   bool isAdmin(String userId) => adminIds.contains(userId) || adminId == userId;
+  bool isMember(String userId) => memberIds.contains(userId);
+  bool isPastMember(String userId) => pastMemberIds.contains(userId);
+  bool isMemberOrPast(String userId) =>
+      memberIds.contains(userId) || pastMemberIds.contains(userId);
 
   factory TourModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -75,6 +82,7 @@ class TourModel {
       endDate: (data['endDate'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       memberIds: List<String>.from(data['members'] ?? []),
+      pastMemberIds: List<String>.from(data['pastMembers'] ?? []),
       adminIds: rawAdminIds,
       budget: (data['budget'] as num?)?.toDouble(),
       coverImageUrl: data['coverImageUrl'],
@@ -95,6 +103,7 @@ class TourModel {
         'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
         'createdAt': Timestamp.fromDate(createdAt),
         'members': memberIds,
+        'pastMembers': pastMemberIds,
         'budget': budget,
         'coverImageUrl': coverImageUrl,
         'isDeleted': isDeleted,
@@ -108,6 +117,7 @@ class TourModel {
     TourStatus? status,
     DateTime? endDate,
     List<String>? memberIds,
+    List<String>? pastMemberIds,
     bool? isDeleted,
   }) {
     return TourModel(
@@ -123,6 +133,7 @@ class TourModel {
       endDate: endDate ?? this.endDate,
       createdAt: createdAt,
       memberIds: memberIds ?? this.memberIds,
+      pastMemberIds: pastMemberIds ?? this.pastMemberIds,
       isDeleted: isDeleted ?? this.isDeleted,
     );
   }
@@ -134,6 +145,7 @@ class TourMemberModel {
   final String email;
   final String? photoUrl;
   final String role;
+  final String status;
   final DateTime joinedAt;
   final double balance;
   final bool isOffline;
@@ -144,6 +156,7 @@ class TourMemberModel {
     required this.email,
     this.photoUrl,
     required this.role,
+    this.status = 'active',
     required this.joinedAt,
     this.balance = 0.0,
     this.isOffline = false,
@@ -153,6 +166,7 @@ class TourMemberModel {
   bool get isPositive => balance > 0;
   bool get isNegative => balance < 0;
   bool get isSettled => balance == 0;
+  bool get isLeft => status == 'left' || status == 'removed';
 
   String get initials {
     final clean = displayName.trim();
@@ -174,6 +188,7 @@ class TourMemberModel {
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'],
       role: data['role'] ?? 'member',
+      status: data['status'] ?? 'active',
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       balance: (data['balance'] as num?)?.toDouble() ?? 0.0,
       isOffline: isOffline,
@@ -186,6 +201,7 @@ class TourMemberModel {
         'email': email,
         'photoUrl': photoUrl,
         'role': role,
+        'status': status,
         'joinedAt': Timestamp.fromDate(joinedAt),
         'balance': balance,
         'isOffline': isOffline,
@@ -194,6 +210,7 @@ class TourMemberModel {
   TourMemberModel copyWith({
     double? balance,
     String? role,
+    String? status,
     String? displayName,
     bool? isOffline,
   }) {
@@ -203,6 +220,7 @@ class TourMemberModel {
       email: email,
       photoUrl: photoUrl,
       role: role ?? this.role,
+      status: status ?? this.status,
       joinedAt: joinedAt,
       balance: balance ?? this.balance,
       isOffline: isOffline ?? this.isOffline,

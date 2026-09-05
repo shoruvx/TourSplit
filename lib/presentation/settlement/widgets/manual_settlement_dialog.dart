@@ -112,9 +112,9 @@ class ManualSettlementDialog {
                     items: members.map((m) {
                       final bal = computedBalances[m.userId] ?? 0.0;
                       final balText = bal < -0.01
-                          ? ' (Owes ${tour.currencySymbol}${(-bal).toStringAsFixed(0)})'
+                          ? ' (Owes ${tour.currencySymbol}${(-bal) % 1 == 0 ? (-bal).toStringAsFixed(0) : (-bal).toStringAsFixed(2)})'
                           : (bal > 0.01
-                              ? ' (Gets back ${tour.currencySymbol}${bal.toStringAsFixed(0)})'
+                              ? ' (Gets back ${tour.currencySymbol}${bal % 1 == 0 ? bal.toStringAsFixed(0) : bal.toStringAsFixed(2)})'
                               : ' (Settled)');
                       return DropdownMenuItem(
                         value: m.userId,
@@ -161,9 +161,9 @@ class ManualSettlementDialog {
                     items: members.where((m) => m.userId != fromUid).map((m) {
                       final bal = computedBalances[m.userId] ?? 0.0;
                       final balText = bal > 0.01
-                          ? ' (Gets back ${tour.currencySymbol}${bal.toStringAsFixed(0)})'
+                          ? ' (Gets back ${tour.currencySymbol}${bal % 1 == 0 ? bal.toStringAsFixed(0) : bal.toStringAsFixed(2)})'
                           : (bal < -0.01
-                              ? ' (Owes ${tour.currencySymbol}${(-bal).toStringAsFixed(0)})'
+                              ? ' (Owes ${tour.currencySymbol}${(-bal) % 1 == 0 ? (-bal).toStringAsFixed(0) : (-bal).toStringAsFixed(2)})'
                               : ' (Settled)');
                       return DropdownMenuItem(
                         value: m.userId,
@@ -199,7 +199,7 @@ class ManualSettlementDialog {
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  '${fromMember.displayName} owes ${tour.currencySymbol}${payerOwes.toStringAsFixed(0)} in total across the tour.',
+                                  '${fromMember.displayName} owes ${tour.currencySymbol}${payerOwes % 1 == 0 ? payerOwes.toStringAsFixed(0) : payerOwes.toStringAsFixed(2)} in total across the tour.',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -231,12 +231,15 @@ class ManualSettlementDialog {
                                   const Icon(Icons.bolt_rounded,
                                       size: 15, color: Colors.white),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    'Pay Full Due (${tour.currencySymbol}${payerOwes.toStringAsFixed(0)}) to ${toMember.displayName}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
+                                  Flexible(
+                                    child: Text(
+                                      'Pay Full Due (${tour.currencySymbol}${payerOwes % 1 == 0 ? payerOwes.toStringAsFixed(0) : payerOwes.toStringAsFixed(2)}) to ${toMember.displayName}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],

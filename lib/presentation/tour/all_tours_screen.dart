@@ -22,18 +22,25 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
 
   Future<void> _confirmDeleteTour(
       BuildContext context, TourModel tour, String userId) async {
+    final isAdmin = tour.isAdmin(userId);
+    final title = isAdmin ? 'Delete Tour' : 'Remove Tour';
+    final message = isAdmin
+        ? 'Are you sure you want to permanently delete "${tour.name}"?\n\nThis will remove it from all members and permanently delete all tour data.'
+        : 'Remove "${tour.name}" from your trips?\n\nThis will remove the tour from your list. Other members will still have access to the tour.';
+    final deleteButtonText = isAdmin ? 'Delete' : 'Remove';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.delete_forever_rounded,
+            const Icon(Icons.delete_forever_rounded,
                 color: AppColors.danger, size: 24),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Text(
-              'Delete Tour',
-              style: TextStyle(
+              title,
+              style: const TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
@@ -42,7 +49,7 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
           ],
         ),
         content: Text(
-          'Are you sure you want to permanently delete "${tour.name}"?\n\nThis will remove it from your tours list immediately and clean up its data.',
+          message,
           style: const TextStyle(fontSize: 13.5, height: 1.4),
         ),
         actions: [
@@ -58,9 +65,9 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
                   borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            child: Text(
+              deleteButtonText,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -360,6 +367,7 @@ class _TourCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentUserId = ref.watch(currentUserProvider).value?.uid;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -419,6 +427,28 @@ class _TourCard extends ConsumerWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (currentUserId != null &&
+                          (tour.isPastMember(currentUserId) ||
+                              !tour.memberIds.contains(currentUserId))) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            'Archived',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       if (isCurrentActive) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(

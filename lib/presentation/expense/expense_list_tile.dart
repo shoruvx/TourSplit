@@ -60,14 +60,19 @@ class ExpenseListTile extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.1),
+                color: expense.splitType == SplitType.custom
+                    ? AppColors.accent.withValues(alpha: 0.12)
+                    : AppColors.primaryTeal.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
-                child: Text(
-                  _getCategoryEmoji(expense.category),
-                  style: const TextStyle(fontSize: 22),
-                ),
+                child: expense.splitType == SplitType.custom
+                    ? const Icon(Icons.call_split_rounded,
+                        color: AppColors.accent, size: 22)
+                    : Text(
+                        _getCategoryEmoji(expense.category),
+                        style: const TextStyle(fontSize: 22),
+                      ),
               ),
             ),
             const SizedBox(width: 12),
@@ -84,15 +89,39 @@ class ExpenseListTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Row(
                     children: [
-                      Text(
-                        expense.category,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const Text(' · ', style: TextStyle(color: Colors.grey)),
-                      Text(
-                        'Paid by ${expense.paidByName.split(' ').first}',
-                        style: theme.textTheme.bodySmall,
-                        overflow: TextOverflow.ellipsis,
+                      if (expense.splitType == SplitType.custom) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Custom Split',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ),
+                        const Text(' · ', style: TextStyle(color: Colors.grey)),
+                      ] else if (expense.category.isNotEmpty &&
+                          expense.category != 'General') ...[
+                        Text(
+                          expense.category,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        const Text(' · ', style: TextStyle(color: Colors.grey)),
+                      ],
+                      Flexible(
+                        child: Text(
+                          'Paid by ${expense.isMultiPayer ? expense.paidByName : expense.paidByName.split(' ').first}',
+                          style: theme.textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
@@ -233,16 +262,20 @@ class ExpenseListTile extends StatelessWidget {
 
   String _getCategoryEmoji(String category) {
     const map = {
+      'Food': '🍔',
       'Food & Drinks': '🍽️',
       'Transport': '🚗',
+      'Hotel': '🏨',
       'Accommodation': '🏨',
+      'Snacks': '☕',
       'Activities': '🎭',
       'Shopping': '🛍️',
       'Fuel': '⛽',
       'Medical': '💊',
       'Entry Tickets': '🎟️',
       'Miscellaneous': '📦',
+      'General': '💳',
     };
-    return map[category] ?? '📦';
+    return map[category] ?? '💳';
   }
 }

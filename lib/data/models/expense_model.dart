@@ -73,8 +73,8 @@ class ExpenseModel {
       title: data['title'] ?? '',
       amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
       currency: data['currency'] ?? 'BDT',
-      category: data['category'] ?? 'Miscellaneous',
-      paidByUserId: data['paidBy'] ?? '',
+      category: data['category'] ?? 'General',
+      paidByUserId: data['paidBy'] ?? data['paidByUserId'] ?? '',
       paidByName: data['paidByName'] ?? '',
       payers: data['payers'] != null
           ? Map<String, double>.from(

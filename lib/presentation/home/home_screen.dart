@@ -206,7 +206,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
                     ).animate().fadeIn(delay: 150.ms),
                     const SizedBox(height: 8),
                     Text(
-                      'Create or join a tour to get started.',
+                      'Create, join, or view your tours to get started.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: isDark
@@ -220,7 +220,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
                       child: ElevatedButton.icon(
                         onPressed: () => context.push('/tour/create'),
                         icon:
-                            const Icon(Icons.add_rounded, color: Colors.white),
+                            const Icon(Icons.add_rounded, color: Colors.white, size: 20),
                         label: const Text(
                           'Create Tour',
                           style: TextStyle(
@@ -246,23 +246,58 @@ class _NoActiveTourScreen extends ConsumerWidget {
                       child: OutlinedButton.icon(
                         onPressed: () => context.push('/tour/join'),
                         icon:
-                            const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                        label: const Text('Join Tour'),
+                            const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                        label: const Text(
+                          'Join Tour',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
                         style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryTeal,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          side: const BorderSide(color: AppColors.primaryTeal),
+                          side: const BorderSide(
+                              color: AppColors.primaryTeal, width: 1.5),
                         ),
                       ),
                     ).animate().fadeIn(delay: 300.ms),
-                    const SizedBox(height: 10),
-                    TextButton.icon(
-                      onPressed: () => context.push('/tours'),
-                      icon: const Icon(Icons.luggage_outlined, size: 18),
-                      label: const Text('View All Tours'),
-                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: 220,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push('/tours'),
+                        icon:
+                            const Icon(Icons.luggage_rounded, size: 20),
+                        label: const Text(
+                          'View All Tours',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark
+                              ? AppColors.darkText
+                              : AppColors.lightText,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          side: BorderSide(
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ).animate().fadeIn(delay: 350.ms),
                   ],
                 ),
               ),
@@ -582,12 +617,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         }
 
         final isMember = tour.memberIds.contains(widget.userId);
-        final isMemberInSubcollection = membersStream.maybeWhen(
-          data: (members) => members.any((m) => m.userId == widget.userId),
-          orElse: () => true,
-        );
+        final isPastMember = tour.isPastMember(widget.userId) ||
+            (!isMember &&
+                membersStream.maybeWhen(
+                  data: (members) =>
+                      members.any((m) => m.userId == widget.userId),
+                  orElse: () => false,
+                ));
+        final isReadOnly = !isMember && isPastMember;
 
-        if (!isMember || !isMemberInSubcollection) {
+        if (!isMember && !isPastMember) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
           });
@@ -653,6 +692,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           orElse: () => 0,
         );
         final perPerson = totalSpent / (memberCount > 0 ? memberCount : 1);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return Scaffold(
           body: CustomScrollView(
@@ -677,6 +717,110 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                             requests: requests,
                           );
                         },
+                      ),
+                    ],
+                    if (isReadOnly) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.history_rounded,
+                                color: AppColors.warning, size: 26),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Archived Tour (Read-Only)',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: AppColors.warning,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'You are no longer an active member. Tour details remain visible until you delete it from your trips.',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11.5,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Delete Tour from List?'),
+                                    content: Text(
+                                        'Remove "${tour.name}" from your trips? You will no longer see this tour.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.danger),
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: const Text('Delete',
+                                            style: TextStyle(
+                                                color: Colors.white)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  await ref
+                                      .read(tourRepositoryProvider)
+                                      .removeTourForUser(
+                                          tour.id, widget.userId);
+                                  ref
+                                      .read(tourRepositoryProvider)
+                                      .clearUserActiveTour(widget.userId);
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.danger,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Delete',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                     _ConsolidatedMetricsCard(
@@ -719,30 +863,66 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => context.push('/expense/add'),
-                            icon: const Icon(Icons.add_rounded,
-                                color: Colors.white, size: 20),
-                            label: const Text(
-                              'Add Expense',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: Colors.white,
+                        if (isReadOnly)
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF1E293B)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isDark
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.lock_outline_rounded,
+                                      size: 16, color: Colors.grey),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Read-Only Tour',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryTeal,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                          )
+                        else
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.push('/expense/add'),
+                              icon: const Icon(Icons.add_rounded,
+                                  color: Colors.white, size: 20),
+                              label: const Text(
+                                'Add Expense',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                ),
                               ),
-                              elevation: 2,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryTeal,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 2,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ).animate().fadeIn(delay: 150.ms),
                     const SizedBox(height: 16),
@@ -766,7 +946,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           tour.currencySymbol, approvedExpenses),
                     ] else ...[
                       _buildSettlementsTab(membersList, computedBalances,
-                          tour.currencySymbol, tour),
+                          tour.currencySymbol, tour,
+                          isReadOnly: isReadOnly),
                     ],
                     const SizedBox(height: 60),
                   ]),
@@ -911,6 +1092,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final isDark = theme.brightness == Brightness.dark;
     final totalPaidMap =
         BalanceService.calculateTotalPaid(list, approvedExpenses);
+    final totalSpentMap =
+        BalanceService.calculateTotalSpent(list, approvedExpenses);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -952,6 +1135,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           const Divider(height: 20),
           ...list.map((m) {
             final totalPaid = totalPaidMap[m.userId] ?? 0.0;
+            final totalSpent = totalSpentMap[m.userId] ?? 0.0;
             final balance = computedBalances[m.userId] ?? 0.0;
             final isPositive = balance > 0.01;
             final isNegative = balance < -0.01;
@@ -964,6 +1148,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             final balanceSign = isNegative ? '-' : (isPositive ? '+' : '');
             final balanceAbsFormatted = balance.abs().toStringAsFixed(0);
             final formattedPaid = totalPaid.toStringAsFixed(0);
+            final formattedSpent = totalSpent.toStringAsFixed(0);
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -999,9 +1184,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'Paid: $currencySymbol$formattedPaid • ${m.isOffline ? "Offline" : (m.role == "admin" ? "Admin" : "Member")}',
+                          'Paid: $currencySymbol$formattedPaid • Spent: $currencySymbol$formattedSpent',
                           style: TextStyle(
                             fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
                             color: isDark
                                 ? AppColors.darkTextSecondary
                                 : AppColors.lightTextSecondary,
@@ -1060,8 +1246,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     List<TourMemberModel> list,
     Map<String, double> computedBalances,
     String currencySymbol,
-    TourModel tour,
-  ) {
+    TourModel tour, {
+    bool isReadOnly = false,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final debts = BalanceService.simplifyDebts(computedBalances, list);
 
@@ -1086,71 +1273,80 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.handshake_outlined,
-                        size: 18, color: AppColors.primaryTeal),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Smart Settlements',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  InkWell(
-                    onTap: () => ManualSettlementDialog.show(
-                      context,
-                      ref: ref,
-                      tour: tour,
-                      members: list,
-                      computedBalances: computedBalances,
-                      currentUserId: widget.userId,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: AppColors.primaryTeal.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add_rounded,
-                              size: 14, color: AppColors.primaryTeal),
-                          SizedBox(width: 2),
-                          Text(
-                            'Manual',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryTeal,
-                            ),
-                          ),
-                        ],
+                      child: const Icon(Icons.handshake_outlined,
+                          size: 18, color: AppColors.primaryTeal),
+                    ),
+                    const SizedBox(width: 8),
+                    const Flexible(
+                      child: Text(
+                        'Smart Settlements',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isReadOnly) ...[
+                    InkWell(
+                      onTap: () => ManualSettlementDialog.show(
+                        context,
+                        ref: ref,
+                        tour: tour,
+                        members: list,
+                        computedBalances: computedBalances,
+                        currentUserId: widget.userId,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add_rounded,
+                                size: 14, color: AppColors.primaryTeal),
+                            SizedBox(width: 2),
+                            Text(
+                              'Manual',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryTeal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   TextButton(
                     style: TextButton.styleFrom(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 4),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -1162,14 +1358,14 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           'View All',
                           style: TextStyle(
                             fontFamily: 'Outfit',
-                            fontSize: 13,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w700,
                             color: AppColors.primaryTeal,
                           ),
                         ),
                         SizedBox(width: 2),
                         Icon(Icons.chevron_right_rounded,
-                            size: 16, color: AppColors.primaryTeal),
+                            size: 15, color: AppColors.primaryTeal),
                       ],
                     ),
                   ),
@@ -1298,7 +1494,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '$currencySymbol${d.amount.toStringAsFixed(0)}',
+                            '$currencySymbol${d.amount % 1 == 0 ? d.amount.toStringAsFixed(0) : d.amount.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w800,
@@ -1309,28 +1505,30 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () => _quickSettleDebt(d, currencySymbol),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryTeal,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        minimumSize: const Size(68, 34),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Settle',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+                    if (!isReadOnly) ...[
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () => _quickSettleDebt(d, currencySymbol),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryTeal,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          minimumSize: const Size(68, 34),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Settle',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               );
@@ -1384,7 +1582,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     ),
                   ),
                   Text(
-                    '$currencySymbol${debt.amount.toStringAsFixed(0)}',
+                    '$currencySymbol${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 15,

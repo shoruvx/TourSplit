@@ -14,6 +14,7 @@ import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/models/tour_model.dart';
 import '../expense/widgets/day_summary_table.dart';
 import '../widgets/gradient_button.dart';
 
@@ -60,6 +61,10 @@ class ReportScreen extends ConsumerWidget {
                 balances = BalanceService.applySettlements(
                     balances, approvedSettlements);
                 final debts = BalanceService.simplifyDebts(balances, members);
+                final totalPaidMap =
+                    BalanceService.calculateTotalPaid(members, expenses);
+                final totalSpentMap =
+                    BalanceService.calculateTotalSpent(members, expenses);
 
                 final totalSpent =
                     expenses.fold(0.0, (sum, e) => sum + e.amount);
@@ -219,18 +224,38 @@ class ReportScreen extends ConsumerWidget {
                         const SizedBox(height: 12),
                         ...members.map((m) {
                           final b = balances[m.userId] ?? 0.0;
+                          final paid = totalPaidMap[m.userId] ?? 0.0;
+                          final spent = totalSpentMap[m.userId] ?? 0.0;
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.only(bottom: 10),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(m.displayName,
-                                    style:
-                                        const TextStyle(fontFamily: 'Outfit')),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(m.displayName,
+                                        style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Paid: ${tour.currencySymbol}${paid.toStringAsFixed(0)} • Spent: ${tour.currencySymbol}${spent.toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 11,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 Text(
                                   b == 0
                                       ? 'Settled'
-                                      : '${b > 0 ? '+' : ''}${tour.currencySymbol} ${b.abs().toStringAsFixed(0)}',
+                                      : '${b > 0 ? '+' : ''}${tour.currencySymbol}${b.abs().toStringAsFixed(0)}',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
                                     fontWeight: FontWeight.w700,
@@ -314,7 +339,18 @@ class ReportScreen extends ConsumerWidget {
     double totalSpent,
   ) async {
     final pdf = pw.Document();
+    final memberList = members.cast<TourMemberModel>();
+    final totalPaidMap =
+        BalanceService.calculateTotalPaid(memberList, expenses);
+    final totalSpentMap =
+        BalanceService.calculateTotalSpent(memberList, expenses);
     final dayGroups = _groupExpensesByDay(expenses, tourStartDate);
+    final pdfCurrency =
+        (currencySymbol == '৳' || currencySymbol.contains('৳'))
+            ? 'BDT'
+            : currencySymbol;
+    final multiPayerExpenses = expenses.where((e) => e.isMultiPayer).toList();
+    final memberMap = {for (final m in members) m.userId: m.displayName};
 
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -333,9 +369,26 @@ class ReportScreen extends ConsumerWidget {
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
         pw.SizedBox(height: 6),
         pw.Text(
-            'Total Spent: $currencySymbol ${totalSpent.toStringAsFixed(2)}'),
+            'Total Spent: $pdfCurrency ${totalSpent.toStringAsFixed(2)}'),
         pw.Text('Total Expenses: ${expenses.length}'),
         pw.Text('Members: ${members.length}'),
+        if (multiPayerExpenses.isNotEmpty) ...[
+          pw.SizedBox(height: 10),
+          pw.Text('MULTI-PAYER EXPENSE BREAKDOWN',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+          pw.SizedBox(height: 4),
+          ...multiPayerExpenses.map((e) {
+            final contribs = e.contributions.entries.map((entry) {
+              final name = memberMap[entry.key] ?? entry.key;
+              return '$name ($pdfCurrency ${entry.value.toStringAsFixed(2)})';
+            }).join(', ');
+            return pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 2),
+              child: pw.Text('• ${e.title}: $contribs',
+                  style: const pw.TextStyle(fontSize: 9.5, color: PdfColors.grey800)),
+            );
+          }),
+        ],
         pw.SizedBox(height: 16),
         pw.Text('EXPENSE BREAKDOWN BY CATEGORY',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
@@ -346,7 +399,7 @@ class ReportScreen extends ConsumerWidget {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(e.key),
-                  pw.Text('$currencySymbol ${e.value.toStringAsFixed(2)}'),
+                  pw.Text('$pdfCurrency ${e.value.toStringAsFixed(2)}'),
                 ],
               ),
             )),
@@ -356,15 +409,18 @@ class ReportScreen extends ConsumerWidget {
         pw.SizedBox(height: 6),
         ...members.map((m) {
           final b = balances[m.userId] ?? 0.0;
+          final paid = totalPaidMap[m.userId] ?? 0.0;
+          final spent = totalSpentMap[m.userId] ?? 0.0;
           return pw.Padding(
             padding: const pw.EdgeInsets.only(bottom: 3),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text(m.displayName),
+                pw.Text(
+                    '${m.displayName} (Paid: $pdfCurrency ${paid.toStringAsFixed(2)}, Spent: $pdfCurrency ${spent.toStringAsFixed(2)})'),
                 pw.Text(b == 0
                     ? 'Settled'
-                    : '${b > 0 ? '+' : ''}$currencySymbol ${b.abs().toStringAsFixed(2)}'),
+                    : '${b > 0 ? '+' : ''}$pdfCurrency ${b.abs().toStringAsFixed(2)}'),
               ],
             ),
           );
@@ -377,7 +433,7 @@ class ReportScreen extends ConsumerWidget {
           pw.Text('All settled!')
         else
           ...debts.map((d) => pw.Text(
-              '${d.fromUserName} → ${d.toUserName}: $currencySymbol ${d.amount.toStringAsFixed(2)}')),
+              '${d.fromUserName} -> ${d.toUserName}: $pdfCurrency ${d.amount.toStringAsFixed(2)}')),
         pw.SizedBox(height: 20),
         pw.Text('DAILY EXPENSE LEDGER',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
@@ -400,7 +456,7 @@ class ReportScreen extends ConsumerWidget {
                         fontSize: 11),
                   ),
                   pw.Text(
-                    'Total: $currencySymbol ${dayTotal.toStringAsFixed(2)}',
+                    'Total: $pdfCurrency ${dayTotal.toStringAsFixed(2)}',
                     style: pw.TextStyle(
                         color: PdfColors.white,
                         fontWeight: pw.FontWeight.bold,
@@ -444,10 +500,18 @@ class ReportScreen extends ConsumerWidget {
                   ],
                 ),
                 ...g.expenses.map((e) {
-                  final payer = e.paidByName.split(' ').first.toLowerCase();
-                  final notes = e.description?.trim().isNotEmpty == true
+                  final payer = e.isMultiPayer
+                      ? 'Multi (${e.paidByName})'
+                      : e.paidByName.split(' ').first.toLowerCase();
+                  final baseNotes = e.description?.trim().isNotEmpty == true
                       ? e.description!.trim()
                       : (e.category != 'Other' ? e.category : '');
+                  final notes = e.isMultiPayer && baseNotes.isEmpty
+                      ? e.contributions.entries
+                          .map((entry) =>
+                              '${memberMap[entry.key] ?? entry.key}: $pdfCurrency ${entry.value.toStringAsFixed(0)}')
+                          .join(', ')
+                      : baseNotes;
                   return pw.TableRow(
                     children: [
                       pw.Padding(
@@ -458,7 +522,7 @@ class ReportScreen extends ConsumerWidget {
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
                         child: pw.Text(
-                            '$currencySymbol ${e.amount.toStringAsFixed(2)}',
+                            '$pdfCurrency ${e.amount.toStringAsFixed(2)}',
                             textAlign: pw.TextAlign.right,
                             style: const pw.TextStyle(fontSize: 9)),
                       ),

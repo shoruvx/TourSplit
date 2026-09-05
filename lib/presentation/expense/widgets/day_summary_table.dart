@@ -236,10 +236,15 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                       : (isEven ? Colors.white : const Color(0xFFF8FAFC));
 
                   final payerName = exp.paidByName.split(' ').first;
+                  final payerDisplay = exp.isMultiPayer
+                      ? 'multi-payer'
+                      : payerName.toLowerCase();
                   final note = exp.description != null &&
                           exp.description!.trim().isNotEmpty
                       ? exp.description!.trim()
-                      : (exp.category != 'Other' ? exp.category : '');
+                      : (exp.isMultiPayer
+                          ? exp.paidByName
+                          : (exp.category != 'Other' ? exp.category : ''));
 
                   return InkWell(
                     onTap: widget.onExpenseTap != null
@@ -264,16 +269,35 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                         children: [
                           Expanded(
                             flex: 5,
-                            child: Text(
-                              exp.title,
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? AppColors.darkText
-                                    : const Color(0xFF0F172A),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  exp.title,
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.darkText
+                                        : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                if (exp.isMultiPayer)
+                                  Text(
+                                    exp.paidByName,
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 10,
+                                      color: isDark
+                                          ? AppColors.primaryTeal.withValues(alpha: 0.8)
+                                          : AppColors.primaryTeal,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
                             ),
                           ),
                           Expanded(
@@ -315,17 +339,36 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                           const SizedBox(width: 8),
                           Expanded(
                             flex: 3,
-                            child: Text(
-                              payerName.toLowerCase(),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 12,
-                                color: isDark
-                                    ? const Color(0xFFCBD5E1)
-                                    : const Color(0xFF334155),
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  payerDisplay,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11.5,
+                                    color: exp.isMultiPayer
+                                        ? AppColors.primaryTeal
+                                        : (isDark
+                                            ? const Color(0xFFCBD5E1)
+                                            : const Color(0xFF334155)),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (exp.isMultiPayer)
+                                  Text(
+                                    '(${exp.payers!.length} people)',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 9.5,
+                                      color: isDark
+                                          ? Colors.white60
+                                          : Colors.grey.shade600,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           Expanded(

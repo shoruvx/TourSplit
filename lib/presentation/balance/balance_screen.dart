@@ -77,6 +77,8 @@ class BalanceScreen extends ConsumerWidget {
                 final debts = BalanceService.simplifyDebts(balances, members);
                 final totalPaidMap =
                     BalanceService.calculateTotalPaid(members, expenses);
+                final totalSpentMap =
+                    BalanceService.calculateTotalSpent(members, expenses);
                 final isDark = Theme.of(context).brightness == Brightness.dark;
 
                 return PopScope(
@@ -199,10 +201,12 @@ class BalanceScreen extends ConsumerWidget {
                       ...members.map((m) {
                         final balance = balances[m.userId] ?? 0.0;
                         final totalPaid = totalPaidMap[m.userId] ?? 0.0;
+                        final totalSpent = totalSpentMap[m.userId] ?? 0.0;
                         return _BalanceCard(
                           member: m,
                           balance: balance,
                           totalPaid: totalPaid,
+                          totalSpent: totalSpent,
                           currency: tour.currencySymbol,
                           currentUserId: user.uid,
                         ).animate().fadeIn(
@@ -303,6 +307,7 @@ class _BalanceCard extends StatelessWidget {
   final TourMemberModel member;
   final double balance;
   final double totalPaid;
+  final double totalSpent;
   final String currency;
   final String currentUserId;
 
@@ -310,6 +315,7 @@ class _BalanceCard extends StatelessWidget {
     required this.member,
     required this.balance,
     required this.totalPaid,
+    required this.totalSpent,
     required this.currency,
     required this.currentUserId,
   });
@@ -333,6 +339,7 @@ class _BalanceCard extends StatelessWidget {
     final balanceSign = isNegative ? '-' : (isPositive ? '+' : '');
     final balanceAbsFormatted = balance.abs().toStringAsFixed(0);
     final formattedPaid = totalPaid.toStringAsFixed(0);
+    final formattedSpent = totalSpent.toStringAsFixed(0);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -358,9 +365,10 @@ class _BalanceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Paid: $currency$formattedPaid • ${member.isOffline ? "Offline" : (member.role == "admin" ? "Admin" : "Member")}',
+                    'Paid: $currency$formattedPaid • Spent: $currency$formattedSpent',
                     style: TextStyle(
                       fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
                       color: isDark
                           ? AppColors.darkTextSecondary
                           : AppColors.lightTextSecondary,

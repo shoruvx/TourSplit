@@ -337,7 +337,7 @@ class SettlementScreen extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    '${tour.currencySymbol}${debt.amount.toStringAsFixed(0)}',
+                    '${tour.currencySymbol}${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 16,
@@ -549,7 +549,7 @@ class _SuggestedDebtCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$currency${debt.amount.toStringAsFixed(0)}',
+                  '$currency${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 15,
@@ -678,7 +678,7 @@ class _SettlementCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$currency${settlement.amount.toStringAsFixed(0)}',
+                        '$currency${settlement.amount % 1 == 0 ? settlement.amount.toStringAsFixed(0) : settlement.amount.toStringAsFixed(2)}',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                           fontFamily: 'Outfit',

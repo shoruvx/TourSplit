@@ -762,13 +762,14 @@ class _MemberCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final isCurrentUser = member.userId == currentUserId;
 
-    Color balanceColor = member.balance > 0
-        ? AppColors.positive
-        : member.balance < 0
-            ? AppColors.negative
-            : (isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.lightTextSecondary);
+    final isSettled = member.balance.abs() < 0.01;
+    Color balanceColor = isSettled
+        ? (isDark
+            ? AppColors.darkTextSecondary
+            : AppColors.lightTextSecondary)
+        : member.balance > 0
+            ? AppColors.positive
+            : AppColors.negative;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -887,6 +888,25 @@ class _MemberCard extends StatelessWidget {
                           ),
                         ),
                       ],
+                      if (member.isLeft) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            member.status == 'removed' ? 'Removed' : 'Left',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -909,9 +929,11 @@ class _MemberCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  member.balance >= 0
-                      ? '+$currencySymbol${member.balance.toStringAsFixed(0)}'
-                      : '-$currencySymbol${(-member.balance).toStringAsFixed(0)}',
+                  isSettled
+                      ? '$currencySymbol 0'
+                      : member.balance > 0
+                          ? '+$currencySymbol${(member.balance % 1 == 0 ? member.balance.toStringAsFixed(0) : member.balance.toStringAsFixed(2))}'
+                          : '-$currencySymbol${((-member.balance) % 1 == 0 ? (-member.balance).toStringAsFixed(0) : (-member.balance).toStringAsFixed(2))}',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 14,
@@ -920,11 +942,11 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  member.balance > 0
-                      ? 'gets back'
-                      : member.balance < 0
-                          ? 'owes'
-                          : 'settled',
+                  isSettled
+                      ? 'settled'
+                      : member.balance > 0
+                          ? 'gets back'
+                          : 'owes',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 10,
@@ -933,7 +955,7 @@ class _MemberCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (isAdmin && !isCreator && !isCurrentUser) ...[
+            if (isAdmin && !isCreator && !isCurrentUser && !member.isLeft) ...[
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded, size: 20),
                 onSelected: (val) {

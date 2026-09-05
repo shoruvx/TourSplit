@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -193,6 +194,16 @@ class TourRepository {
   }
 
   Future<void> deleteTour(String tourId, {String? currentUserId}) async {
+    final tour = await getTour(tourId);
+    final isAdmin =
+        currentUserId != null && tour != null && tour.isAdmin(currentUserId);
+
+    // If current user is not admin or is already a past member, only remove for themselves
+    if (!isAdmin && currentUserId != null && currentUserId.isNotEmpty) {
+      await removeTourForUser(tourId, currentUserId);
+      return;
+    }
+
     // 1. Remove current user from members array and clear activeTourId immediately
     if (currentUserId != null && currentUserId.isNotEmpty) {
       try {
@@ -320,15 +331,24 @@ class TourRepository {
     });
   }
 
-  Future<void> removeMember(String tourId, String userId) async {
+  Future<void> removeMember(String tourId, String userId,
+      {bool isKick = true}) async {
     final batch = _db.batch();
     batch.update(_tours.doc(tourId), {
       'members': FieldValue.arrayRemove([userId]),
+      'pastMembers': FieldValue.arrayUnion([userId]),
     });
-    batch.delete(_tours
-        .doc(tourId)
-        .collection(AppConstants.membersSubcollection)
-        .doc(userId));
+    batch.set(
+      _tours
+          .doc(tourId)
+          .collection(AppConstants.membersSubcollection)
+          .doc(userId),
+      {
+        'status': isKick ? 'removed' : 'left',
+        'role': 'past_member',
+      },
+      SetOptions(merge: true),
+    );
     await batch.commit();
 
     if (!userId.startsWith('offline_')) {
@@ -338,6 +358,24 @@ class TourRepository {
         });
       } catch (_) {}
     }
+  }
+
+  Future<void> leaveTour(String tourId, String userId) async {
+    await removeMember(tourId, userId, isKick: false);
+  }
+
+  Future<void> removeTourForUser(String tourId, String userId) async {
+    final batch = _db.batch();
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayRemove([userId]),
+      'pastMembers': FieldValue.arrayRemove([userId]),
+    });
+    try {
+      await _db.collection(AppConstants.usersCollection).doc(userId).update({
+        'activeTourId': null,
+      });
+    } catch (_) {}
+    await batch.commit();
   }
 
   Future<void> clearUserActiveTour(String userId) async {
@@ -399,7 +437,7 @@ class TourRepository {
         .snapshots()
         .map((doc) {
       if (!doc.exists) return null;
-      final data = doc.data() as Map<String, dynamic>?;
+      final data = doc.data();
       if (data == null) return null;
       final role = data['role'] ?? 'member';
       final status = (role == 'member' || role == 'admin')
@@ -427,7 +465,7 @@ class TourRepository {
         .where('role', isEqualTo: 'pending')
         .snapshots()
         .map((snap) => snap.docs.map((d) {
-              final data = d.data() as Map<String, dynamic>;
+              final data = d.data();
               return JoinRequestModel(
                 id: d.id,
                 tourId: data['tourId'] ?? tourId,
@@ -524,18 +562,63 @@ class TourRepository {
   }
 
   Stream<List<TourModel>> watchUserTours(String userId) {
-    return _tours
-        .where('members', arrayContains: userId)
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs
-          .where((d) => d.exists)
-          .map((d) => TourModel.fromFirestore(d))
+    late StreamController<List<TourModel>> controller;
+    StreamSubscription? subActive;
+    StreamSubscription? subPast;
+    List<TourModel> activeList = [];
+    List<TourModel> pastList = [];
+
+    void emitCombined() {
+      if (controller.isClosed) return;
+      final map = <String, TourModel>{};
+      for (final t in activeList) {
+        map[t.id] = t;
+      }
+      for (final t in pastList) {
+        map.putIfAbsent(t.id, () => t);
+      }
+      final list = map.values
           .where((t) => !t.isDeleted && t.status != TourStatus.deleted)
           .toList();
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+      controller.add(list);
+    }
+
+    controller = StreamController<List<TourModel>>(
+      onListen: () {
+        subActive = _tours
+            .where('members', arrayContains: userId)
+            .snapshots()
+            .listen((snap) {
+          activeList = snap.docs
+              .where((d) => d.exists)
+              .map((d) => TourModel.fromFirestore(d))
+              .toList();
+          emitCombined();
+        }, onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
+        });
+
+        subPast = _tours
+            .where('pastMembers', arrayContains: userId)
+            .snapshots()
+            .listen((snap) {
+          pastList = snap.docs
+              .where((d) => d.exists)
+              .map((d) => TourModel.fromFirestore(d))
+              .toList();
+          emitCombined();
+        }, onError: (_) {
+          emitCombined();
+        });
+      },
+      onCancel: () {
+        subActive?.cancel();
+        subPast?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<void> updateMemberBalance(
