@@ -11,4 +11,6 @@ GeneratedPluginRegistrant.java
 # See https://flutter.dev/to/reference-keystore
 key.properties
 **/*.keystore
+!release.keystore
+!**/release.keystore
 **/*.jks
