@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toursplit/data/models/tour_model.dart';
+import 'package:toursplit/data/models/app_update_model.dart';
 import 'package:toursplit/data/services/app_update_service.dart';
 
 void main() {
@@ -59,6 +60,24 @@ void main() {
       expect(copy.isDeleted, isFalse);
       expect(copy.status, TourStatus.active);
       expect(copy.isActive, isTrue);
+    });
+  });
+
+  group('AppUpdateInfo Model & AutoDownload', () {
+    test('AppUpdateInfo defaults autoDownload to true and serializes properly', () {
+      const info = AppUpdateInfo(
+        latestVersion: '1.2.0',
+        buildNumber: 10,
+        releaseNotes: 'Performance enhancements',
+        apkUrl: 'https://github.com/shoruvx/TourSplit/releases/download/v1.2.0/TourSplit-v1.2.0.apk',
+        forceUpdate: false,
+      );
+
+      expect(info.autoDownload, isTrue);
+      final map = info.toFirestore();
+      expect(map['autoDownload'], isTrue);
+      expect(map['latestVersion'], '1.2.0');
+      expect(map['forceUpdate'], isFalse);
     });
   });
 }

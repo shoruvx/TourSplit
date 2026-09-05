@@ -29,17 +29,31 @@ class UserModel {
           .toUpperCase();
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+    DateTime parsedCreatedAt;
+    try {
+      final rawCreatedAt = data['createdAt'];
+      if (rawCreatedAt is Timestamp) {
+        parsedCreatedAt = rawCreatedAt.toDate();
+      } else if (rawCreatedAt is String) {
+        parsedCreatedAt = DateTime.tryParse(rawCreatedAt) ?? DateTime.now();
+      } else {
+        parsedCreatedAt = DateTime.now();
+      }
+    } catch (_) {
+      parsedCreatedAt = DateTime.now();
+    }
+
     return UserModel(
       uid: doc.id,
-      email: data['email'] ?? '',
-      username: data['username'] ?? '',
-      firstName: data['firstName'] ?? '',
-      lastName: data['lastName'] ?? '',
-      photoUrl: data['photoUrl'],
-      fcmToken: data['fcmToken'],
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      activeTourId: data['activeTourId'],
+      email: data['email'] as String? ?? '',
+      username: data['username'] as String? ?? '',
+      firstName: data['firstName'] as String? ?? '',
+      lastName: data['lastName'] as String? ?? '',
+      photoUrl: data['photoUrl'] as String?,
+      fcmToken: data['fcmToken'] as String?,
+      createdAt: parsedCreatedAt,
+      activeTourId: data['activeTourId'] as String?,
     );
   }
 

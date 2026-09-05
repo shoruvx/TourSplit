@@ -20,6 +20,7 @@ import '../expense/expense_list_tile.dart';
 import '../expense/widgets/day_summary_table.dart';
 import '../tour/widgets/tour_qr_dialog.dart';
 import '../widgets/first_time_guide_dialog.dart';
+import '../settlement/widgets/manual_settlement_dialog.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -30,8 +31,7 @@ class HomeScreen extends ConsumerWidget {
       FirstTimeGuideDialog.checkAndShow(context);
     });
 
-    final updateInfo = ref.watch(gitHubUpdateFutureProvider).value ??
-        ref.watch(appUpdateInfoStreamProvider).value;
+    final updateInfo = ref.watch(effectiveUpdateInfoProvider);
     final packageInfo = ref.watch(currentAppVersionProvider).value;
     if (updateInfo != null && packageInfo != null) {
       AppUpdateService.promptUpdateIfNeeded(
@@ -544,9 +544,42 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     return tourStream.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
+      error: (e, _) => Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    size: 48, color: AppColors.danger),
+                const SizedBox(height: 16),
+                Text('Could not load tour: $e',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => ref
+                      .read(tourRepositoryProvider)
+                      .clearUserActiveTour(widget.userId),
+                  child: const Text('Return to Trips'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       data: (tour) {
-        if (tour == null) return const SizedBox();
+        if (tour == null || tour.isDeleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
+          });
+          return _NoActiveTourScreen(
+            displayName:
+                ref.read(currentUserProvider).value?.firstName ?? 'User',
+            noticeMessage: 'The selected tour is no longer available.',
+          );
+        }
 
         final isMember = tour.memberIds.contains(widget.userId);
         final isMemberInSubcollection = membersStream.maybeWhen(
@@ -605,8 +638,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           });
         }
 
-        final updateInfo = ref.watch(gitHubUpdateFutureProvider).value ??
-            ref.watch(appUpdateInfoStreamProvider).value;
+        final updateInfo = ref.watch(effectiveUpdateInfoProvider);
         final packageInfo = ref.watch(currentAppVersionProvider).value;
         if (updateInfo != null && packageInfo != null) {
           AppUpdateService.promptUpdateIfNeeded(
@@ -730,11 +762,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       _buildExpensesTab(
                           expensesStream, tour.currencySymbol, tour.startDate),
                     ] else if (_selectedPillTab == 1) ...[
-                      _buildBalancesTab(
-                          membersList, computedBalances, tour.currencySymbol),
+                      _buildBalancesTab(membersList, computedBalances,
+                          tour.currencySymbol, approvedExpenses),
                     ] else ...[
-                      _buildSettlementsTab(
-                          membersList, computedBalances, tour.currencySymbol),
+                      _buildSettlementsTab(membersList, computedBalances,
+                          tour.currencySymbol, tour),
                     ],
                     const SizedBox(height: 60),
                   ]),
@@ -873,9 +905,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     List<TourMemberModel> list,
     Map<String, double> computedBalances,
     String currencySymbol,
+    List<ExpenseModel> approvedExpenses,
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final totalPaidMap =
+        BalanceService.calculateTotalPaid(list, approvedExpenses);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -905,8 +940,18 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
             ],
           ),
+          const SizedBox(height: 2),
+          Text(
+            'Format: Total Paid (±Net Balance). Negative (-) owes, positive (+) gets back.',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: isDark ? Colors.white60 : Colors.black54,
+              fontFamily: 'Outfit',
+            ),
+          ),
           const Divider(height: 20),
           ...list.map((m) {
+            final totalPaid = totalPaidMap[m.userId] ?? 0.0;
             final balance = computedBalances[m.userId] ?? 0.0;
             final isPositive = balance > 0.01;
             final isNegative = balance < -0.01;
@@ -916,14 +961,28 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     ? AppColors.negative
                     : (isDark ? Colors.white70 : Colors.black54));
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+            final balanceSign = isNegative ? '-' : (isPositive ? '+' : '');
+            final balanceAbsFormatted = balance.abs().toStringAsFixed(0);
+            final formattedPaid = totalPaid.toStringAsFixed(0);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color:
+                    isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color:
+                      isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                ),
+              ),
               child: Row(
                 children: [
                   MemberAvatar(
                     initials: m.initials,
                     photoUrl: m.photoUrl,
-                    radius: 19,
+                    radius: 20,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -934,16 +993,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           m.displayName,
                           style: const TextStyle(
                             fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
                           ),
                         ),
+                        const SizedBox(height: 3),
                         Text(
-                          m.isOffline
-                              ? 'Offline Member'
-                              : (m.role == 'admin' ? 'Admin' : 'Member'),
+                          'Paid: $currencySymbol$formattedPaid • ${m.isOffline ? "Offline" : (m.role == "admin" ? "Admin" : "Member")}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 11.5,
                             color: isDark
                                 ? AppColors.darkTextSecondary
                                 : AppColors.lightTextSecondary,
@@ -952,26 +1010,42 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       ],
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      isPositive
-                          ? '+$currencySymbol${balance.toStringAsFixed(0)} (Gets Back)'
-                          : (isNegative
-                              ? '-$currencySymbol${(-balance).toStringAsFixed(0)} (Owes)'
-                              : 'Settled'),
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: color,
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '$currencySymbol$formattedPaid ($balanceSign$currencySymbol$balanceAbsFormatted)',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isPositive
+                              ? 'Gets Back $currencySymbol$balanceAbsFormatted'
+                              : (isNegative
+                                  ? 'Owes $currencySymbol$balanceAbsFormatted'
+                                  : 'Settled'),
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -986,6 +1060,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     List<TourMemberModel> list,
     Map<String, double> computedBalances,
     String currencySymbol,
+    TourModel tour,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final debts = BalanceService.simplifyDebts(computedBalances, list);
@@ -1033,31 +1108,72 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   ),
                 ],
               ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => context.push('/settlement'),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'View All',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryTeal,
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => ManualSettlementDialog.show(
+                      context,
+                      ref: ref,
+                      tour: tour,
+                      members: list,
+                      computedBalances: computedBalances,
+                      currentUserId: widget.userId,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded,
+                              size: 14, color: AppColors.primaryTeal),
+                          SizedBox(width: 2),
+                          Text(
+                            'Manual',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryTeal,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(width: 2),
-                    Icon(Icons.chevron_right_rounded,
-                        size: 16, color: AppColors.primaryTeal),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => context.push('/settlement'),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View All',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTeal,
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(Icons.chevron_right_rounded,
+                            size: 16, color: AppColors.primaryTeal),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -14,6 +14,20 @@ import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/member_avatar.dart';
 
+class LastExpenseDateNotifier extends Notifier<DateTime?> {
+  @override
+  DateTime? build() => null;
+
+  void setDate(DateTime? date) {
+    state = date;
+  }
+}
+
+final lastExpenseDateProvider =
+    NotifierProvider<LastExpenseDateNotifier, DateTime?>(
+  LastExpenseDateNotifier.new,
+);
+
 class AddExpenseScreen extends ConsumerStatefulWidget {
   final ExpenseModel? existingExpense;
   const AddExpenseScreen({super.key, this.existingExpense});
@@ -103,6 +117,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       } else {
         _splitMode = 0;
       }
+    } else {
+      final remembered = ref.read(lastExpenseDateProvider);
+      if (remembered != null) {
+        _selectedDateTime = remembered;
+      }
     }
   }
 
@@ -121,19 +140,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     super.dispose();
   }
 
-  void _applyQuickAdd(Map<String, dynamic> item) {
-    setState(() {
-      _selectedCategory = item['category'];
-      _isCustomCategory = false;
-      _amountCtrl.text = item['amount'];
-      if (_titleCtrl.text.trim().isEmpty) {
-        _titleCtrl.text = item['title'];
-      }
-    });
-    HapticFeedback.lightImpact();
-  }
-
-  Future<void> _pickDateTime() async {
+  Future<void> _pickDate() async {
     final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDateTime,
@@ -142,21 +149,18 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
     if (pickedDate == null || !mounted) return;
 
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
+    final normalized = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      12,
+      0,
     );
-    if (pickedTime == null || !mounted) return;
 
     setState(() {
-      _selectedDateTime = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
-      );
+      _selectedDateTime = normalized;
     });
+    ref.read(lastExpenseDateProvider.notifier).setDate(normalized);
   }
 
   double get _totalCustomSplit {
@@ -327,6 +331,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               widget.existingExpense!.id,
               updateData,
             );
+        ref.read(lastExpenseDateProvider.notifier).setDate(_selectedDateTime);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -365,6 +370,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       );
 
       await ref.read(expenseRepositoryProvider).addExpense(expense);
+      ref.read(lastExpenseDateProvider.notifier).setDate(_selectedDateTime);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -777,11 +783,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                           ),
                         ],
                         const SizedBox(height: 20),
-                        _SectionLabel(title: 'Date & Time *'),
+                        _SectionLabel(title: 'Expense Date *'),
                         const SizedBox(height: 8),
                         GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: _pickDateTime,
+                          onTap: _pickDate,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 14),
@@ -827,30 +833,46 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 10),
+                                    const Icon(Icons.calendar_month_rounded,
+                                        size: 18, color: AppColors.primaryTeal),
                                     const SizedBox(width: 8),
-                                    const Icon(Icons.calendar_today_rounded,
-                                        size: 16, color: AppColors.primaryTeal),
-                                    const SizedBox(width: 6),
                                     Text(
-                                      DateFormat('MMM d, yyyy')
-                                          .format(_selectedDateTime),
-                                      style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13),
-                                    ),
-                                    const Spacer(),
-                                    const Icon(Icons.access_time_rounded,
-                                        size: 16, color: AppColors.primaryTeal),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      DateFormat('h:mm a')
+                                      DateFormat('EEE, MMM d, yyyy')
                                           .format(_selectedDateTime),
                                       style: const TextStyle(
                                           fontFamily: 'Outfit',
                                           fontWeight: FontWeight.w700,
-                                          fontSize: 13,
-                                          color: AppColors.primaryTeal),
+                                          fontSize: 14),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? Colors.white.withValues(alpha: 0.08)
+                                            : Colors.black.withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.edit_calendar_rounded,
+                                              size: 14,
+                                              color: AppColors.primaryTeal),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Change',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primaryTeal,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 );

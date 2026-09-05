@@ -29,7 +29,7 @@ flutter test
 
 # 3. Commit and tag
 echo "📦 Committing version bump and tagging $TAG..."
-git add pubspec.yaml
+git add -A
 git commit -m "chore: release $TAG" || true
 git tag -a "$TAG" -m "$NOTES"
 

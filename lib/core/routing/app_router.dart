@@ -33,11 +33,14 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   final Ref _ref;
 }
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterRefreshNotifier(ref);
   final initialUser = FirebaseAuth.instance.currentUser;
 
   final router = GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: initialUser != null ? '/home' : '/login',
     refreshListenable: notifier,
     redirect: (context, state) {

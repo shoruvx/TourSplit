@@ -147,6 +147,54 @@ void main() {
       expect(debts.length, 3);
       expect(debts.any((d) => d.fromUserId == 'offline_david' && d.fromUserName == 'David (Offline Friend)' && d.amount == 100), isTrue);
     });
+
+    test('calculateTotalPaid accurately calculates each member total paid amount', () {
+      final exp1 = ExpenseModel(
+        id: 'exp1',
+        tourId: 'tour1',
+        title: 'Dinner',
+        amount: 300,
+        currency: 'BDT',
+        category: 'Food',
+        paidByUserId: 'user_a',
+        paidByName: 'Alice',
+        splitType: SplitType.equal,
+        splitAmong: ['user_a', 'user_b', 'user_c'],
+        date: DateTime.now(),
+        status: ExpenseStatus.approved,
+        addedByUserId: 'user_a',
+        createdAt: DateTime.now(),
+      );
+
+      final exp2 = ExpenseModel(
+        id: 'exp2',
+        tourId: 'tour1',
+        title: 'Snacks',
+        amount: 500,
+        currency: 'BDT',
+        category: 'Snacks',
+        paidByUserId: 'user_b',
+        paidByName: 'Bob',
+        payers: {
+          'user_a': 200.0,
+          'user_b': 300.0,
+        },
+        splitType: SplitType.equal,
+        splitAmong: ['user_a', 'user_b', 'user_c'],
+        date: DateTime.now(),
+        status: ExpenseStatus.approved,
+        addedByUserId: 'user_b',
+        createdAt: DateTime.now(),
+      );
+
+      final totalPaid = BalanceService.calculateTotalPaid(members, [exp1, exp2]);
+      // Alice paid 300 + 200 = 500
+      expect(totalPaid['user_a'], closeTo(500.0, 0.01));
+      // Bob paid 300
+      expect(totalPaid['user_b'], closeTo(300.0, 0.01));
+      // Charlie paid 0
+      expect(totalPaid['user_c'], closeTo(0.0, 0.01));
+    });
   });
 }
 

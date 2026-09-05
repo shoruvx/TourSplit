@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_constants.dart';
+import '../../data/models/user_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/app_update_service.dart';
 import '../widgets/member_avatar.dart';
@@ -30,6 +32,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _saveProfile(UserModel user) async {
+    final first = _firstNameCtrl.text.trim();
+    final last = _lastNameCtrl.text.trim();
+
+    if (first.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('First name cannot be empty'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await ref.read(authServiceProvider).updateProfile(
+            uid: user.uid,
+            firstName: first,
+            lastName: last,
+            activeTourId: user.activeTourId,
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully! 🎉'),
+            backgroundColor: AppColors.positive,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   void _showPublishUpdateDialog(BuildContext context) {
     final versionCtrl = TextEditingController(text: '1.1.0');
     final buildCtrl = TextEditingController(text: '2');
@@ -38,9 +88,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'TourSplit update: Split the costs, keep the memories! Brand new emblem logo and performance updates.',
     );
     final urlCtrl = TextEditingController(
-      text: 'https://github.com/shoruvx/TourSplit/releases',
+      text:
+          'https://github.com/${AppConstants.githubRepo}/releases/download/v1.1.0/TourSplit-v1.1.0.apk',
     );
     bool forceUpdate = false;
+    bool autoDownload = true;
 
     showModalBottomSheet(
       context: context,
@@ -87,7 +139,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   fontWeight: FontWeight.w700),
                             ),
                             Text(
-                              'All users will be notified to update',
+                              'All users will automatically receive update',
                               style:
                                   TextStyle(fontSize: 12, color: Colors.grey),
                             ),
@@ -117,8 +169,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 16),
                     AppTextField(
                       controller: urlCtrl,
-                      label: 'APK Download URL / Release Link',
-                      hint: 'https://...',
+                      label: 'Direct APK Download URL',
+                      hint: 'https://github.com/.../TourSplit.apk',
                     ),
                     const SizedBox(height: 16),
                     AppTextField(
@@ -127,6 +179,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       maxLines: 3,
                     ),
                     const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Auto-Download & Prompt Install',
+                          style: TextStyle(fontFamily: 'Outfit', fontSize: 14)),
+                      subtitle: const Text(
+                          'Background downloads APK & prompts install automatically',
+                          style: TextStyle(fontSize: 12)),
+                      value: autoDownload,
+                      onChanged: (v) => setModalState(() => autoDownload = v),
+                    ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Mandatory / Force Update',
@@ -143,19 +205,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           Navigator.pop(ctx);
+                          final ver = versionCtrl.text.trim();
+                          String finalUrl = urlCtrl.text.trim();
+                          if (finalUrl.isEmpty ||
+                              !finalUrl.toLowerCase().endsWith('.apk')) {
+                            finalUrl =
+                                'https://github.com/${AppConstants.githubRepo}/releases/download/v$ver/TourSplit-v$ver.apk';
+                          }
+
                           await AppUpdateService.publishUpdate(
-                            latestVersion: versionCtrl.text.trim(),
+                            latestVersion: ver,
                             buildNumber:
                                 int.tryParse(buildCtrl.text.trim()) ?? 1,
                             releaseNotes: notesCtrl.text.trim(),
-                            apkUrl: urlCtrl.text.trim(),
+                            apkUrl: finalUrl,
                             forceUpdate: forceUpdate,
+                            autoDownload: autoDownload,
                           );
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Published v${versionCtrl.text.trim()}! Users will receive update prompt 🎉'),
+                                    'Published v$ver! All devices will receive update automatically 🚀'),
                                 backgroundColor: AppColors.positive,
                               ),
                             );
@@ -274,15 +345,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () async {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Profile updated!'),
-                              backgroundColor: AppColors.accent),
-                        );
-                      },
-                      icon: const Icon(Icons.save_rounded),
-                      label: const Text('Save Changes'),
+                      onPressed: _isLoading ? null : () => _saveProfile(user),
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: Text(_isLoading ? 'Saving...' : 'Save Changes'),
                     ),
                   ).animate().fadeIn(delay: 300.ms),
                   const SizedBox(height: 32),
@@ -295,8 +369,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       final packageInfoAsync =
                           ref.watch(currentAppVersionProvider);
                       final updateInfo =
-                          ref.watch(gitHubUpdateFutureProvider).value ??
-                              ref.watch(appUpdateInfoStreamProvider).value;
+                          ref.watch(effectiveUpdateInfoProvider);
                       final currentVer =
                           packageInfoAsync.value?.version ?? '1.0.0';
                       final hasUpdate = updateInfo != null &&

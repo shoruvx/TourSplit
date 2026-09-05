@@ -57,6 +57,19 @@ final latestUpdateInfoProvider = FutureProvider<AppUpdateInfo?>((ref) async {
   return null;
 });
 
+final effectiveUpdateInfoProvider = Provider<AppUpdateInfo?>((ref) {
+  final firestoreInfo = ref.watch(appUpdateInfoStreamProvider).value;
+  final ghInfo = ref.watch(gitHubUpdateFutureProvider).value;
+
+  if (firestoreInfo == null) return ghInfo;
+  if (ghInfo == null) return firestoreInfo;
+
+  return AppUpdateService.isVersionNewer(
+          ghInfo.latestVersion, firestoreInfo.latestVersion)
+      ? ghInfo
+      : firestoreInfo;
+});
+
 class AppUpdateService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static String? _lastNotifiedVersion;
@@ -191,17 +204,20 @@ class AppUpdateService {
               'https://github.com/$repository/releases';
         }
 
-        return AppUpdateInfo(
+        final updateInfo = AppUpdateInfo(
           latestVersion: latestVersion,
           buildNumber: 1,
           releaseNotes: releaseNotes,
           apkUrl: apkUrl,
           forceUpdate: releaseNotes.contains('[FORCE_UPDATE]') ||
               releaseNotes.contains('#mandatory'),
+          autoDownload: true,
           releasedAt:
               DateTime.tryParse(data['published_at'] as String? ?? '') ??
                   DateTime.now(),
         );
+        syncReleaseToFirestoreIfNewer(updateInfo).catchError((_) {});
+        return updateInfo;
       }
     } catch (_) {}
 
@@ -323,6 +339,7 @@ class AppUpdateService {
     required String releaseNotes,
     required String apkUrl,
     bool forceUpdate = false,
+    bool autoDownload = true,
     String minSupportedVersion = '1.0.1',
   }) async {
     await _firestore.collection('app_config').doc('version').set({
@@ -332,15 +349,20 @@ class AppUpdateService {
       'releaseNotes': releaseNotes,
       'apkUrl': apkUrl,
       'forceUpdate': forceUpdate,
+      'autoDownload': autoDownload,
       'releasedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  static bool isUpdateDialogShowing = false;
 
   static void showUpdateDialog(
     BuildContext context, {
     required AppUpdateInfo info,
     required String currentVersion,
   }) {
+    if (isUpdateDialogShowing) return;
+    isUpdateDialogShowing = true;
     showDialog(
       context: context,
       barrierDismissible: !info.forceUpdate,
@@ -348,7 +370,9 @@ class AppUpdateService {
         info: info,
         currentVersion: currentVersion,
       ),
-    );
+    ).then((_) {
+      isUpdateDialogShowing = false;
+    });
   }
 }
 
@@ -377,16 +401,23 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
   @override
   void initState() {
     super.initState();
-    _checkDownloadedApk();
+    _initUpdateFlow();
   }
 
-  Future<void> _checkDownloadedApk() async {
+  Future<void> _initUpdateFlow() async {
     final downloaded =
         await AppUpdateService.isApkDownloaded(widget.info.latestVersion);
-    if (mounted && downloaded) {
-      setState(() {
-        _isDownloaded = true;
-      });
+    if (!mounted) return;
+    setState(() {
+      _isDownloaded = downloaded;
+    });
+
+    if (widget.info.autoDownload || widget.info.forceUpdate) {
+      if (downloaded) {
+        _triggerInstall();
+      } else {
+        _startOtaUpdate();
+      }
     }
   }
 

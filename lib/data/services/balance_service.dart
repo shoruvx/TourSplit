@@ -28,6 +28,26 @@ class BalanceService {
     return balances;
   }
 
+  static Map<String, double> calculateTotalPaid(
+    List<TourMemberModel> members,
+    List<ExpenseModel> approvedExpenses,
+  ) {
+    final totalPaid = <String, double>{
+      for (final m in members) m.userId: 0.0,
+    };
+
+    for (final expense in approvedExpenses) {
+      if (expense.status != ExpenseStatus.approved) continue;
+
+      final contributions = expense.contributions;
+      for (final entry in contributions.entries) {
+        totalPaid[entry.key] = (totalPaid[entry.key] ?? 0.0) + entry.value;
+      }
+    }
+
+    return totalPaid;
+  }
+
   static Map<String, double> applySettlements(
     Map<String, double> balances,
     List<SettlementModel> approvedSettlements,

@@ -12,6 +12,7 @@ import '../../data/services/balance_service.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/models/settlement_model.dart';
 import '../widgets/member_avatar.dart';
+import '../settlement/widgets/manual_settlement_dialog.dart';
 
 class BalanceScreen extends ConsumerWidget {
   const BalanceScreen({super.key});
@@ -34,7 +35,24 @@ class BalanceScreen extends ConsumerWidget {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (tour) {
-        if (tour == null) return const Scaffold();
+        if (tour == null || tour.isDeleted) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Balances')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('The tour is no longer available.'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => context.go('/home'),
+                    child: const Text('Go Home'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         return membersStream.when(
           loading: () =>
@@ -57,6 +75,9 @@ class BalanceScreen extends ConsumerWidget {
                 balances = BalanceService.applySettlements(
                     balances, approvedSettlements);
                 final debts = BalanceService.simplifyDebts(balances, members);
+                final totalPaidMap =
+                    BalanceService.calculateTotalPaid(members, expenses);
+                final isDark = Theme.of(context).brightness == Brightness.dark;
 
                 return PopScope(
                   canPop: false,
@@ -82,15 +103,106 @@ class BalanceScreen extends ConsumerWidget {
                           }
                         },
                       ),
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.handshake_rounded,
+                              color: AppColors.primaryTeal),
+                          tooltip: 'Manual Settlement',
+                          onPressed: () => ManualSettlementDialog.show(
+                            context,
+                            ref: ref,
+                            tour: tour,
+                            members: members,
+                            computedBalances: balances,
+                            currentUserId: user.uid,
+                          ),
+                        ),
+                      ],
                     ),
                   body: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Balance Overview',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Format: Total Paid (±Net Balance). Negative (-) owes, positive (+) gets back.',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11.5,
+                                      color: isDark
+                                          ? Colors.white60
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: () => ManualSettlementDialog.show(
+                                context,
+                                ref: ref,
+                                tour: tour,
+                                members: members,
+                                computedBalances: balances,
+                                currentUserId: user.uid,
+                              ),
+                              icon: const Icon(Icons.handshake_rounded,
+                                  size: 15, color: Colors.white),
+                              label: const Text(
+                                'Manual Settle',
+                                style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryTeal,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                                elevation: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       ...members.map((m) {
                         final balance = balances[m.userId] ?? 0.0;
+                        final totalPaid = totalPaidMap[m.userId] ?? 0.0;
                         return _BalanceCard(
                           member: m,
                           balance: balance,
+                          totalPaid: totalPaid,
                           currency: tour.currencySymbol,
                           currentUserId: user.uid,
                         ).animate().fadeIn(
@@ -109,7 +221,7 @@ class BalanceScreen extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: AppColors.accent.withOpacity(0.1),
+                            color: AppColors.accent.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Center(
@@ -190,12 +302,14 @@ class BalanceScreen extends ConsumerWidget {
 class _BalanceCard extends StatelessWidget {
   final TourMemberModel member;
   final double balance;
+  final double totalPaid;
   final String currency;
   final String currentUserId;
 
   const _BalanceCard({
     required this.member,
     required this.balance,
+    required this.totalPaid,
     required this.currency,
     required this.currentUserId,
   });
@@ -204,9 +318,9 @@ class _BalanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final isPositive = balance > 0;
-    final isNegative = balance < 0;
-    final isSettled = balance.abs() < 0.01;
+    final isPositive = balance > 0.01;
+    final isNegative = balance < -0.01;
+    final isSettled = !isPositive && !isNegative;
 
     Color balanceColor = isPositive
         ? AppColors.positive
@@ -215,6 +329,10 @@ class _BalanceCard extends StatelessWidget {
             : (isDark
                 ? AppColors.darkTextSecondary
                 : AppColors.lightTextSecondary);
+
+    final balanceSign = isNegative ? '-' : (isPositive ? '+' : '');
+    final balanceAbsFormatted = balance.abs().toStringAsFixed(0);
+    final formattedPaid = totalPaid.toStringAsFixed(0);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -236,9 +354,19 @@ class _BalanceCard extends StatelessWidget {
                     member.displayName +
                         (member.userId == currentUserId ? ' (You)' : ''),
                     style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Paid: $currency$formattedPaid • ${member.isOffline ? "Offline" : (member.role == "admin" ? "Admin" : "Member")}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
@@ -255,30 +383,40 @@ class _BalanceCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  isSettled
-                      ? 'Settled'
-                      : '${isPositive ? '+' : ''}$currency ${balance.abs().toStringAsFixed(0)}',
+                  '$currency$formattedPaid ($balanceSign$currency$balanceAbsFormatted)',
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
                     color: balanceColor,
                   ),
                 ),
-                if (!isSettled)
-                  Text(
-                    isPositive ? 'Gets back' : '⚠ In loan',
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: balanceColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isPositive
+                        ? 'Gets Back $currency$balanceAbsFormatted'
+                        : (isNegative
+                            ? 'Owes $currency$balanceAbsFormatted'
+                            : 'Settled'),
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 11,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
                       color: balanceColor,
                     ),
                   ),
+                ),
               ],
             ),
           ],
@@ -309,7 +447,7 @@ class _DebtCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: isInvolved ? AppColors.primaryBlue.withOpacity(0.06) : null,
+      color: isInvolved ? AppColors.primaryBlue.withValues(alpha: 0.06) : null,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(

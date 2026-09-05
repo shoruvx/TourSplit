@@ -13,6 +13,7 @@ import '../../data/models/settlement_model.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/services/balance_service.dart';
+import 'widgets/manual_settlement_dialog.dart';
 
 class SettlementScreen extends ConsumerWidget {
   const SettlementScreen({super.key});
@@ -50,7 +51,7 @@ class SettlementScreen extends ConsumerWidget {
         error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
         data: (tour) {
           if (tour == null) return const Scaffold();
-          final isAdmin = tour.adminId == user.uid;
+          final isAdmin = tour.isAdmin(user.uid);
 
           return Scaffold(
             appBar: AppBar(
@@ -64,13 +65,27 @@ class SettlementScreen extends ConsumerWidget {
                   icon: const Icon(Icons.add_circle_outline_rounded,
                       color: AppColors.primaryTeal),
                   tooltip: 'Record Settlement',
-                  onPressed: () => _showCustomSettlementDialog(
-                    context,
-                    ref,
-                    tour,
-                    membersStream.value ?? [],
-                    user.uid,
-                  ),
+                  onPressed: () {
+                    final approvedExp = expensesStream.maybeWhen(
+                      data: (list) => list.where((e) => e.isApproved).toList(),
+                      orElse: () => <ExpenseModel>[],
+                    );
+                    final mems = membersStream.value ?? [];
+                    var bals = BalanceService.calculateBalances(mems, approvedExp);
+                    final approvedSets = (settlementsStream.value ?? [])
+                        .where((s) => s.isApproved)
+                        .toList();
+                    bals = BalanceService.applySettlements(bals, approvedSets);
+
+                    ManualSettlementDialog.show(
+                      context,
+                      ref: ref,
+                      tour: tour,
+                      members: mems,
+                      computedBalances: bals,
+                      currentUserId: user.uid,
+                    );
+                  },
                 ),
               ],
             ),
@@ -135,6 +150,89 @@ class SettlementScreen extends ConsumerWidget {
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryTeal.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.swap_horiz_rounded,
+                                color: Colors.white, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Manual Settlement',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Pay full due to one person or record any custom payment.',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11.5,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.primaryTeal,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () => ManualSettlementDialog.show(
+                              context,
+                              ref: ref,
+                              tour: tour,
+                              members: members,
+                              computedBalances: balances,
+                              currentUserId: user.uid,
+                            ),
+                            child: const Text(
+                              'Record',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     if (suggestedDebts.isNotEmpty) ...[
                       _SectionLabel(
                         label: 'Suggested Settlements',
@@ -313,179 +411,6 @@ class SettlementScreen extends ConsumerWidget {
                   ? 'Settlement recorded and approved!'
                   : 'Settlement submitted for approval.',
             ),
-            backgroundColor: AppColors.positive,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showCustomSettlementDialog(
-    BuildContext context,
-    WidgetRef ref,
-    TourModel tour,
-    List<TourMemberModel> members,
-    String currentUserId,
-  ) async {
-    if (members.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('At least 2 tour members required')),
-      );
-      return;
-    }
-
-    String fromUid = currentUserId;
-    String toUid = members
-        .firstWhere((m) => m.userId != currentUserId,
-            orElse: () => members.last)
-        .userId;
-    final amountCtrl = TextEditingController();
-    final noteCtrl = TextEditingController(text: 'Cash');
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) {
-          return AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Record Settlement'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Payer (Who paid?):',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: fromUid,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                    ),
-                    items: members.map((m) {
-                      return DropdownMenuItem(
-                          value: m.userId, child: Text(m.displayName));
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setS(() => fromUid = val);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('Recipient (Who received?):',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: toUid,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                    ),
-                    items: members.map((m) {
-                      return DropdownMenuItem(
-                          value: m.userId, child: Text(m.displayName));
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setS(() => toUid = val);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('Amount:',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: amountCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(
-                      prefixText: '${tour.currencySymbol} ',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('Note:',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: noteCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. bKash, Cash',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryTeal,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  final amt = double.tryParse(amountCtrl.text.trim());
-                  if (amt == null || amt <= 0 || fromUid == toUid) {
-                    return;
-                  }
-                  Navigator.pop(ctx, true);
-                },
-                child: const Text('Save Settlement'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    if (confirmed == true) {
-      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
-      final fromName =
-          members.firstWhere((m) => m.userId == fromUid).displayName;
-      final toName = members.firstWhere((m) => m.userId == toUid).displayName;
-
-      final repo = ref.read(settlementRepositoryProvider);
-      final settlement = await repo.requestSettlement(
-        tourId: tour.id,
-        fromUserId: fromUid,
-        fromUserName: fromName,
-        toUserId: toUid,
-        toUserName: toName,
-        amount: amt,
-        currency: tour.currency,
-        note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
-      );
-
-      final isAdmin = tour.adminId == currentUserId;
-      if (isAdmin || currentUserId == toUid) {
-        await repo.resolveSettlement(
-          tourId: tour.id,
-          settlementId: settlement.id,
-          status: SettlementStatus.approved,
-          resolvedByUserId: currentUserId,
-        );
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settlement recorded!'),
             backgroundColor: AppColors.positive,
           ),
         );

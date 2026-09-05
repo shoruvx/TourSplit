@@ -181,6 +181,44 @@ class AuthService {
     await _auth.signOut();
   }
 
+  Future<void> updateProfile({
+    required String uid,
+    required String firstName,
+    required String lastName,
+    String? activeTourId,
+  }) async {
+    final cleanFirst = firstName.trim();
+    final cleanLast = lastName.trim();
+    final fullName =
+        cleanLast.isNotEmpty ? '$cleanFirst $cleanLast' : cleanFirst;
+
+    // 1. Update Firebase Auth displayName
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.updateDisplayName(fullName);
+    }
+
+    // 2. Update Firestore users collection
+    await _firestore.collection(AppConstants.usersCollection).doc(uid).update({
+      'firstName': cleanFirst,
+      'lastName': cleanLast,
+    });
+
+    // 3. Update member document in active tour if present
+    if (activeTourId != null && activeTourId.isNotEmpty) {
+      try {
+        await _firestore
+            .collection(AppConstants.toursCollection)
+            .doc(activeTourId)
+            .collection(AppConstants.membersSubcollection)
+            .doc(uid)
+            .update({
+          'displayName': fullName,
+        });
+      } catch (_) {}
+    }
+  }
+
   Future<void> updateFcmToken(String uid, String token) async {
     await _firestore
         .collection(AppConstants.usersCollection)

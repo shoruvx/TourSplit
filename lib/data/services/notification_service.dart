@@ -52,6 +52,11 @@ class NotificationService {
         badge: true,
         sound: true,
       );
+
+      try {
+        await messaging.subscribeToTopic('app_updates');
+        await messaging.subscribeToTopic('all_users');
+      } catch (_) {}
     } catch (e) {}
   }
 

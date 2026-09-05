@@ -8,6 +8,8 @@ import 'firebase_options.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/services/notification_service.dart';
+import 'data/services/app_update_service.dart';
+import 'presentation/widgets/app_update_listener.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -38,6 +40,9 @@ Future<void> main() async {
   NotificationService.initialize().catchError((e) {
     debugPrint('[APP] NotificationService init failed: $e');
   });
+
+  // Automatically check for latest GitHub release and sync to Firestore in background
+  AppUpdateService.fetchGitHubRelease().catchError((_) => null);
 }
 
 class TourExpenseTrackerApp extends ConsumerWidget {
@@ -70,7 +75,7 @@ class TourExpenseTrackerApp extends ConsumerWidget {
             ),
           );
         };
-        return child ?? const SizedBox.shrink();
+        return AppUpdateListener(child: child ?? const SizedBox.shrink());
       },
     );
   }

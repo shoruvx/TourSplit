@@ -7,6 +7,7 @@ class AppUpdateInfo {
   final String releaseNotes;
   final String apkUrl;
   final bool forceUpdate;
+  final bool autoDownload;
   final DateTime? releasedAt;
 
   const AppUpdateInfo({
@@ -16,6 +17,7 @@ class AppUpdateInfo {
     required this.releaseNotes,
     required this.apkUrl,
     required this.forceUpdate,
+    this.autoDownload = true,
     this.releasedAt,
   });
 
@@ -29,6 +31,7 @@ class AppUpdateInfo {
           data['releaseNotes'] ?? 'Bug fixes and performance improvements.',
       apkUrl: data['apkUrl'] ?? '',
       forceUpdate: data['forceUpdate'] ?? false,
+      autoDownload: data['autoDownload'] ?? true,
       releasedAt: (data['releasedAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -40,6 +43,7 @@ class AppUpdateInfo {
         'releaseNotes': releaseNotes,
         'apkUrl': apkUrl,
         'forceUpdate': forceUpdate,
+        'autoDownload': autoDownload,
         'releasedAt': releasedAt != null
             ? Timestamp.fromDate(releasedAt!)
             : FieldValue.serverTimestamp(),
