@@ -63,7 +63,7 @@ jobs:
         with:
           name: "TourSplit v${{ github.event.inputs.version || github.ref_name }}"
           tag_name: ${{ steps.prepare_asset.outputs.tag_name }}
-          body: ${{ github.event.inputs.release_notes || 'TourSplit update: Split the costs, keep the memories! Enjoy the latest features and stability improvements.' }}
+          body: "${{ github.event.inputs.release_notes || 'TourSplit update: Split the costs, keep the memories! Enjoy the latest features and stability improvements.' }}"
           draft: false
           prerelease: false
           files: ${{ steps.prepare_asset.outputs.apk_path }}
