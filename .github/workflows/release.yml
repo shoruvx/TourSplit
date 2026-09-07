@@ -51,17 +51,18 @@ jobs:
       - name: Prepare APK Asset
         id: prepare_asset
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          VERSION="${VERSION#v}"
-          OUTPUT_APK="build/app/outputs/flutter-apk/TourSplit-v${VERSION}.apk"
+          RAW_TAG="${{ github.event.inputs.version || github.ref_name }}"
+          CLEAN_VER="${RAW_TAG#v}"
+          OUTPUT_APK="build/app/outputs/flutter-apk/TourSplit-v${CLEAN_VER}.apk"
           cp build/app/outputs/flutter-apk/app-release.apk "$OUTPUT_APK"
           echo "apk_path=$OUTPUT_APK" >> $GITHUB_OUTPUT
-          echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=v${CLEAN_VER}" >> $GITHUB_OUTPUT
+          echo "clean_version=${CLEAN_VER}" >> $GITHUB_OUTPUT
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "TourSplit v${{ github.event.inputs.version || github.ref_name }}"
+          name: "TourSplit v${{ steps.prepare_asset.outputs.clean_version }}"
           tag_name: ${{ steps.prepare_asset.outputs.tag_name }}
           body: "${{ github.event.inputs.release_notes || 'TourSplit update: Split the costs, keep the memories! Enjoy the latest features and stability improvements.' }}"
           draft: false
