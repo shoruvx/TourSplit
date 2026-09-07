@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -56,6 +58,7 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId:
         '57491876636-hssqr3kr22ul02175nrufl5953h88po6.apps.googleusercontent.com',
@@ -214,6 +217,43 @@ class AuthService {
             .doc(uid)
             .update({
           'displayName': fullName,
+        });
+      } catch (_) {}
+    }
+  }
+
+  Future<String> uploadProfileImage(
+      String uid, Uint8List imageBytes, String extension) async {
+    final ref = _storage.ref().child(
+        'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$extension');
+    final uploadTask = ref.putData(
+      imageBytes,
+      SettableMetadata(contentType: 'image/$extension'),
+    );
+    final snapshot = await uploadTask;
+    return await snapshot.ref.getDownloadURL();
+  }
+
+  Future<void> updateProfilePhoto(String uid, String? photoUrl,
+      {String? activeTourId}) async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.updatePhotoURL(photoUrl);
+    }
+
+    await _firestore.collection(AppConstants.usersCollection).doc(uid).update({
+      'photoUrl': photoUrl,
+    });
+
+    if (activeTourId != null && activeTourId.isNotEmpty) {
+      try {
+        await _firestore
+            .collection(AppConstants.toursCollection)
+            .doc(activeTourId)
+            .collection(AppConstants.membersSubcollection)
+            .doc(uid)
+            .update({
+          'photoUrl': photoUrl,
         });
       } catch (_) {}
     }

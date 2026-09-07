@@ -152,7 +152,7 @@ class SettlementScreen extends ConsumerWidget {
                   children: [
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(18),
@@ -164,70 +164,71 @@ class SettlementScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.swap_horiz_rounded,
-                                color: Colors.white, size: 24),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.swap_horiz_rounded,
+                                    color: Colors.white, size: 22),
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
                                   'Manual Settlement',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 15,
+                                    fontSize: 16,
                                     color: Colors.white,
                                   ),
                                 ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Pay full due to one person or record any custom payment.',
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppColors.primaryTeal,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 8),
+                                  minimumSize: const Size(0, 34),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                onPressed: () => ManualSettlementDialog.show(
+                                  context,
+                                  ref: ref,
+                                  tour: tour,
+                                  members: members,
+                                  computedBalances: balances,
+                                  currentUserId: user.uid,
+                                ),
+                                child: const Text(
+                                  'Record',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
-                                    fontSize: 11.5,
-                                    color: Colors.white70,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.primaryTeal,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 0,
-                            ),
-                            onPressed: () => ManualSettlementDialog.show(
-                              context,
-                              ref: ref,
-                              tour: tour,
-                              members: members,
-                              computedBalances: balances,
-                              currentUserId: user.uid,
-                            ),
-                            child: const Text(
-                              'Record',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Pay full due to one person or record any custom payment.',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              color: Colors.white70,
+                              height: 1.3,
                             ),
                           ),
                         ],

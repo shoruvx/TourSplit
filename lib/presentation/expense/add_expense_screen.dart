@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/math_expression_evaluator.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
@@ -41,6 +42,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _amountFocusNode = FocusNode();
 
   bool _isLoading = false;
 
@@ -59,6 +61,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    _amountFocusNode.addListener(() {
+      if (!_amountFocusNode.hasFocus) {
+        _evaluateAmount();
+      }
+      setState(() {});
+    });
+
     if (widget.existingExpense != null) {
       final exp = widget.existingExpense!;
       _titleCtrl.text = exp.title;
@@ -103,8 +112,49 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
   }
 
+  void _evaluateAmount() {
+    final text = _amountCtrl.text.trim();
+    if (text.isEmpty) return;
+    final result = MathExpressionEvaluator.tryEvaluate(text);
+    if (result != null && result > 0) {
+      final formatted = MathExpressionEvaluator.formatResult(result);
+      if (formatted != text) {
+        _amountCtrl.text = formatted;
+        _amountCtrl.selection =
+            TextSelection.collapsed(offset: formatted.length);
+        setState(() {});
+      }
+    }
+  }
+
+  void _insertOperator(String op) {
+    if (op == '=') {
+      _evaluateAmount();
+      return;
+    }
+
+    final text = _amountCtrl.text;
+    final selection = _amountCtrl.selection;
+    final insertText = (op == '+' || op == '−' || op == '×' || op == '÷')
+        ? ' ${op == '−' ? '-' : (op == '×' ? '*' : (op == '÷' ? '/' : op))} '
+        : op;
+
+    if (selection.isValid && selection.start >= 0 && selection.end <= text.length) {
+      final newText = text.replaceRange(selection.start, selection.end, insertText);
+      final newOffset = selection.start + insertText.length;
+      _amountCtrl.text = newText;
+      _amountCtrl.selection = TextSelection.collapsed(offset: newOffset);
+    } else {
+      _amountCtrl.text = '$text$insertText';
+      _amountCtrl.selection =
+          TextSelection.collapsed(offset: _amountCtrl.text.length);
+    }
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    _amountFocusNode.dispose();
     _titleCtrl.dispose();
     _amountCtrl.dispose();
     _descCtrl.dispose();
@@ -143,7 +193,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   double get _totalCustomSplit {
     double sum = 0.0;
     for (final ctrl in _customSplitControllers.values) {
-      final val = double.tryParse(ctrl.text.trim()) ?? 0.0;
+      final val = MathExpressionEvaluator.tryEvaluate(ctrl.text.trim()) ??
+          (double.tryParse(ctrl.text.trim()) ?? 0.0);
       sum += val;
     }
     return (sum * 100).round() / 100;
@@ -152,7 +203,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   double get _totalContributions {
     double sum = 0.0;
     for (final ctrl in _contributorControllers.values) {
-      final val = double.tryParse(ctrl.text.trim()) ?? 0.0;
+      final val = MathExpressionEvaluator.tryEvaluate(ctrl.text.trim()) ??
+          (double.tryParse(ctrl.text.trim()) ?? 0.0);
       sum += val;
     }
     return (sum * 100).round() / 100;
@@ -160,9 +212,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   Future<void> _submit(
       TourModel tour, String currentUserId, bool isAdmin) async {
+    _evaluateAmount();
     if (!_formKey.currentState!.validate()) return;
 
-    final totalAmount = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+    final eval = MathExpressionEvaluator.tryEvaluate(_amountCtrl.text.trim());
+    final totalAmount = eval ?? (double.tryParse(_amountCtrl.text.trim()) ?? 0.0);
     if (totalAmount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid amount')),
@@ -190,7 +244,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
       payersMap = {};
       for (final entry in _contributorControllers.entries) {
-        final amt = double.tryParse(entry.value.text.trim()) ?? 0.0;
+        final amt = MathExpressionEvaluator.tryEvaluate(entry.value.text.trim()) ??
+            (double.tryParse(entry.value.text.trim()) ?? 0.0);
         if (amt > 0) {
           payersMap[entry.key] = amt;
         }
@@ -273,7 +328,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       customSplitsMap = {};
       splitMembers = [];
       for (final entry in _customSplitControllers.entries) {
-        final amt = double.tryParse(entry.value.text.trim()) ?? 0.0;
+        final amt = MathExpressionEvaluator.tryEvaluate(entry.value.text.trim()) ??
+            (double.tryParse(entry.value.text.trim()) ?? 0.0);
         final roundedAmt = (amt * 100).round() / 100;
         if (roundedAmt > 0) {
           customSplitsMap[entry.key] = roundedAmt;
@@ -459,153 +515,257 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _SectionLabel(title: 'Amount *'),
+                        const _SectionLabel(title: 'Amount *'),
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: isDark
-                                  ? [
-                                      const Color(0xFF1E293B),
-                                      const Color(0xFF0F172A)
-                                    ]
-                                  : [
-                                      const Color(0xFFFFFFFF),
-                                      const Color(0xFFF8FAFC)
-                                    ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF334155)
-                                  : const Color(0xFFCBD5E1),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: isDark
-                                    ? Colors.black.withValues(alpha: 0.3)
-                                    : const Color(0xFF94A3B8)
-                                        .withValues(alpha: 0.12),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? const Color(0xFF0F2E28)
-                                          : const Color(0xFFECFDF5),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: isDark
-                                            ? const Color(0xFF10B981)
-                                                .withValues(alpha: 0.5)
-                                            : const Color(0xFFA7F3D0),
-                                        width: 1.2,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      tour.currencySymbol,
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.w800,
-                                        color: isDark
-                                            ? const Color(0xFF34D399)
-                                            : const Color(0xFF065F46),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _amountCtrl,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(
-                                            RegExp(r'^\d*\.?\d{0,2}')),
-                                      ],
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.w800,
-                                        color: isDark
-                                            ? Colors.white
-                                            : const Color(0xFF0F172A),
-                                        letterSpacing: -0.5,
-                                      ),
-                                      decoration: InputDecoration(
-                                        hintText: '0.00',
-                                        hintStyle: TextStyle(
-                                          color: isDark
-                                              ? const Color(0xFF475569)
-                                              : const Color(0xFF94A3B8),
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                      ),
-                                      onChanged: (val) {
-                                        setState(() {});
-                                      },
-                                      validator: (v) {
-                                        if (v == null || v.trim().isEmpty)
-                                          return 'Enter amount';
-                                        final val = double.tryParse(v);
-                                        if (val == null || val <= 0)
-                                          return 'Invalid amount';
-                                        return null;
-                                      },
-                                    ),
+                        Builder(
+                          builder: (context) {
+                            final expressionText = _amountCtrl.text.trim();
+                            final hasMath = MathExpressionEvaluator.hasMathOperators(expressionText);
+                            final previewVal = hasMath ? MathExpressionEvaluator.tryEvaluate(expressionText) : null;
+                            final currentAmountNum = previewVal ?? MathExpressionEvaluator.tryEvaluate(expressionText) ?? 0.0;
+                            final isFocused = _amountFocusNode.hasFocus;
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 14),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isDark
+                                      ? [
+                                          const Color(0xFF1E293B),
+                                          const Color(0xFF0F172A)
+                                        ]
+                                      : [
+                                          const Color(0xFFFFFFFF),
+                                          const Color(0xFFF8FAFC)
+                                        ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isFocused
+                                      ? AppColors.primaryTeal
+                                      : (isDark
+                                          ? const Color(0xFF334155)
+                                          : const Color(0xFFCBD5E1)),
+                                  width: isFocused ? 2.0 : 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isFocused
+                                        ? AppColors.primaryTeal.withValues(alpha: 0.25)
+                                        : (isDark
+                                            ? Colors.black.withValues(alpha: 0.3)
+                                            : const Color(0xFF94A3B8)
+                                                .withValues(alpha: 0.12)),
+                                    blurRadius: isFocused ? 16 : 12,
+                                    offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
-                              if ((double.tryParse(_amountCtrl.text.trim()) ??
-                                          0.0) >
-                                      0 &&
-                                  members.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryTeal
-                                        .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? const Color(0xFF0F2E28)
+                                              : const Color(0xFFECFDF5),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? const Color(0xFF10B981)
+                                                    .withValues(alpha: 0.5)
+                                                : const Color(0xFFA7F3D0),
+                                            width: 1.2,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          tour.currencySymbol,
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w800,
+                                            color: isDark
+                                                ? const Color(0xFF34D399)
+                                                : const Color(0xFF065F46),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _amountCtrl,
+                                          focusNode: _amountFocusNode,
+                                          keyboardType: TextInputType.text,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter.allow(
+                                                RegExp(r'[0-9\.\+\-\*\/\(\)\s\×\÷xX,]')),
+                                          ],
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 30,
+                                            fontWeight: FontWeight.w800,
+                                            color: isDark
+                                                ? Colors.white
+                                                : const Color(0xFF0F172A),
+                                            letterSpacing: -0.5,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText: '0.00',
+                                            hintStyle: TextStyle(
+                                              color: isDark
+                                                  ? const Color(0xFF475569)
+                                                  : const Color(0xFF94A3B8),
+                                              fontSize: 30,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            border: InputBorder.none,
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                          ),
+                                          onChanged: (val) {
+                                            setState(() {});
+                                          },
+                                          validator: (v) {
+                                            if (v == null || v.trim().isEmpty) {
+                                              return 'Enter amount';
+                                            }
+                                            final val = MathExpressionEvaluator.tryEvaluate(v);
+                                            if (val == null || val <= 0) {
+                                              return 'Invalid amount or expression';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  child: Text(
-                                    '≈ ${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / members.length).toStringAsFixed(2)} / person',
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark
-                                          ? const Color(0xFF5EEAD4)
-                                          : const Color(0xFF0D9488),
+                                  const SizedBox(height: 10),
+                                  // Quick Math Toolbar
+                                  Row(
+                                    children: [
+                                      for (final op in ['+', '−', '×', '÷', '(', ')', '='])
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                                            child: InkWell(
+                                              onTap: () => _insertOperator(op),
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: op == '='
+                                                      ? AppColors.primaryTeal
+                                                      : (isDark
+                                                          ? const Color(0xFF334155).withValues(alpha: 0.5)
+                                                          : const Color(0xFFF1F5F9)),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: op == '='
+                                                        ? AppColors.primaryTeal
+                                                        : (isDark
+                                                            ? const Color(0xFF475569)
+                                                            : const Color(0xFFE2E8F0)),
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                alignment: Alignment.center,
+                                                child: Text(
+                                                  op,
+                                                  style: TextStyle(
+                                                    fontFamily: 'Outfit',
+                                                    fontSize: op == '=' ? 14 : 15,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: op == '='
+                                                        ? Colors.white
+                                                        : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  if (hasMath && previewVal != null) ...[
+                                    const SizedBox(height: 8),
+                                    InkWell(
+                                      onTap: _evaluateAmount,
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: AppColors.primaryTeal.withValues(alpha: 0.4),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.calculate_rounded,
+                                                size: 15, color: AppColors.primaryTeal),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              '= ${tour.currencySymbol}${MathExpressionEvaluator.formatResult(previewVal)}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.primaryTeal,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            const Text(
+                                              '• tap to apply',
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.primaryTeal,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                                  ],
+                                  if (currentAmountNum > 0 && members.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryTeal
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '≈ ${tour.currencySymbol}${(currentAmountNum / members.length).toStringAsFixed(2)} / person',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? const Color(0xFF5EEAD4)
+                                              : const Color(0xFF0D9488),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 20),
                         _SectionLabel(title: 'Expense Item *'),

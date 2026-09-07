@@ -11,6 +11,7 @@ import '../../data/repositories/tour_repository.dart';
 import '../../data/models/tour_model.dart';
 import '../widgets/member_avatar.dart';
 import 'widgets/tour_qr_dialog.dart';
+import 'widgets/replace_offline_member_dialog.dart';
 
 class MemberManagementScreen extends ConsumerWidget {
   const MemberManagementScreen({super.key});
@@ -165,6 +166,10 @@ class MemberManagementScreen extends ConsumerWidget {
                           onToggleAdmin: isAdmin && !isCreator && !member.isOffline
                               ? () => _toggleAdminRole(
                                   context, ref, tour.id, member, isMemberAdmin)
+                              : null,
+                          onReplaceWithOnline: isAdmin && member.isOffline
+                              ? () => _showReplaceOfflineMemberDialog(
+                                  context, ref, tourId, member, members)
                               : null,
                           onRename: isAdmin && member.isOffline
                               ? () => _showRenameOfflineMemberDialog(
@@ -546,6 +551,32 @@ class MemberManagementScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _showReplaceOfflineMemberDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String tourId,
+    TourMemberModel member,
+    List<TourMemberModel> allMembers,
+  ) async {
+    final success = await ReplaceOfflineMemberDialog.show(
+      context,
+      tourId: tourId,
+      offlineMember: member,
+      allMembers: allMembers,
+    );
+
+    if (success == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${member.displayName} was successfully replaced and linked to their online account!',
+          ),
+          backgroundColor: AppColors.positive,
+        ),
+      );
+    }
+  }
 }
 
 class _PendingRequestsCard extends ConsumerWidget {
@@ -741,6 +772,7 @@ class _MemberCard extends StatelessWidget {
   final String currentUserId;
   final String currencySymbol;
   final VoidCallback? onToggleAdmin;
+  final VoidCallback? onReplaceWithOnline;
   final VoidCallback? onRename;
   final VoidCallback? onRemove;
 
@@ -752,6 +784,7 @@ class _MemberCard extends StatelessWidget {
     required this.currentUserId,
     required this.currencySymbol,
     this.onToggleAdmin,
+    this.onReplaceWithOnline,
     this.onRename,
     this.onRemove,
   });
@@ -830,6 +863,39 @@ class _MemberCard extends StatelessWidget {
                             ],
                           ),
                         ),
+                        if (isAdmin && onReplaceWithOnline != null) ...[
+                          const SizedBox(width: 6),
+                          InkWell(
+                            onTap: onReplaceWithOnline,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: AppColors.primaryTeal.withValues(alpha: 0.4)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.link_rounded,
+                                      size: 11, color: AppColors.primaryTeal),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Link Online',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.primaryTeal,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                       if (isCurrentUser) ...[
                         const SizedBox(width: 6),
@@ -961,6 +1027,8 @@ class _MemberCard extends StatelessWidget {
                 onSelected: (val) {
                   if (val == 'role') {
                     onToggleAdmin?.call();
+                  } else if (val == 'link_online') {
+                    onReplaceWithOnline?.call();
                   } else if (val == 'rename') {
                     onRename?.call();
                   } else if (val == 'remove') {
@@ -973,7 +1041,24 @@ class _MemberCard extends StatelessWidget {
                       value: 'role',
                       child: Text(isMemberAdmin ? 'Revoke Admin' : 'Make Admin'),
                     ),
-                  if (member.isOffline)
+                  if (member.isOffline) ...[
+                    const PopupMenuItem(
+                      value: 'link_online',
+                      child: Row(
+                        children: [
+                          Icon(Icons.link_rounded,
+                              size: 18, color: AppColors.primaryTeal),
+                          SizedBox(width: 8),
+                          Text(
+                            'Replace with Online',
+                            style: TextStyle(
+                              color: AppColors.primaryTeal,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const PopupMenuItem(
                       value: 'rename',
                       child: Row(
@@ -984,6 +1069,7 @@ class _MemberCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                  ],
                   const PopupMenuItem(
                     value: 'remove',
                     child: Row(

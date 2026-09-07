@@ -694,13 +694,21 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         final perPerson = totalSpent / (memberCount > 0 ? memberCount : 1);
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
-        return Scaffold(
-          body: CustomScrollView(
-            slivers: [
-              _TourDashboardAppBar(
-                tour: tour,
-                isAdmin: isAdmin,
-              ),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            await ref
+                .read(tourRepositoryProvider)
+                .clearUserActiveTour(widget.userId);
+          },
+          child: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                _TourDashboardAppBar(
+                  tour: tour,
+                  isAdmin: isAdmin,
+                ),
               SliverPadding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -955,8 +963,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
             ],
           ),
-        );
-      },
+        ),
+      );
+    },
     );
   }
 
@@ -2098,12 +2107,12 @@ class _TourDashboardAppBar extends ConsumerWidget {
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded),
-        tooltip: 'All Tours',
-        onPressed: () {
-          if (context.canPop()) {
-            context.pop();
-          } else {
-            context.push('/tours');
+        tooltip: 'Back to Home',
+        onPressed: () async {
+          if (currentUser != null) {
+            await ref
+                .read(tourRepositoryProvider)
+                .clearUserActiveTour(currentUser.uid);
           }
         },
       ),

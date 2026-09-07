@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -80,16 +81,223 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _pickAndUploadPhoto(
+      ImageSource source, UserModel user) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      setState(() => _isLoading = true);
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last.toLowerCase();
+      final safeExt =
+          (ext == 'png' || ext == 'jpg' || ext == 'jpeg') ? ext : 'jpg';
+
+      final downloadUrl = await ref
+          .read(authServiceProvider)
+          .uploadProfileImage(user.uid, bytes, safeExt);
+
+      await ref.read(authServiceProvider).updateProfilePhoto(
+            user.uid,
+            downloadUrl,
+            activeTourId: user.activeTourId,
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully! ✨'),
+            backgroundColor: AppColors.positive,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update picture: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showChangePhotoBottomSheet(BuildContext context, UserModel user) {
+    final presetAvatars = [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Profile Photo',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Outfit',
+                        ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library_rounded,
+                      color: AppColors.primaryTeal, size: 22),
+                ),
+                title: const Text('Choose from Gallery',
+                    style: TextStyle(
+                        fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadPhoto(ImageSource.gallery, user);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded,
+                      color: AppColors.primaryBlue, size: 22),
+                ),
+                title: const Text('Take a Photo',
+                    style: TextStyle(
+                        fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadPhoto(ImageSource.camera, user);
+                },
+              ),
+              const SizedBox(height: 10),
+              const Text('Or Pick a Travel Avatar:',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey)),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 54,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: presetAvatars.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (ctx, i) {
+                    final avatarUrl = presetAvatars[i];
+                    return InkWell(
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        setState(() => _isLoading = true);
+                        try {
+                          await ref
+                              .read(authServiceProvider)
+                              .updateProfilePhoto(
+                                user.uid,
+                                avatarUrl,
+                                activeTourId: user.activeTourId,
+                              );
+                        } finally {
+                          if (mounted) setState(() => _isLoading = false);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(27),
+                      child: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: NetworkImage(avatarUrl),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (user.photoUrl != null && user.photoUrl!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded,
+                        color: AppColors.danger, size: 22),
+                  ),
+                  title: const Text('Remove Photo',
+                      style: TextStyle(
+                          color: AppColors.danger,
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600)),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    setState(() => _isLoading = true);
+                    try {
+                      await ref
+                          .read(authServiceProvider)
+                          .updateProfilePhoto(user.uid, null,
+                              activeTourId: user.activeTourId);
+                    } finally {
+                      if (mounted) setState(() => _isLoading = false);
+                    }
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showPublishUpdateDialog(BuildContext context) {
-    final versionCtrl = TextEditingController(text: '1.1.0');
-    final buildCtrl = TextEditingController(text: '2');
+    final versionCtrl = TextEditingController(text: '1.2.0');
+    final buildCtrl = TextEditingController(text: '11');
     final notesCtrl = TextEditingController(
       text:
-          'TourSplit update: Split the costs, keep the memories! Brand new emblem logo and performance updates.',
+          'TourSplit update: Split the costs, keep the memories! Math expression calculations, settlement fixes, offline-online linking, profile avatar updates, and performance polish.',
     );
     final urlCtrl = TextEditingController(
       text:
-          'https://github.com/${AppConstants.githubRepo}/releases/download/v1.1.0/TourSplit-v1.1.0.apk',
+          'https://github.com/${AppConstants.githubRepo}/releases/download/v1.2.0/TourSplit-v1.2.0.apk',
     );
     bool forceUpdate = false;
     bool autoDownload = true;
@@ -309,10 +517,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Column(
                 children: [
                   Center(
-                    child: MemberAvatar(
-                      initials: user.initials,
-                      photoUrl: user.photoUrl,
-                      radius: 48,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color:
+                                  AppColors.primaryTeal.withValues(alpha: 0.4),
+                              width: 2.5,
+                            ),
+                          ),
+                          child: MemberAvatar(
+                            initials: user.initials,
+                            photoUrl: user.photoUrl,
+                            radius: 48,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: InkWell(
+                            onTap: () =>
+                                _showChangePhotoBottomSheet(context, user),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryTeal,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Theme.of(context).scaffoldBackgroundColor,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.camera_alt_rounded,
+                                  size: 18, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
                     ).animate().fadeIn().scale(),
                   ),
                   const SizedBox(height: 16),
@@ -321,13 +573,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ?.copyWith(fontWeight: FontWeight.w700))
                       .animate()
                       .fadeIn(delay: 100.ms),
-                  Text('@${user.username}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.primaryBlue,
-                      )).animate().fadeIn(delay: 150.ms),
+                  const SizedBox(height: 4),
                   Text(user.email, style: theme.textTheme.bodySmall)
                       .animate()
-                      .fadeIn(delay: 180.ms),
+                      .fadeIn(delay: 150.ms),
                   const SizedBox(height: 32),
                   AppTextField(
                     controller: _firstNameCtrl,

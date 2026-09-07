@@ -60,6 +60,7 @@ class ManualSettlementDialog {
 
           return AlertDialog(
             backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
             title: Row(
@@ -86,13 +87,15 @@ class ManualSettlementDialog {
                 ),
               ],
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Payer (Who is paying?):',
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Payer (Who is paying?):',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
@@ -218,28 +221,30 @@ class ManualSettlementDialog {
                                         : 2);
                               });
                             },
+                            borderRadius: BorderRadius.circular(10),
                             child: Container(
+                              width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
+                                  horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
                                 color: AppColors.primaryTeal,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   const Icon(Icons.bolt_rounded,
-                                      size: 15, color: Colors.white),
-                                  const SizedBox(width: 4),
+                                      size: 16, color: Colors.white),
+                                  const SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
                                       'Pay Full Due (${tour.currencySymbol}${payerOwes % 1 == 0 ? payerOwes.toStringAsFixed(0) : payerOwes.toStringAsFixed(2)}) to ${toMember.displayName}',
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 11.5,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       ),
-                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ],
@@ -308,6 +313,7 @@ class ManualSettlementDialog {
                 ],
               ),
             ),
+          ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),

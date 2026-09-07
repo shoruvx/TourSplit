@@ -331,6 +331,185 @@ class TourRepository {
     });
   }
 
+  Future<UserModel?> findUserByUsernameOrEmail(String query) async {
+    final clean = query.trim().toLowerCase();
+    if (clean.isEmpty) return null;
+
+    try {
+      var snap = await _db
+          .collection(AppConstants.usersCollection)
+          .where('username', isEqualTo: clean)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        return UserModel.fromFirestore(snap.docs.first);
+      }
+
+      snap = await _db
+          .collection(AppConstants.usersCollection)
+          .where('email', isEqualTo: clean)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        return UserModel.fromFirestore(snap.docs.first);
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  Future<void> replaceOfflineMemberWithOnlineUser({
+    required String tourId,
+    required String offlineMemberId,
+    required String onlineUserId,
+    required String onlineUserName,
+    String? onlineUserPhotoUrl,
+    String? onlineUserEmail,
+  }) async {
+    // 1. Fetch all expenses for this tour
+    final expensesSnap = await _tours
+        .doc(tourId)
+        .collection(AppConstants.expensesSubcollection)
+        .get();
+
+    // 2. Fetch all settlements for this tour
+    final settlementsSnap = await _tours
+        .doc(tourId)
+        .collection(AppConstants.settlementsSubcollection)
+        .get();
+
+    final batch = _db.batch();
+
+    // A. Update expenses
+    for (final expDoc in expensesSnap.docs) {
+      final data = expDoc.data();
+      bool needsUpdate = false;
+      final updates = <String, dynamic>{};
+
+      if (data['paidByUserId'] == offlineMemberId ||
+          data['paidBy'] == offlineMemberId) {
+        updates['paidByUserId'] = onlineUserId;
+        updates['paidBy'] = onlineUserId;
+        updates['paidByName'] = onlineUserName;
+        needsUpdate = true;
+      }
+
+      final payers = data['payers'] as Map<String, dynamic>?;
+      if (payers != null && payers.containsKey(offlineMemberId)) {
+        final newPayers = Map<String, dynamic>.from(payers);
+        final amt = (newPayers.remove(offlineMemberId) as num?)?.toDouble() ?? 0.0;
+        newPayers[onlineUserId] =
+            ((newPayers[onlineUserId] as num?)?.toDouble() ?? 0.0) + amt;
+        updates['payers'] = newPayers;
+        needsUpdate = true;
+      }
+
+      final splitAmong = data['splitAmong'] as List<dynamic>?;
+      if (splitAmong != null && splitAmong.contains(offlineMemberId)) {
+        final newSplitAmong = List<dynamic>.from(splitAmong);
+        final index = newSplitAmong.indexOf(offlineMemberId);
+        if (index != -1) {
+          if (!newSplitAmong.contains(onlineUserId)) {
+            newSplitAmong[index] = onlineUserId;
+          } else {
+            newSplitAmong.removeAt(index);
+          }
+        }
+        updates['splitAmong'] = newSplitAmong;
+        needsUpdate = true;
+      }
+
+      final customSplits = data['customSplits'] as Map<String, dynamic>?;
+      if (customSplits != null && customSplits.containsKey(offlineMemberId)) {
+        final newCustomSplits = Map<String, dynamic>.from(customSplits);
+        final amt =
+            (newCustomSplits.remove(offlineMemberId) as num?)?.toDouble() ?? 0.0;
+        newCustomSplits[onlineUserId] =
+            ((newCustomSplits[onlineUserId] as num?)?.toDouble() ?? 0.0) + amt;
+        updates['customSplits'] = newCustomSplits;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        batch.update(expDoc.reference, updates);
+      }
+    }
+
+    // B. Update settlements
+    for (final setDoc in settlementsSnap.docs) {
+      final data = setDoc.data();
+      bool needsUpdate = false;
+      final updates = <String, dynamic>{};
+
+      if (data['fromUserId'] == offlineMemberId) {
+        updates['fromUserId'] = onlineUserId;
+        updates['fromUserName'] = onlineUserName;
+        needsUpdate = true;
+      }
+      if (data['toUserId'] == offlineMemberId) {
+        updates['toUserId'] = onlineUserId;
+        updates['toUserName'] = onlineUserName;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        batch.update(setDoc.reference, updates);
+      }
+    }
+
+    // C. Update members subcollection
+    final offlineMemberRef = _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(offlineMemberId);
+    batch.delete(offlineMemberRef);
+
+    final onlineMemberRef = _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(onlineUserId);
+    batch.set(
+      onlineMemberRef,
+      {
+        'userId': onlineUserId,
+        'displayName': onlineUserName,
+        'email': onlineUserEmail ?? '',
+        'photoUrl': onlineUserPhotoUrl,
+        'role': 'member',
+        'isOffline': false,
+        'status': 'active',
+        'joinedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    // D. Update tour doc members array
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayRemove([offlineMemberId]),
+    });
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayUnion([onlineUserId]),
+    });
+
+    await batch.commit();
+
+    // E. Set activeTourId on online user if not currently set
+    try {
+      final userDoc = await _db
+          .collection(AppConstants.usersCollection)
+          .doc(onlineUserId)
+          .get();
+      if (userDoc.exists && userDoc.data()?['activeTourId'] == null) {
+        await _db
+            .collection(AppConstants.usersCollection)
+            .doc(onlineUserId)
+            .update({'activeTourId': tourId});
+      }
+    } catch (_) {}
+  }
+
   Future<void> removeMember(String tourId, String userId,
       {bool isKick = true}) async {
     final batch = _db.batch();
