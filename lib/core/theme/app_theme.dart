@@ -50,6 +50,19 @@ class AppColors {
   );
 }
 
+class AppRadius {
+  static const double card = 12.0;
+  static const double container = 12.0;
+  static const double button = 10.0;
+  static const double dialog = 14.0;
+  static const double input = 10.0;
+  static const double chip = 8.0;
+  static const double sm = 6.0;
+  static const double md = 10.0;
+  static const double lg = 12.0;
+  static const double xl = 14.0;
+}
+
 class AppTheme {
   static ThemeData get lightTheme => _buildTheme(brightness: Brightness.light);
   static ThemeData get darkTheme => _buildTheme(brightness: Brightness.dark);
@@ -124,7 +137,9 @@ class AppTheme {
         fontFamily: 'Outfit',
         fontSize: 14,
         fontWeight: FontWeight.w500,
-        color: isDark ? AppColors.darkText : AppColors.lightText,
+        color: isDark
+            ? AppColors.darkTextSecondary
+            : AppColors.lightTextSecondary,
       ),
       bodyLarge: TextStyle(
         fontFamily: 'Outfit',
@@ -158,11 +173,16 @@ class AppTheme {
       colorScheme: colorScheme,
       textTheme: textTheme,
       scaffoldBackgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.dialog),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.card),
           side: BorderSide(
             color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             width: 1,
@@ -184,12 +204,12 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryBlue,
+          backgroundColor: AppColors.primaryTeal,
           foregroundColor: Colors.white,
           elevation: 0,
-          minimumSize: const Size(double.infinity, 52),
+          minimumSize: const Size(double.infinity, 50),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.button),
           ),
           textStyle: const TextStyle(
             fontFamily: 'Outfit',
@@ -200,11 +220,11 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryBlue,
-          side: const BorderSide(color: AppColors.primaryBlue, width: 1.5),
-          minimumSize: const Size(double.infinity, 52),
+          foregroundColor: AppColors.primaryTeal,
+          side: const BorderSide(color: AppColors.primaryTeal, width: 1.5),
+          minimumSize: const Size(double.infinity, 50),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.button),
           ),
           textStyle: const TextStyle(
             fontFamily: 'Outfit',
@@ -216,25 +236,25 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor:
-            isDark ? AppColors.darkSurface.withOpacity(0.5) : AppColors.lightBg,
+            isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : AppColors.lightBg,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.input),
           borderSide: BorderSide(
             color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
           ),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.input),
           borderSide: BorderSide(
             color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
           ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primaryBlue, width: 2),
+          borderRadius: BorderRadius.circular(AppRadius.input),
+          borderSide: const BorderSide(color: AppColors.primaryTeal, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.input),
           borderSide: const BorderSide(color: AppColors.danger),
         ),
         contentPadding:
@@ -258,24 +278,27 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.chip),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primaryBlue,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primaryTeal,
         foregroundColor: Colors.white,
         elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.button),
         ),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor:
             isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        selectedItemColor: AppColors.primaryBlue,
+        selectedItemColor: AppColors.primaryTeal,
         unselectedItemColor:
             isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
         type: BottomNavigationBarType.fixed,

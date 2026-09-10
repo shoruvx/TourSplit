@@ -66,14 +66,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String _formatError(String error) {
-    if (error.contains('user-not-found'))
+    if (error.contains('user-not-found')) {
       return 'No account found with this email.';
-    if (error.contains('wrong-password')) return 'Incorrect password.';
-    if (error.contains('invalid-email')) return 'Please enter a valid email.';
-    if (error.contains('too-many-requests'))
+    }
+    if (error.contains('wrong-password')) {
+      return 'Incorrect password.';
+    }
+    if (error.contains('invalid-email')) {
+      return 'Please enter a valid email.';
+    }
+    if (error.contains('too-many-requests')) {
       return 'Too many attempts. Try again later.';
-    if (error.contains('network-request-failed'))
+    }
+    if (error.contains('network-request-failed')) {
       return 'No internet connection.';
+    }
     if (error.contains('10') ||
         error.contains('sign_in_failed') ||
         error.contains('developer_error')) {
@@ -174,9 +181,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         keyboardType: TextInputType.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         validator: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Email is required';
-                          if (!v.contains('@')) return 'Enter a valid email';
+                          }
+                          if (!v.contains('@')) {
+                            return 'Enter a valid email';
+                          }
                           return null;
                         },
                       ).animate().fadeIn(delay: 200.ms, duration: 300.ms),
@@ -197,10 +207,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               () => _obscurePassword = !_obscurePassword),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Password is required';
-                          if (v.length < 6)
+                          }
+                          if (v.length < 6) {
                             return 'Password must be at least 6 characters';
+                          }
                           return null;
                         },
                       ).animate().fadeIn(delay: 250.ms, duration: 300.ms),
@@ -220,10 +232,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.danger.withOpacity(0.1),
+                            color: AppColors.danger.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppColors.danger.withOpacity(0.3)),
+                                color: AppColors.danger.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [

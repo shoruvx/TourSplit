@@ -367,8 +367,8 @@ class ManualSettlementDialog {
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
       );
 
-      final isTourAdmin = tour.isAdmin(currentUserId);
-      if (isTourAdmin || currentUserId == toUid) {
+      final isReceiver = currentUserId == toUid;
+      if (isReceiver) {
         await repo.resolveSettlement(
           tourId: tour.id,
           settlementId: settlement.id,
@@ -381,9 +381,9 @@ class ManualSettlementDialog {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isTourAdmin || currentUserId == toUid
+              isReceiver
                   ? 'Settlement recorded and approved! Balances adjusted.'
-                  : 'Settlement recorded. Waiting for approval.',
+                  : 'Settlement recorded. Waiting for ${toMember.displayName} to approve.',
             ),
             backgroundColor: AppColors.positive,
           ),

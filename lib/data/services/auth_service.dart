@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,21 @@ import '../../core/constants/app_constants.dart';
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
+});
+
+final userProfileProvider =
+    FutureProvider.family<UserModel?, String>((ref, uid) async {
+  if (uid.isEmpty) return null;
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection(AppConstants.usersCollection)
+        .doc(uid)
+        .get();
+    if (!doc.exists) return null;
+    return UserModel.fromFirestore(doc);
+  } catch (_) {
+    return null;
+  }
 });
 
 final currentUserProvider = StreamProvider<UserModel?>((ref) {
@@ -222,16 +238,34 @@ class AuthService {
     }
   }
 
+  Future<void> updatePaymentAccounts(
+      String uid, List<PaymentAccount> accounts) async {
+    await _firestore.collection(AppConstants.usersCollection).doc(uid).update({
+      'paymentAccounts': accounts.map((a) => a.toMap()).toList(),
+    });
+  }
+
   Future<String> uploadProfileImage(
       String uid, Uint8List imageBytes, String extension) async {
-    final ref = _storage.ref().child(
-        'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$extension');
-    final uploadTask = ref.putData(
-      imageBytes,
-      SettableMetadata(contentType: 'image/$extension'),
-    );
-    final snapshot = await uploadTask;
-    return await snapshot.ref.getDownloadURL();
+    final cleanExt = extension.toLowerCase();
+    final mime = (cleanExt == 'png') ? 'image/png' : 'image/jpeg';
+    final safeExt = (cleanExt == 'png') ? 'png' : 'jpg';
+
+    try {
+      final ref = _storage.ref().child(
+          'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$safeExt');
+      final uploadTask = ref.putData(
+        imageBytes,
+        SettableMetadata(contentType: mime),
+      );
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (_) {
+      // Fallback: If Firebase Storage is restricted or offline,
+      // store as a data URI directly so the photo update NEVER fails.
+      final base64String = base64Encode(imageBytes);
+      return 'data:$mime;base64,$base64String';
+    }
   }
 
   Future<void> updateProfilePhoto(String uid, String? photoUrl,

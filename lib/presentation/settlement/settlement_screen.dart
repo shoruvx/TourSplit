@@ -14,6 +14,7 @@ import '../../data/models/tour_model.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/services/balance_service.dart';
 import 'widgets/manual_settlement_dialog.dart';
+import 'widgets/receiver_payment_accounts_view.dart';
 
 class SettlementScreen extends ConsumerWidget {
   const SettlementScreen({super.key});
@@ -310,7 +311,8 @@ class SettlementScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.dialog)),
         title: Row(
           children: [
             const Icon(Icons.handshake_rounded, color: AppColors.primaryTeal),
@@ -318,51 +320,60 @@ class SettlementScreen extends ConsumerWidget {
             const Text('Record Settlement'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${debt.fromUserName} pays ${debt.toUserName}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14),
-                    ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  Text(
-                    '${tour.currencySymbol}${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryTeal,
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${debt.fromUserName} pays ${debt.toUserName}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                      ),
+                      Text(
+                        '${tour.currencySymbol}${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                ReceiverPaymentAccountsView(
+                  toUserId: debt.toUserId,
+                  toUserName: debt.toUserName,
+                ),
+                const SizedBox(height: 12),
+                const Text('Payment Method / Note:',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: noteCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. bKash, Cash, Bank Transfer',
+                    border:
+                        OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.input)),
+                    isDense: true,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text('Payment Method / Note:',
-                style: TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 6),
-            TextField(
-              controller: noteCtrl,
-              decoration: InputDecoration(
-                hintText: 'e.g. bKash, Cash, Bank Transfer',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                isDense: true,
-              ),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -373,6 +384,9 @@ class SettlementScreen extends ConsumerWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.button),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Record Payment'),
@@ -395,7 +409,8 @@ class SettlementScreen extends ConsumerWidget {
       );
 
       final currentUid = ref.read(currentUserProvider).value?.uid;
-      if (isAdmin || currentUid == debt.toUserId) {
+      final isReceiver = currentUid == debt.toUserId;
+      if (isReceiver) {
         await repo.resolveSettlement(
           tourId: tour.id,
           settlementId: settlement.id,
@@ -408,9 +423,9 @@ class SettlementScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isAdmin || currentUid == debt.toUserId
+              isReceiver
                   ? 'Settlement recorded and approved!'
-                  : 'Settlement submitted for approval.',
+                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.',
             ),
             backgroundColor: AppColors.positive,
           ),
@@ -724,42 +739,74 @@ class _SettlementCard extends StatelessWidget {
               'Requested ${DateFormat('MMM d, y').format(settlement.requestedAt)}',
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-            if ((isAdmin || settlement.toUserId == currentUserId) &&
-                settlement.isPending) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: onReject,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.negative),
-                        minimumSize: const Size(0, 36),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+            if (settlement.isPending) ...[
+              if (settlement.toUserId == currentUserId) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: onReject,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.negative),
+                          minimumSize: const Size(0, 36),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.button)),
+                        ),
+                        child: const Text('Reject',
+                            style: TextStyle(
+                                color: AppColors.negative, fontFamily: 'Outfit')),
                       ),
-                      child: const Text('Reject',
-                          style: TextStyle(
-                              color: AppColors.negative, fontFamily: 'Outfit')),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: onApprove,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.positive,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 36),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.button)),
+                        ),
+                        child: const Text('Approve',
+                            style: TextStyle(fontFamily: 'Outfit')),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.3),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: onApprove,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.positive,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(0, 36),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.hourglass_top_rounded,
+                          size: 14, color: AppColors.warning),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Waiting for ${settlement.toUserName} to approve',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.warning,
+                          ),
+                        ),
                       ),
-                      child: const Text('Approve',
-                          style: TextStyle(fontFamily: 'Outfit')),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ],
           ],
         ),

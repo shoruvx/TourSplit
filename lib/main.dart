@@ -9,6 +9,7 @@ import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/app_update_service.dart';
+import 'data/services/welcome_greeting_service.dart';
 import 'presentation/widgets/app_update_listener.dart';
 
 @pragma('vm:entry-point')
@@ -26,6 +27,12 @@ Future<void> main() async {
   debugPrint('[APP] Firebase initialized');
 
   await Hive.initFlutter();
+  try {
+    await Hive.openBox('app_preferences');
+    await WelcomeGreetingService.advanceSessionGreeting();
+  } catch (e) {
+    debugPrint('[APP] Error opening app_preferences: $e');
+  }
   debugPrint('[APP] Hive initialized');
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

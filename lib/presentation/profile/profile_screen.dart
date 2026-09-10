@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -25,6 +27,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _lastNameCtrl = TextEditingController();
   bool _isLoading = false;
   bool _initialized = false;
+  bool _isAccountsExpanded = false;
 
   @override
   void dispose() {
@@ -87,9 +90,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: source,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 85,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 75,
       );
       if (picked == null) return;
 
@@ -129,6 +132,570 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showAddPaymentAccountDialog(BuildContext context, UserModel user,
+      {String initialType = 'bKash'}) {
+    String selectedType = initialType;
+    final typeCtrl = TextEditingController(
+        text: initialType == 'Other' ? '' : initialType);
+    final numberCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final quickTypes = ['bKash', 'Nagad', 'Rocket', 'Bank', 'Other'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.dialog),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.account_balance_wallet_rounded,
+                    color: AppColors.primaryTeal, size: 22),
+                const SizedBox(width: 8),
+                const Text(
+                  'Add Payout Method',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Select or write payment method:',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: quickTypes.map((t) {
+                      final isSelected = selectedType == t;
+                      return ChoiceChip(
+                        label: Text(t,
+                            style: const TextStyle(
+                                fontFamily: 'Outfit', fontSize: 12)),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) {
+                            setDialogState(() {
+                              selectedType = t;
+                              if (t != 'Other') {
+                                typeCtrl.text = t;
+                              } else {
+                                typeCtrl.clear();
+                              }
+                            });
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: typeCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Account / Provider Type',
+                      hintText: 'e.g. bKash, Nagad, City Bank',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.input),
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: numberCtrl,
+                    keyboardType: TextInputType.text,
+                    decoration: InputDecoration(
+                      labelText: 'Phone or Account Number *',
+                      hintText: 'e.g. 017XXXXXXXX or A/C 1234...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.input),
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Optional Note / Details',
+                      hintText: 'e.g. Personal, Agent, or Branch',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.input),
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryTeal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.button),
+                  ),
+                ),
+                onPressed: () async {
+                  final numVal = numberCtrl.text.trim();
+                  final typeVal = typeCtrl.text.trim();
+                  if (numVal.isEmpty || typeVal.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter account type and number.'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final newAcc = PaymentAccount(
+                    id: const Uuid().v4(),
+                    type: typeVal,
+                    accountNumber: numVal,
+                    note: noteCtrl.text.trim().isNotEmpty
+                        ? noteCtrl.text.trim()
+                        : null,
+                  );
+
+                  final updated = [...user.paymentAccounts, newAcc];
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(ctx);
+
+                  try {
+                    await ref
+                        .read(authServiceProvider)
+                        .updatePaymentAccounts(user.uid, updated);
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Receiving account added! ✨'),
+                          backgroundColor: AppColors.positive,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to save account: $e'),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Add Account'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _deletePaymentAccount(UserModel user, String accountId) async {
+    final updated =
+        user.paymentAccounts.where((a) => a.id != accountId).toList();
+    try {
+      await ref
+          .read(authServiceProvider)
+          .updatePaymentAccounts(user.uid, updated);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account removed.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete account: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildQuickAddPill({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(AppRadius.chip),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppRadius.chip),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentAccountsSection(
+      BuildContext context, UserModel user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color badgeColor(String type) {
+      final lower = type.toLowerCase();
+      if (lower.contains('bkash')) return const Color(0xFFE2136E);
+      if (lower.contains('nagad')) return const Color(0xFFF7941D);
+      if (lower.contains('rocket')) return const Color(0xFF8C3494);
+      if (lower.contains('bank')) return AppColors.primaryBlue;
+      return AppColors.primaryTeal;
+    }
+
+    final hasAccounts = user.paymentAccounts.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() => _isAccountsExpanded = !_isAccountsExpanded);
+            },
+            borderRadius: BorderRadius.circular(AppRadius.button),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded,
+                      size: 18, color: AppColors.primaryTeal),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Payout Methods',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (hasAccounts) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.chip),
+                      ),
+                      child: Text(
+                        '${user.paymentAccounts.length}',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
+                    ),
+                  ],
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline_rounded,
+                        color: AppColors.primaryTeal, size: 19),
+                    tooltip: 'Add Payout Method',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () =>
+                        _showAddPaymentAccountDialog(context, user),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    _isAccountsExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 19,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: _isAccountsExpanded
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
+                if (!hasAccounts) ...[
+                  Text(
+                    'Tap a provider to add your account for 1-tap settlement pay:',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildQuickAddPill(
+                        label: '+ bKash',
+                        color: const Color(0xFFE2136E),
+                        onTap: () => _showAddPaymentAccountDialog(context, user,
+                            initialType: 'bKash'),
+                      ),
+                      _buildQuickAddPill(
+                        label: '+ Nagad',
+                        color: const Color(0xFFF7941D),
+                        onTap: () => _showAddPaymentAccountDialog(context, user,
+                            initialType: 'Nagad'),
+                      ),
+                      _buildQuickAddPill(
+                        label: '+ Rocket',
+                        color: const Color(0xFF8C3494),
+                        onTap: () => _showAddPaymentAccountDialog(context, user,
+                            initialType: 'Rocket'),
+                      ),
+                      _buildQuickAddPill(
+                        label: '+ Bank',
+                        color: AppColors.primaryBlue,
+                        onTap: () => _showAddPaymentAccountDialog(context, user,
+                            initialType: 'Bank'),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  ...user.paymentAccounts.map((acc) {
+                    final badgeCol = badgeColor(acc.type);
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          Clipboard.setData(
+                              ClipboardData(text: acc.accountNumber));
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  const Icon(Icons.check_circle_rounded,
+                                      color: AppColors.primaryTeal, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Copied ${acc.accountNumber}',
+                                    style: const TextStyle(fontFamily: 'Outfit'),
+                                  ),
+                                ],
+                              ),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(AppRadius.input),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.darkBg.withValues(alpha: 0.5)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.input),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.lightBorder,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: badgeCol.withValues(alpha: 0.15),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.chip),
+                                  border: Border.all(
+                                      color: badgeCol.withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  acc.type.toUpperCase(),
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: badgeCol,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      acc.accountNumber,
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                    if (acc.note != null &&
+                                        acc.note!.isNotEmpty)
+                                      Text(
+                                        acc.note!,
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 11,
+                                          color: isDark
+                                              ? AppColors.darkTextSecondary
+                                              : AppColors.lightTextSecondary,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.copy_rounded,
+                                    size: 16, color: Colors.grey),
+                                tooltip: 'Copy',
+                                onPressed: () {
+                                  HapticFeedback.mediumImpact();
+                                  Clipboard.setData(
+                                      ClipboardData(text: acc.accountNumber));
+                                  ScaffoldMessenger.of(context)
+                                      .hideCurrentSnackBar();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Row(
+                                        children: [
+                                          const Icon(Icons.check_circle_rounded,
+                                              color: AppColors.primaryTeal,
+                                              size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Copied ${acc.accountNumber}',
+                                            style: const TextStyle(
+                                                fontFamily: 'Outfit'),
+                                          ),
+                                        ],
+                                      ),
+                                      duration: const Duration(seconds: 2),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded,
+                                    size: 18, color: AppColors.danger),
+                                tooltip: 'Remove',
+                                onPressed: () =>
+                                    _deletePaymentAccount(user, acc.id),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _showAddPaymentAccountDialog(context, user),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Add Another Account',
+                          style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryTeal,
+                        side: BorderSide(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.5),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                        minimumSize: const Size(0, 42),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showChangePhotoBottomSheet(BuildContext context, UserModel user) {
@@ -194,11 +761,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                    color: AppColors.primaryTeal.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.camera_alt_rounded,
-                      color: AppColors.primaryBlue, size: 22),
+                      color: AppColors.primaryTeal, size: 22),
                 ),
                 title: const Text('Take a Photo',
                     style: TextStyle(
@@ -412,6 +979,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(ctx);
                           final ver = versionCtrl.text.trim();
                           String finalUrl = urlCtrl.text.trim();
@@ -431,7 +999,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             autoDownload: autoDownload,
                           );
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
                                     'Published v$ver! All devices will receive update automatically 🚀'),
@@ -577,7 +1145,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Text(user.email, style: theme.textTheme.bodySmall)
                       .animate()
                       .fadeIn(delay: 150.ms),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
+                  _buildPaymentAccountsSection(context, user)
+                      .animate()
+                      .fadeIn(delay: 180.ms),
+                  const SizedBox(height: 14),
                   AppTextField(
                     controller: _firstNameCtrl,
                     label: 'First Name',
@@ -594,6 +1166,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                       onPressed: _isLoading ? null : () => _saveProfile(user),
                       icon: _isLoading
                           ? const SizedBox(

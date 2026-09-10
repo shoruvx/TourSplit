@@ -1,5 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+
+ImageProvider? _resolveImageProvider(String? photoUrl) {
+  if (photoUrl == null || photoUrl.isEmpty) return null;
+  if (photoUrl.startsWith('data:image')) {
+    try {
+      final base64Part = photoUrl.split(',').last;
+      return MemoryImage(base64Decode(base64Part));
+    } catch (_) {
+      return null;
+    }
+  }
+  return NetworkImage(photoUrl);
+}
 
 class MemberAvatar extends StatelessWidget {
   final String initials;
@@ -17,10 +31,11 @@ class MemberAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (photoUrl != null && photoUrl!.isNotEmpty) {
+    final imageProvider = _resolveImageProvider(photoUrl);
+    if (imageProvider != null) {
       return CircleAvatar(
         radius: radius,
-        backgroundImage: NetworkImage(photoUrl!),
+        backgroundImage: imageProvider,
         backgroundColor:
             backgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.2),
       );

@@ -1,5 +1,35 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class PaymentAccount {
+  final String id;
+  final String type; // e.g. "bKash", "Nagad", "Rocket", "Bank", or custom
+  final String accountNumber;
+  final String? note;
+
+  const PaymentAccount({
+    required this.id,
+    required this.type,
+    required this.accountNumber,
+    this.note,
+  });
+
+  factory PaymentAccount.fromMap(Map<String, dynamic> map) {
+    return PaymentAccount(
+      id: map['id'] as String? ?? '',
+      type: map['type'] as String? ?? 'bKash',
+      accountNumber: map['accountNumber'] as String? ?? '',
+      note: map['note'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'type': type,
+        'accountNumber': accountNumber,
+        'note': note,
+      };
+}
+
 class UserModel {
   final String uid;
   final String email;
@@ -10,6 +40,7 @@ class UserModel {
   final String? fcmToken;
   final DateTime createdAt;
   final String? activeTourId;
+  final List<PaymentAccount> paymentAccounts;
 
   const UserModel({
     required this.uid,
@@ -21,6 +52,7 @@ class UserModel {
     this.fcmToken,
     required this.createdAt,
     this.activeTourId,
+    this.paymentAccounts = const [],
   });
 
   String get displayName => '$firstName $lastName';
@@ -44,6 +76,15 @@ class UserModel {
       parsedCreatedAt = DateTime.now();
     }
 
+    final rawAccounts = data['paymentAccounts'] as List<dynamic>?;
+    final parsedAccounts = rawAccounts != null
+        ? rawAccounts
+            .whereType<Map>()
+            .map((m) =>
+                PaymentAccount.fromMap(Map<String, dynamic>.from(m)))
+            .toList()
+        : <PaymentAccount>[];
+
     return UserModel(
       uid: doc.id,
       email: data['email'] as String? ?? '',
@@ -54,6 +95,7 @@ class UserModel {
       fcmToken: data['fcmToken'] as String?,
       createdAt: parsedCreatedAt,
       activeTourId: data['activeTourId'] as String?,
+      paymentAccounts: parsedAccounts,
     );
   }
 
@@ -66,6 +108,7 @@ class UserModel {
         'fcmToken': fcmToken,
         'createdAt': Timestamp.fromDate(createdAt),
         'activeTourId': activeTourId,
+        'paymentAccounts': paymentAccounts.map((a) => a.toMap()).toList(),
       };
 
   UserModel copyWith({
@@ -77,6 +120,7 @@ class UserModel {
     String? fcmToken,
     String? activeTourId,
     bool clearActiveTour = false,
+    List<PaymentAccount>? paymentAccounts,
   }) {
     return UserModel(
       uid: uid,
@@ -89,6 +133,7 @@ class UserModel {
       createdAt: createdAt,
       activeTourId:
           clearActiveTour ? null : (activeTourId ?? this.activeTourId),
+      paymentAccounts: paymentAccounts ?? this.paymentAccounts,
     );
   }
 }

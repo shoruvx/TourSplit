@@ -77,13 +77,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   String _formatError(String error) {
-    if (error.contains('email-already-in-use'))
+    if (error.contains('email-already-in-use')) {
       return 'An account with this email already exists.';
-    if (error.contains('weak-password'))
+    }
+    if (error.contains('weak-password')) {
       return 'Password is too weak. Use at least 6 characters.';
-    if (error.contains('invalid-email')) return 'Please enter a valid email.';
-    if (error.contains('network-request-failed'))
+    }
+    if (error.contains('invalid-email')) {
+      return 'Please enter a valid email.';
+    }
+    if (error.contains('network-request-failed')) {
       return 'No internet connection.';
+    }
     return 'Registration failed. Please try again.';
   }
 
@@ -200,11 +205,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         hint: 'johndoe',
                         prefixIcon: Icons.alternate_email_rounded,
                         validator: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Username is required';
-                          if (v.length < 3) return 'At least 3 characters';
-                          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v))
+                          }
+                          if (v.length < 3) {
+                            return 'At least 3 characters';
+                          }
+                          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v)) {
                             return 'Only letters, numbers and _';
+                          }
                           return null;
                         },
                       ).animate().fadeIn(delay: 200.ms, duration: 300.ms),
@@ -216,9 +225,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         keyboardType: TextInputType.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         validator: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Email is required';
-                          if (!v.contains('@')) return 'Enter a valid email';
+                          }
+                          if (!v.contains('@')) {
+                            return 'Enter a valid email';
+                          }
                           return null;
                         },
                       ).animate().fadeIn(delay: 250.ms, duration: 300.ms),
@@ -239,9 +251,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               () => _obscurePassword = !_obscurePassword),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Password is required';
-                          if (v.length < 6) return 'At least 6 characters';
+                          }
+                          if (v.length < 6) {
+                            return 'At least 6 characters';
+                          }
                           return null;
                         },
                       ).animate().fadeIn(delay: 300.ms, duration: 300.ms),
@@ -262,9 +277,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               () => _obscureConfirm = !_obscureConfirm),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Required';
-                          if (v != _passwordCtrl.text)
+                          if (v == null || v.isEmpty) {
+                            return 'Required';
+                          }
+                          if (v != _passwordCtrl.text) {
                             return 'Passwords do not match';
+                          }
                           return null;
                         },
                       ).animate().fadeIn(delay: 350.ms, duration: 300.ms),
@@ -273,10 +291,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.danger.withOpacity(0.1),
+                            color: AppColors.danger.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppColors.danger.withOpacity(0.3)),
+                                color: AppColors.danger.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [

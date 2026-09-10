@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,7 +71,7 @@ class TourRepository {
     if (clean.contains('1')) candidates.add(clean.replaceAll('1', 'I'));
     if (clean.contains('I')) candidates.add(clean.replaceAll('I', '1'));
 
-    print(
+    debugPrint(
         '[INVITE_DEBUG] Searching for clean: "$clean", candidates: $candidates');
     for (final candidate in candidates) {
       try {
@@ -79,16 +80,16 @@ class TourRepository {
             .limit(1)
             .get();
 
-        print(
+        debugPrint(
             '[INVITE_DEBUG] Candidate "$candidate" found ${query.docs.length} docs');
         if (query.docs.isNotEmpty) {
           final tour = TourModel.fromFirestore(query.docs.first);
-          print(
+          debugPrint(
               '[INVITE_DEBUG] Tour: "${tour.name}", code: "${tour.inviteCode}", status: "${tour.status}"');
           return tour;
         }
       } catch (e, st) {
-        print('[INVITE_DEBUG] ERROR querying candidate "$candidate": $e\n$st');
+        debugPrint('[INVITE_DEBUG] ERROR querying candidate "$candidate": $e\n$st');
       }
     }
 

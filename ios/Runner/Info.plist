@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TourSplit needs access to your photo library to select a profile picture.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>TourSplit needs access to your camera to take a profile picture.</string>
 </dict>
 </plist>

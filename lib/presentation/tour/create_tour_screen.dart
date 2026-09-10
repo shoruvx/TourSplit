@@ -369,7 +369,7 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                 _FieldLabel(label: 'Currency'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedCurrency,
+                  initialValue: _selectedCurrency,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: isDark

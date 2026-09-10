@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
@@ -56,8 +57,12 @@ class NotificationService {
       try {
         await messaging.subscribeToTopic('app_updates');
         await messaging.subscribeToTopic('all_users');
-      } catch (_) {}
-    } catch (e) {}
+      } catch (_) {
+        // Topic subscriptions are best-effort; ignore errors if offline.
+      }
+    } catch (e) {
+      debugPrint('[NOTIFICATION] Initialization warning: $e');
+    }
   }
 
   static Future<void> _showLocalNotification(RemoteMessage message) async {

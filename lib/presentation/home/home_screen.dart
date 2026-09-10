@@ -14,6 +14,7 @@ import '../../data/models/expense_model.dart';
 import '../../data/models/settlement_model.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/services/app_update_service.dart';
+import '../../data/services/welcome_greeting_service.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../widgets/member_avatar.dart';
 import '../expense/expense_list_tile.dart';
@@ -21,6 +22,7 @@ import '../expense/widgets/day_summary_table.dart';
 import '../tour/widgets/tour_qr_dialog.dart';
 import '../widgets/first_time_guide_dialog.dart';
 import '../settlement/widgets/manual_settlement_dialog.dart';
+import '../settlement/widgets/receiver_payment_accounts_view.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -82,7 +84,7 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _NoActiveTourScreen extends ConsumerWidget {
+class _NoActiveTourScreen extends ConsumerStatefulWidget {
   final String displayName;
   final String? noticeMessage;
 
@@ -92,10 +94,55 @@ class _NoActiveTourScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NoActiveTourScreen> createState() => _NoActiveTourScreenState();
+}
+
+class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
+  int _greetingIndex = 0;
+
+  List<String> _getGreetings(String name) {
+    final clean = name.trim().isNotEmpty ? name.trim() : 'Explorer';
+    final hour = DateTime.now().hour;
+    final timeGreeting = (hour >= 5 && hour < 12)
+        ? 'Good morning, $clean!'
+        : (hour >= 12 && hour < 17)
+            ? 'Good afternoon, $clean!'
+            : (hour >= 17 && hour < 22)
+                ? 'Good evening, $clean!'
+                : 'Good evening, $clean!';
+
+    return [
+      timeGreeting,
+      'Welcome, $clean!',
+      'Hey there, $clean! 👋',
+      'Ready for the next trip, $clean! 🎒',
+      'Howdy, $clean! 🤠',
+    ];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _greetingIndex = WelcomeGreetingService.sessionGreetingIndex;
+    // Fallback if not initialized yet
+    if (_greetingIndex == 0) {
+      WelcomeGreetingService.advanceSessionGreeting().then((val) {
+        if (mounted && _greetingIndex != val) {
+          setState(() {
+            _greetingIndex = val;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider).value;
+    final greetings = _getGreetings(widget.displayName);
+    final currentGreeting = greetings[_greetingIndex % greetings.length];
 
     return Scaffold(
       body: SafeArea(
@@ -104,7 +151,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (noticeMessage != null) ...[
+              if (widget.noticeMessage != null) ...[
                 Container(
                   width: double.infinity,
                   padding:
@@ -123,7 +170,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          noticeMessage!,
+                          widget.noticeMessage!,
                           style: const TextStyle(
                               fontWeight: FontWeight.w600, fontSize: 13),
                         ),
@@ -164,8 +211,8 @@ class _NoActiveTourScreen extends ConsumerWidget {
                           child: MemberAvatar(
                             initials: currentUser?.initials.isNotEmpty == true
                                 ? currentUser!.initials
-                                : (displayName.isNotEmpty
-                                    ? displayName[0].toUpperCase()
+                                : (widget.displayName.isNotEmpty
+                                    ? widget.displayName[0].toUpperCase()
                                     : 'U'),
                             photoUrl: currentUser?.photoUrl,
                             radius: 18,
@@ -197,21 +244,45 @@ class _NoActiveTourScreen extends ConsumerWidget {
                       ),
                     ).animate().fadeIn().scale(),
                     const SizedBox(height: 28),
-                    Text(
-                      'No Tours Yet',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Outfit',
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _greetingIndex++;
+                        });
+                      },
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 400),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0.0, 0.2),
+                              end: Offset.zero,
+                            ).animate(anim),
+                            child: child,
+                          ),
+                        ),
+                        child: Text(
+                          currentGreeting,
+                          key: ValueKey<String>(currentGreeting),
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
                       ),
-                    ).animate().fadeIn(delay: 150.ms),
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                      'Create, join, or view your tours to get started.',
+                      'Split expenses easily and keep the memories.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: isDark
                             ? AppColors.darkTextSecondary
                             : AppColors.lightTextSecondary,
+                        height: 1.4,
                       ),
                     ).animate().fadeIn(delay: 200.ms),
                     const SizedBox(height: 32),
@@ -234,7 +305,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
                           backgroundColor: AppColors.primaryTeal,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(AppRadius.button),
                           ),
                           elevation: 2,
                         ),
@@ -259,7 +330,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
                           foregroundColor: AppColors.primaryTeal,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(AppRadius.button),
                           ),
                           side: const BorderSide(
                               color: AppColors.primaryTeal, width: 1.5),
@@ -287,7 +358,7 @@ class _NoActiveTourScreen extends ConsumerWidget {
                               : AppColors.lightText,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(AppRadius.button),
                           ),
                           side: BorderSide(
                             color: isDark
@@ -467,6 +538,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       flex: 4,
                       child: OutlinedButton(
                         onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.of(ctx).pop();
                           await ref
                               .read(tourRepositoryProvider)
@@ -475,7 +547,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                 userId: request.userId,
                               );
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
                                     'Declined request from ${request.displayName}'),
@@ -505,6 +577,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       flex: 6,
                       child: ElevatedButton.icon(
                         onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.of(ctx).pop();
                           await ref
                               .read(tourRepositoryProvider)
@@ -513,7 +586,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                 request: request,
                               );
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
                                     'Approved! ${request.displayName} is now a member 🎉'),
@@ -1569,53 +1642,63 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.dialog)),
         title: const Text('Record Settlement'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${debt.fromUserName} pays ${debt.toUserName}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 13),
-                    ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  Text(
-                    '$currencySymbol${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryTeal,
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${debt.fromUserName} pays ${debt.toUserName}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                      ),
+                      Text(
+                        '$currencySymbol${debt.amount % 1 == 0 ? debt.amount.toStringAsFixed(0) : debt.amount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                ReceiverPaymentAccountsView(
+                  toUserId: debt.toUserId,
+                  toUserName: debt.toUserName,
+                ),
+                const SizedBox(height: 10),
+                const Text('Note:',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: noteCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. bKash, Cash, Reference',
+                    border:
+                        OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.input)),
+                    isDense: true,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            const Text('Note:',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 4),
-            TextField(
-              controller: noteCtrl,
-              decoration: InputDecoration(
-                hintText: 'e.g. bKash, Cash',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                isDense: true,
-              ),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1626,6 +1709,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.button),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Record Payment'),
@@ -1648,17 +1734,24 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       );
 
       final currentUid = ref.read(currentUserProvider).value?.uid;
-      await repo.resolveSettlement(
-        tourId: widget.tourId,
-        settlementId: settlement.id,
-        status: SettlementStatus.approved,
-        resolvedByUserId: currentUid ?? widget.userId,
-      );
+      final isReceiver = currentUid == debt.toUserId;
+      if (isReceiver) {
+        await repo.resolveSettlement(
+          tourId: widget.tourId,
+          settlementId: settlement.id,
+          status: SettlementStatus.approved,
+          resolvedByUserId: currentUid ?? widget.userId,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settlement recorded!'),
+          SnackBar(
+            content: Text(
+              isReceiver
+                  ? 'Settlement recorded and approved!'
+                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.',
+            ),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -1806,7 +1899,7 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
         ),
@@ -1833,9 +1926,30 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
           ),
           _MetricDivider(isDark: isDark),
           _MetricColumn(
-            value: '👥 $memberCount',
             label: 'Members',
             color: isDark ? Colors.white : const Color(0xFF0F172A),
+            onTap: () => context.push('/tour/members'),
+            valueWidget: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.groups_rounded,
+                  size: 17,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$memberCount',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
           ),
           _MetricDivider(isDark: isDark),
           _MetricColumn(
@@ -1850,25 +1964,31 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
 }
 
 class _MetricColumn extends StatelessWidget {
-  final String value;
+  final String? value;
+  final Widget? valueWidget;
   final String label;
   final Color color;
+  final VoidCallback? onTap;
 
   const _MetricColumn({
-    required this.value,
+    this.value,
+    this.valueWidget,
     required this.label,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Expanded(
-      child: Column(
-        children: [
+    final content = Column(
+      children: [
+        if (valueWidget != null)
+          valueWidget!
+        else
           Text(
-            value,
+            value ?? '',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontSize: 16,
@@ -1878,22 +1998,39 @@ class _MetricColumn extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
-            ),
-            textAlign: TextAlign.center,
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.lightTextSecondary,
           ),
-        ],
-      ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
+
+    if (onTap != null) {
+      return Expanded(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: content,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Expanded(child: content);
   }
 }
 
@@ -2031,7 +2168,7 @@ class _PillTabBar extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Row(
         children: tabs.asMap().entries.map((entry) {
@@ -2207,7 +2344,7 @@ class _EmptyExpensesCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
         ),

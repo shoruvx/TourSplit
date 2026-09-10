@@ -1,7 +1,7 @@
 name: toursplit
 description: "TourSplit: Split the costs, keep the memories."
 publish_to: 'none'
-version: 1.2.0+11
+version: 1.3.0+12
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
