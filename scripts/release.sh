@@ -12,11 +12,22 @@ if [ -z "$1" ]; then
 fi
 
 VERSION=$1
-NOTES=${2:-"TourSplit update v$VERSION: Split the costs, keep the memories."}
 TAG="v$VERSION"
 
+if [ -n "$2" ]; then
+  NOTES="$2"
+else
+  echo "Generating detailed yet minimalistic What's New release notes..."
+  NOTES=$(python3 scripts/generate_release_notes.py "$VERSION" --body-only)
+fi
+
+TITLE=$(python3 scripts/generate_release_notes.py "$VERSION" --title-only)
+
 echo "=========================================="
-echo "Preparing TourSplit Release $TAG"
+echo "Preparing TourSplit Release: $TITLE"
+echo "Tag: $TAG"
+echo "------------------------------------------"
+echo "$NOTES"
 echo "=========================================="
 
 # 1. Update version in pubspec.yaml

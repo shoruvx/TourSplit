@@ -59,12 +59,20 @@ jobs:
           echo "tag_name=v${CLEAN_VER}" >> $GITHUB_OUTPUT
           echo "clean_version=${CLEAN_VER}" >> $GITHUB_OUTPUT
 
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          python3 scripts/generate_release_notes.py \
+            "${{ steps.prepare_asset.outputs.clean_version }}" \
+            "${{ github.event.inputs.release_notes || '' }}" \
+            --github-output
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "TourSplit v${{ steps.prepare_asset.outputs.clean_version }}"
+          name: "${{ steps.release_notes.outputs.release_title || format('TourSplit v{0}', steps.prepare_asset.outputs.clean_version) }}"
           tag_name: ${{ steps.prepare_asset.outputs.tag_name }}
-          body: "${{ github.event.inputs.release_notes || 'TourSplit update: Split the costs, keep the memories! Enjoy the latest features and stability improvements.' }}"
+          body: ${{ steps.release_notes.outputs.release_body }}
           draft: false
           prerelease: false
           files: ${{ steps.prepare_asset.outputs.apk_path }}
@@ -74,7 +82,8 @@ jobs:
       - name: Broadcast FCM Update Notification
         run: |
           pip install cryptography || true
-          python3 scripts/broadcast_update_notification.py "${{ steps.prepare_asset.outputs.clean_version }}" "${{ github.event.inputs.release_notes || 'TourSplit update: Split the costs, keep the memories.' }}"
+          python3 scripts/broadcast_update_notification.py "${{ steps.prepare_asset.outputs.clean_version }}" "${{ steps.release_notes.outputs.release_summary }}"
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         continue-on-error: true
+
