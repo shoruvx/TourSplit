@@ -1,4 +1,6 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -198,10 +200,25 @@ class ExpenseDetailScreen extends ConsumerWidget {
                             value: DateFormat('EEEE, MMM d, y')
                                 .format(expense.date)),
                         _InfoRow(
-                            label: 'Paid By',
-                            value: expense.isMultiPayer
-                                ? '${expense.paidByName} (${expense.payers!.length} people)'
-                                : expense.paidByName),
+                          label: 'Paid By',
+                          value: expense.isMultiPayer
+                              ? '${expense.paidByName} (${expense.payers!.length} people)'
+                              : expense.paidByName,
+                          onTap: expense.isMultiPayer
+                              ? null
+                              : () {
+                                  HapticFeedback.lightImpact();
+                                  if (expense.paidByUserId == user.uid) {
+                                    context.push('/profile');
+                                  } else {
+                                    final mem = members.firstWhereOrNull(
+                                        (m) => m.userId == expense.paidByUserId);
+                                    context.push(
+                                        '/member/${expense.paidByUserId}',
+                                        extra: mem);
+                                  }
+                                },
+                        ),
                         _InfoRow(
                             label: 'Split Type',
                             value: _splitLabel(expense.splitType)),
@@ -217,10 +234,21 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           const SizedBox(height: 12),
                           ...expense.contributions.entries.map((entry) {
                             final name = memberMap[entry.key] ?? entry.key;
+                            final mem = members
+                                .firstWhereOrNull((m) => m.userId == entry.key);
                             return _SplitRow(
                               name: name,
                               amount: entry.value,
                               symbol: tour.currencySymbol,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                if (entry.key == user.uid) {
+                                  context.push('/profile');
+                                } else {
+                                  context.push('/member/${entry.key}',
+                                      extra: mem);
+                                }
+                              },
                             ).animate().fadeIn(delay: 30.ms);
                           }),
                           const Divider(height: 32),
@@ -233,10 +261,21 @@ class ExpenseDetailScreen extends ConsumerWidget {
                         const SizedBox(height: 12),
                         ...expense.splits.entries.map((entry) {
                           final name = memberMap[entry.key] ?? entry.key;
+                          final mem = members
+                              .firstWhereOrNull((m) => m.userId == entry.key);
                           return _SplitRow(
                             name: name,
                             amount: entry.value,
                             symbol: tour.currencySymbol,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              if (entry.key == user.uid) {
+                                context.push('/profile');
+                              } else {
+                                context.push('/member/${entry.key}',
+                                    extra: mem);
+                              }
+                            },
                           ).animate().fadeIn(delay: 50.ms);
                         }),
                         if (isAdmin && expense.isPending) ...[
@@ -398,10 +437,10 @@ class _StatusBadge extends StatelessWidget {
             ? AppColors.negative
             : AppColors.warning;
     final label = expense.isApproved
-        ? '✓ Approved'
+        ? 'Approved'
         : expense.isRejected
-            ? '✗ Rejected'
-            : '⏳ Pending Approval';
+            ? 'Rejected'
+            : 'Pending Approval';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -420,12 +459,46 @@ class _StatusBadge extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  const _InfoRow({required this.label, required this.value});
+  final VoidCallback? onTap;
+
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    Widget valueWidget = Text(
+      value,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w500,
+        color: onTap != null ? AppColors.primaryTeal : null,
+      ),
+    );
+
+    if (onTap != null) {
+      valueWidget = InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: valueWidget),
+              const SizedBox(width: 4),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 11, color: AppColors.primaryTeal),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -433,17 +506,16 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                )),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
+              ),
+            ),
           ),
-          Expanded(
-              child: Text(value,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500))),
+          Expanded(child: valueWidget),
         ],
       ),
     );
@@ -454,35 +526,64 @@ class _SplitRow extends StatelessWidget {
   final String name;
   final double amount;
   final String symbol;
-  const _SplitRow(
-      {required this.name, required this.amount, required this.symbol});
+  final VoidCallback? onTap;
+
+  const _SplitRow({
+    required this.name,
+    required this.amount,
+    required this.symbol,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.lightCard,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(name,
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 14)),
-          Text(
-            '$symbol ${amount.toStringAsFixed(2)}',
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkCard : AppColors.lightCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             ),
           ),
-        ],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 5),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        size: 10, color: Colors.grey),
+                  ],
+                ],
+              ),
+              Text(
+                '$symbol ${amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

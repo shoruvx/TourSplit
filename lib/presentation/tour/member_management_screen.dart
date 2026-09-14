@@ -814,27 +814,39 @@ class _MemberCard extends StatelessWidget {
               initials: member.initials,
               photoUrl: member.photoUrl,
               radius: 22,
+              userId: member.userId,
+              tourMember: member,
               backgroundColor: member.isOffline
                   ? Colors.blueGrey.withValues(alpha: 0.2)
                   : null,
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          member.displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w600,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  if (member.userId == currentUserId) {
+                    context.push('/profile');
+                  } else {
+                    context.push('/member/${member.userId}', extra: member);
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            member.displayName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
                       if (member.isOffline) ...[
                         const SizedBox(width: 6),
                         Container(
@@ -991,7 +1003,8 @@ class _MemberCard extends StatelessWidget {
                 ],
               ),
             ),
-            Column(
+          ),
+          Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,10 +18,12 @@ import '../../data/services/app_update_service.dart';
 import '../../data/services/welcome_greeting_service.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../widgets/member_avatar.dart';
+import '../widgets/theme_switch_toggle.dart';
 import '../expense/expense_list_tile.dart';
 import '../expense/widgets/day_summary_table.dart';
 import '../tour/widgets/tour_qr_dialog.dart';
 import '../widgets/first_time_guide_dialog.dart';
+import '../widgets/whats_new_dialog.dart';
 import '../settlement/widgets/manual_settlement_dialog.dart';
 import '../settlement/widgets/receiver_payment_accounts_view.dart';
 
@@ -31,6 +34,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirstTimeGuideDialog.checkAndShow(context);
+      WhatsNewDialog.checkAndShow(context);
     });
 
     final updateInfo = ref.watch(effectiveUpdateInfoProvider);
@@ -114,9 +118,9 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
     return [
       timeGreeting,
       'Welcome, $clean!',
-      'Hey there, $clean! 👋',
-      'Ready for the next trip, $clean! 🎒',
-      'Howdy, $clean! 🤠',
+      'Hey there, $clean!',
+      'Ready for the next trip, $clean!',
+      'Howdy, $clean!',
     ];
   }
 
@@ -186,16 +190,21 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Your Trips',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                        'TourSplit',
+                        style: TextStyle(
                           fontFamily: 'Outfit',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: AppColors.primaryTeal,
                         ),
                       ),
                     ],
                   ),
                   Row(
                     children: [
+                      const ThemeSwitchToggle(),
+                      const SizedBox(width: 12),
                       InkWell(
                         onTap: () => context.push('/profile'),
                         borderRadius: BorderRadius.circular(22),
@@ -228,22 +237,6 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 130,
-                      height: 130,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkSurface
-                            : const Color(0xFFE2E8F0).withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add_location_alt_rounded,
-                        color: AppColors.primaryTeal,
-                        size: 64,
-                      ),
-                    ).animate().fadeIn().scale(),
-                    const SizedBox(height: 28),
                     GestureDetector(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -303,6 +296,11 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryTeal,
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            width: 1.0,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(AppRadius.button),
@@ -442,7 +440,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
                 const SizedBox(height: 18),
                 const Text(
-                  'New Member Request! 👥',
+                  'New Member Request',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Outfit',
@@ -589,7 +587,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Approved! ${request.displayName} is now a member 🎉'),
+                                    'Approved! ${request.displayName} is now a member.'),
                                 backgroundColor: AppColors.positive,
                               ),
                             );
@@ -764,7 +762,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           data: (expenses) => expenses.length,
           orElse: () => 0,
         );
-        final perPerson = totalSpent / (memberCount > 0 ? memberCount : 1);
+        final mySpending = approvedExpenses.fold(
+          0.0,
+          (sum, e) => sum + (e.splits[widget.userId] ?? 0.0),
+        );
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return PopScope(
@@ -907,7 +908,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     _ConsolidatedMetricsCard(
                       currencySymbol: tour.currencySymbol,
                       totalSpent: totalSpent,
-                      perPerson: perPerson,
+                      yourSpending: mySpending,
                       memberCount: memberCount,
                       expenseCount: expenseCount,
                     ).animate().fadeIn(delay: 100.ms),
@@ -1250,32 +1251,45 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     initials: m.initials,
                     photoUrl: m.photoUrl,
                     radius: 20,
+                    userId: m.userId,
+                    tourMember: m,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          m.displayName,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14.5,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        if (m.userId == widget.userId) {
+                          context.push('/profile');
+                        } else {
+                          context.push('/member/${m.userId}', extra: m);
+                        }
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            m.displayName,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'Paid: $currencySymbol$formattedPaid • Spent: $currencySymbol$formattedSpent',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.lightTextSecondary,
+                          const SizedBox(height: 3),
+                          Text(
+                            'Paid: $currencySymbol$formattedPaid • Spent: $currencySymbol$formattedSpent',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1721,8 +1735,18 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     );
 
     if (confirmed == true) {
+      final members =
+          ref.read(tourMembersStreamProvider(widget.tourId)).value ?? [];
+      final toMember =
+          members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+      final isOfflineReceiver =
+          toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
+      final currentUid = ref.read(currentUserProvider).value?.uid;
+      final isReceiver = currentUid == debt.toUserId;
+      final shouldAutoApprove = isReceiver || isOfflineReceiver;
+
       final repo = ref.read(settlementRepositoryProvider);
-      final settlement = await repo.requestSettlement(
+      await repo.requestSettlement(
         tourId: widget.tourId,
         fromUserId: debt.fromUserId,
         fromUserName: debt.fromUserName,
@@ -1731,27 +1755,19 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         amount: debt.amount,
         currency: currencySymbol,
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+        autoApprove: shouldAutoApprove,
+        resolvedByUserId: currentUid ?? widget.userId,
       );
 
-      final currentUid = ref.read(currentUserProvider).value?.uid;
-      final isReceiver = currentUid == debt.toUserId;
-      if (isReceiver) {
-        await repo.resolveSettlement(
-          tourId: widget.tourId,
-          settlementId: settlement.id,
-          status: SettlementStatus.approved,
-          resolvedByUserId: currentUid ?? widget.userId,
-        );
-      }
-
       if (mounted) {
+        final message = isOfflineReceiver
+            ? 'Settlement recorded and auto-approved for offline member.'
+            : (isReceiver
+                ? 'Settlement recorded and approved!'
+                : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              isReceiver
-                  ? 'Settlement recorded and approved!'
-                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.',
-            ),
+            content: Text(message),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -1879,14 +1895,14 @@ class _MyBalanceCard extends StatelessWidget {
 class _ConsolidatedMetricsCard extends StatelessWidget {
   final String currencySymbol;
   final double totalSpent;
-  final double perPerson;
+  final double yourSpending;
   final int memberCount;
   final int expenseCount;
 
   const _ConsolidatedMetricsCard({
     required this.currencySymbol,
     required this.totalSpent,
-    required this.perPerson,
+    required this.yourSpending,
     required this.memberCount,
     required this.expenseCount,
   });
@@ -1901,13 +1917,20 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.40 : 0.28),
+          width: 1.1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: AppColors.primaryTeal
+                .withValues(alpha: isDark ? 0.12 : 0.05),
             blurRadius: 10,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -1920,8 +1943,8 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
           ),
           _MetricDivider(isDark: isDark),
           _MetricColumn(
-            value: '$currencySymbol${perPerson.toStringAsFixed(0)}',
-            label: 'Per Person',
+            value: '$currencySymbol${yourSpending.toStringAsFixed(0)}',
+            label: 'Your Spending',
             color: AppColors.primaryTeal,
           ),
           _MetricDivider(isDark: isDark),
@@ -2280,7 +2303,7 @@ class _TourDashboardAppBar extends ConsumerWidget {
                 ],
               ),
               Text(
-                '${tour.status == TourStatus.active ? '🟢 Active' : '⚪ Completed'} · ${tour.currency} · ${DateFormat('MMM d').format(tour.startDate)}',
+                '${tour.status == TourStatus.active ? 'Active' : 'Completed'} · ${tour.currency} · ${DateFormat('MMM d').format(tour.startDate)}',
                 style: TextStyle(
                   fontSize: 12,
                   color: isDark

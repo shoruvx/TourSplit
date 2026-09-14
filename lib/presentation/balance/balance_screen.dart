@@ -1,4 +1,6 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -231,7 +233,8 @@ class BalanceScreen extends ConsumerWidget {
                           child: const Center(
                             child: Column(
                               children: [
-                                Text('🎉', style: TextStyle(fontSize: 36)),
+                                Icon(Icons.check_circle_rounded,
+                                    size: 40, color: AppColors.accent),
                                 SizedBox(height: 8),
                                 Text('All Settled!',
                                     style: TextStyle(
@@ -264,6 +267,15 @@ class BalanceScreen extends ConsumerWidget {
 
   void _requestSettlement(BuildContext context, WidgetRef ref, String tourId,
       DebtTransaction debt, String currency) async {
+    final members = ref.read(tourMembersStreamProvider(tourId)).value ?? [];
+    final toMember =
+        members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+    final isOfflineReceiver =
+        toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
+    final currentUid = ref.read(currentUserProvider).value?.uid;
+    final isReceiver = currentUid == debt.toUserId;
+    final shouldAutoApprove = isReceiver || isOfflineReceiver;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -290,11 +302,18 @@ class BalanceScreen extends ConsumerWidget {
             toUserName: debt.toUserName,
             amount: debt.amount,
             currency: currency,
+            autoApprove: shouldAutoApprove,
+            resolvedByUserId: currentUid,
           );
       if (context.mounted) {
+        final message = isOfflineReceiver
+            ? 'Settlement recorded and auto-approved for offline member.'
+            : (isReceiver
+                ? 'Settlement recorded and approved!'
+                : 'Settlement requested. Waiting for ${debt.toUserName} to approve.');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settlement requested. Waiting for admin approval.'),
+          SnackBar(
+            content: Text(message),
             backgroundColor: AppColors.accent,
           ),
         );
@@ -351,20 +370,32 @@ class _BalanceCard extends StatelessWidget {
               initials: member.initials,
               photoUrl: member.photoUrl,
               radius: 22,
+              userId: member.userId,
+              tourMember: member,
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    member.displayName +
-                        (member.userId == currentUserId ? ' (You)' : ''),
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  if (member.userId == currentUserId) {
+                    context.push('/profile');
+                  } else {
+                    context.push('/member/${member.userId}', extra: member);
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      member.displayName +
+                          (member.userId == currentUserId ? ' (You)' : ''),
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
                     'Paid: $currency$formattedPaid • Spent: $currency$formattedSpent',
                     style: TextStyle(
                       fontSize: 11.5,
@@ -391,8 +422,9 @@ class _BalanceCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Column(
+          ),
+          const SizedBox(width: 12),
+          Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
@@ -449,7 +481,6 @@ class _DebtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final isInvolved =
         debt.fromUserId == currentUserId || debt.toUserId == currentUserId;
 
@@ -461,37 +492,69 @@ class _DebtCard extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: RichText(
-                text: TextSpan(
-                  style: theme.textTheme.bodyMedium,
-                  children: [
-                    TextSpan(
-                      text: debt.fromUserName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.negative,
-                        fontFamily: 'Outfit',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            if (debt.fromUserId == currentUserId) {
+                              context.push('/profile');
+                            } else {
+                              context.push('/member/${debt.fromUserId}');
+                            }
+                          },
+                          child: Text(
+                            debt.fromUserName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.negative,
+                              fontFamily: 'Outfit',
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
-                    ),
-                    const TextSpan(text: ' owes '),
-                    TextSpan(
-                      text: debt.toUserName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.positive,
-                        fontFamily: 'Outfit',
+                      const Text(' owes ',
+                          style: TextStyle(fontFamily: 'Outfit')),
+                      Flexible(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            if (debt.toUserId == currentUserId) {
+                              context.push('/profile');
+                            } else {
+                              context.push('/member/${debt.toUserId}');
+                            }
+                          },
+                          child: Text(
+                            debt.toUserName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.positive,
+                              fontFamily: 'Outfit',
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$currency ${debt.amount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Outfit',
+                      fontSize: 16,
                     ),
-                    TextSpan(
-                      text: '\n$currency ${debt.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Outfit',
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             if (debt.fromUserId == currentUserId)

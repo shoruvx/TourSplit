@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models/tour_model.dart';
 
 ImageProvider? _resolveImageProvider(String? photoUrl) {
   if (photoUrl == null || photoUrl.isEmpty) return null;
@@ -20,6 +24,10 @@ class MemberAvatar extends StatelessWidget {
   final String? photoUrl;
   final double radius;
   final Color? backgroundColor;
+  final String? userId;
+  final TourMemberModel? tourMember;
+  final VoidCallback? onTap;
+  final bool enableTap;
 
   const MemberAvatar({
     super.key,
@@ -27,33 +35,67 @@ class MemberAvatar extends StatelessWidget {
     this.photoUrl,
     this.radius = 20,
     this.backgroundColor,
+    this.userId,
+    this.tourMember,
+    this.onTap,
+    this.enableTap = true,
   });
+
+  void _handleDefaultTap(BuildContext context, String targetUid) {
+    HapticFeedback.lightImpact();
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (targetUid == currentUid) {
+      context.push('/profile');
+    } else {
+      context.push('/member/$targetUid', extra: tourMember);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final imageProvider = _resolveImageProvider(photoUrl);
+    final Widget avatarCore;
     if (imageProvider != null) {
-      return CircleAvatar(
+      avatarCore = CircleAvatar(
         radius: radius,
         backgroundImage: imageProvider,
         backgroundColor:
             backgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.2),
       );
-    }
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor:
-          backgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.15),
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontSize: radius * 0.65,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primaryBlue,
+    } else {
+      avatarCore = CircleAvatar(
+        radius: radius,
+        backgroundColor:
+            backgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.15),
+        child: Text(
+          initials,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: radius * 0.65,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryBlue,
+          ),
         ),
-      ),
-    );
+      );
+    }
+
+    final targetUid = userId ?? tourMember?.userId;
+    final isClickable = enableTap && (onTap != null || targetUid != null);
+
+    if (isClickable) {
+      return Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap ?? () => _handleDefaultTap(context, targetUid!),
+          child: avatarCore,
+        ),
+      );
+    }
+
+    return avatarCore;
   }
 }
 

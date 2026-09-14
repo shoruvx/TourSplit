@@ -156,5 +156,31 @@ void main() {
       final safePerPerson = totalSpent / (emptyMembers.isNotEmpty ? emptyMembers.length : 1);
       expect(safePerPerson, 1500.0);
     });
+
+    test('TourMemberModel initials and offline flag work as expected', () {
+      final onlineMember = TourMemberModel(
+        userId: 'user_1',
+        displayName: 'Shoruv Ahmed',
+        email: 'shoruv@example.com',
+        role: 'admin',
+        joinedAt: DateTime.now(),
+        isOffline: false,
+      );
+      expect(onlineMember.initials, 'SA');
+      expect(onlineMember.isAdmin, isTrue);
+      expect(onlineMember.isOffline, isFalse);
+
+      final offlineMember = TourMemberModel(
+        userId: 'offline_123',
+        displayName: 'Rahim',
+        email: '',
+        role: 'member',
+        joinedAt: DateTime.now(),
+        isOffline: true,
+      );
+      expect(offlineMember.initials, 'R');
+      expect(offlineMember.isOffline, isTrue);
+      expect(offlineMember.isAdmin, isFalse);
+    });
   });
 }

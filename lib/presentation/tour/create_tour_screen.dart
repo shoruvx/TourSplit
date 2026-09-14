@@ -31,12 +31,12 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
   DateTime _endDate = DateTime.now().add(const Duration(days: 4));
   String? _selectedCoverPreset;
 
-  final List<Map<String, String>> _coverPresets = [
-    {'name': 'Beach', 'emoji': '🏖️', 'desc': 'Coastal & Tropical'},
-    {'name': 'Mountains', 'emoji': '🏔️', 'desc': 'Hiking & Peaks'},
-    {'name': 'Road Trip', 'emoji': '🚗', 'desc': 'Highway Drive'},
-    {'name': 'Camping', 'emoji': '🏕️', 'desc': 'Outdoors & Tents'},
-    {'name': 'City Life', 'emoji': '🏙️', 'desc': 'Urban & Sights'},
+  final List<({String name, IconData icon, String desc})> _coverPresets = const [
+    (name: 'Beach', icon: Icons.beach_access_rounded, desc: 'Coastal & Tropical'),
+    (name: 'Mountains', icon: Icons.terrain_rounded, desc: 'Hiking & Peaks'),
+    (name: 'Road Trip', icon: Icons.directions_car_rounded, desc: 'Highway Drive'),
+    (name: 'Camping', icon: Icons.forest_rounded, desc: 'Outdoors & Tents'),
+    (name: 'City Life', icon: Icons.location_city_rounded, desc: 'Urban & Sights'),
   ];
 
   @override
@@ -242,12 +242,12 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                     separatorBuilder: (_, __) => const SizedBox(width: 10),
                     itemBuilder: (ctx, i) {
                       final item = _coverPresets[i];
-                      final isSelected = _selectedCoverPreset == item['name'];
+                      final isSelected = _selectedCoverPreset == item.name;
                       return GestureDetector(
                         onTap: () {
                           setState(() {
                             _selectedCoverPreset =
-                                isSelected ? null : item['name'];
+                                isSelected ? null : item.name;
                           });
                         },
                         child: AnimatedContainer(
@@ -273,11 +273,16 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(item['emoji']!,
-                                  style: const TextStyle(fontSize: 28)),
-                              const SizedBox(height: 4),
+                              Icon(
+                                item.icon,
+                                size: 28,
+                                color: isSelected
+                                    ? AppColors.primaryTeal
+                                    : (isDark ? Colors.white70 : Colors.black54),
+                              ),
+                              const SizedBox(height: 6),
                               Text(
-                                item['name']!,
+                                item.name,
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: isSelected

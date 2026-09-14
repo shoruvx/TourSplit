@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/expense_model.dart';
@@ -339,36 +341,58 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                           const SizedBox(width: 8),
                           Expanded(
                             flex: 3,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  payerDisplay,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 11.5,
-                                    color: exp.isMultiPayer
-                                        ? AppColors.primaryTeal
-                                        : (isDark
-                                            ? const Color(0xFFCBD5E1)
-                                            : const Color(0xFF334155)),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                if (exp.isMultiPayer)
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: exp.isMultiPayer
+                                  ? null
+                                  : () {
+                                      HapticFeedback.lightImpact();
+                                      final currentUid = FirebaseAuth
+                                          .instance.currentUser?.uid;
+                                      if (exp.paidByUserId == currentUid) {
+                                        context.push('/profile');
+                                      } else {
+                                        context.push(
+                                            '/member/${exp.paidByUserId}');
+                                      }
+                                    },
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
                                   Text(
-                                    '(${exp.payers!.length} people)',
+                                    payerDisplay,
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
-                                      fontSize: 9.5,
-                                      color: isDark
-                                          ? Colors.white60
-                                          : Colors.grey.shade600,
+                                      fontSize: 11.5,
+                                      color: exp.isMultiPayer
+                                          ? AppColors.primaryTeal
+                                          : (isDark
+                                              ? const Color(0xFFCBD5E1)
+                                              : const Color(0xFF334155)),
+                                      fontWeight: FontWeight.w700,
+                                      decoration: !exp.isMultiPayer
+                                          ? TextDecoration.underline
+                                          : null,
+                                      decorationColor: isDark
+                                          ? Colors.white24
+                                          : Colors.black26,
                                     ),
                                   ),
-                              ],
+                                  if (exp.isMultiPayer)
+                                    Text(
+                                      '(${exp.payers!.length} people)',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 9.5,
+                                        color: isDark
+                                            ? Colors.white60
+                                            : Colors.grey.shade600,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                           Expanded(

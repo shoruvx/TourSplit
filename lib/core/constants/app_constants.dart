@@ -13,15 +13,15 @@ class AppConstants {
   static const int inviteCodeLength = 6;
 
   static const List<Map<String, dynamic>> defaultCategories = [
-    {'name': 'Food & Drinks', 'icon': '🍽️'},
-    {'name': 'Transport', 'icon': '🚗'},
-    {'name': 'Accommodation', 'icon': '🏨'},
-    {'name': 'Activities', 'icon': '🎭'},
-    {'name': 'Shopping', 'icon': '🛍️'},
-    {'name': 'Fuel', 'icon': '⛽'},
-    {'name': 'Medical', 'icon': '💊'},
-    {'name': 'Entry Tickets', 'icon': '🎟️'},
-    {'name': 'Miscellaneous', 'icon': '📦'},
+    {'name': 'Food & Drinks', 'icon': 'food'},
+    {'name': 'Transport', 'icon': 'transport'},
+    {'name': 'Accommodation', 'icon': 'hotel'},
+    {'name': 'Activities', 'icon': 'activities'},
+    {'name': 'Shopping', 'icon': 'shopping'},
+    {'name': 'Fuel', 'icon': 'fuel'},
+    {'name': 'Medical', 'icon': 'medical'},
+    {'name': 'Entry Tickets', 'icon': 'tickets'},
+    {'name': 'Miscellaneous', 'icon': 'misc'},
   ];
 
   static const List<Map<String, String>> currencies = [

@@ -69,12 +69,6 @@ class ReportScreen extends ConsumerWidget {
                 final totalSpent =
                     expenses.fold(0.0, (sum, e) => sum + e.amount);
 
-                final byCategory = <String, double>{};
-                for (final e in expenses) {
-                  byCategory[e.category] =
-                      (byCategory[e.category] ?? 0) + e.amount;
-                }
-
                 return PopScope(
                   canPop: false,
                   onPopInvokedWithResult: (didPop, _) {
@@ -152,51 +146,7 @@ class ReportScreen extends ConsumerWidget {
                             ],
                           ),
                         ).animate().fadeIn().scale(),
-                        const SizedBox(height: 24),
-                        Text('By Category',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 12),
-                        ...byCategory.entries.map((e) {
-                          final pct =
-                              totalSpent > 0 ? e.value / totalSpent : 0.0;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                    width: 120,
-                                    child: Text(e.key,
-                                        style: const TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 13))),
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: pct,
-                                      minHeight: 8,
-                                      backgroundColor:
-                                          Theme.of(context).dividerColor,
-                                      valueColor: const AlwaysStoppedAnimation(
-                                          AppColors.primaryBlue),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${tour.currencySymbol} ${e.value.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
+
                         const SizedBox(height: 24),
                         Text('Daily Expense Ledger',
                             style: Theme.of(context)
@@ -281,7 +231,6 @@ class ReportScreen extends ConsumerWidget {
                               balances,
                               debts,
                               tour.currencySymbol,
-                              byCategory,
                               totalSpent),
                           label: 'Export PDF Report',
                           icon: Icons.picture_as_pdf_rounded,
@@ -335,7 +284,6 @@ class ReportScreen extends ConsumerWidget {
     Map<String, double> balances,
     List debts,
     String currencySymbol,
-    Map<String, double> byCategory,
     double totalSpent,
   ) async {
     final pdf = pw.Document();
@@ -389,20 +337,7 @@ class ReportScreen extends ConsumerWidget {
             );
           }),
         ],
-        pw.SizedBox(height: 16),
-        pw.Text('EXPENSE BREAKDOWN BY CATEGORY',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-        pw.SizedBox(height: 6),
-        ...byCategory.entries.map((e) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 3),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(e.key),
-                  pw.Text('$pdfCurrency ${e.value.toStringAsFixed(2)}'),
-                ],
-              ),
-            )),
+
         pw.SizedBox(height: 16),
         pw.Text('FINAL BALANCES',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),

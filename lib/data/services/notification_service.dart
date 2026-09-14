@@ -65,6 +65,43 @@ class NotificationService {
     }
   }
 
+  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    try {
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings();
+      await _localNotifications.initialize(
+        settings: const InitializationSettings(
+          android: androidSettings,
+          iOS: iosSettings,
+        ),
+      );
+
+      final notif = message.notification;
+      if (notif != null) {
+        await _localNotifications.show(
+          id: notif.hashCode,
+          title: notif.title,
+          body: notif.body,
+          notificationDetails: NotificationDetails(
+            android: AndroidNotificationDetails(
+              _channel.id,
+              _channel.name,
+              channelDescription: _channel.description,
+              importance: Importance.max,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+            ),
+            iOS: const DarwinNotificationDetails(),
+          ),
+        );
+      } else if (message.data['type'] == 'app_update') {
+        final version = message.data['version'] ?? 'latest';
+        await showUpdateNotification(latestVersion: version);
+      }
+    } catch (_) {}
+  }
+
   static Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
@@ -78,7 +115,7 @@ class NotificationService {
           _channel.id,
           _channel.name,
           channelDescription: _channel.description,
-          importance: Importance.high,
+          importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
         ),
@@ -94,8 +131,8 @@ class NotificationService {
     try {
       await _localNotifications.show(
         id: 999991,
-        title: 'TourSplit Update Available! 🚀',
-        body: 'Version v$latestVersion is available. Tap to update with 1-click!',
+        title: 'TourSplit Update Available',
+        body: 'Version v$latestVersion is available. Tap to update with 1-click.',
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channel.id,

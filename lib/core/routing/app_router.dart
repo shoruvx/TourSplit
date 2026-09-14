@@ -20,6 +20,9 @@ import '../../presentation/balance/balance_screen.dart';
 import '../../presentation/settlement/settlement_screen.dart';
 import '../../presentation/reports/report_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
+import '../../presentation/profile/contact_us_screen.dart';
+import '../../presentation/profile/member_profile_screen.dart';
+import '../../data/models/tour_model.dart';
 
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this._ref) {
@@ -145,6 +148,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         name: 'profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/contact-us',
+        name: 'contact-us',
+        builder: (context, state) => const ContactUsScreen(),
+      ),
+      GoRoute(
+        path: '/member/:userId',
+        name: 'member-profile',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          final member = state.extra as TourMemberModel?;
+          return MemberProfileScreen(userId: userId, member: member);
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

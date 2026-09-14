@@ -432,7 +432,12 @@ class _TourCard extends ConsumerWidget {
     final totalSpent = approvedExpenses.fold(0.0, (sum, e) => sum + e.amount);
     final expenseCount = expenses.length;
     final memberCount = tour.memberIds.length;
-    final perPerson = totalSpent / (memberCount > 0 ? memberCount : 1);
+    final mySpending = currentUserId != null
+        ? approvedExpenses.fold(
+            0.0,
+            (sum, e) => sum + (e.splits[currentUserId] ?? 0.0),
+          )
+        : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -443,31 +448,24 @@ class _TourCard extends ConsumerWidget {
           color: isCurrentActive
               ? AppColors.primaryTeal
               : (isTourActive
-                  ? AppColors.primaryTeal.withValues(alpha: isDark ? 0.38 : 0.28)
-                  : (isDark ? AppColors.darkBorder : AppColors.lightBorder)),
-          width: isCurrentActive ? 1.8 : 1.0,
+                  ? AppColors.primaryTeal
+                      .withValues(alpha: isDark ? 0.44 : 0.30)
+                  : AppColors.primaryTeal
+                      .withValues(alpha: isDark ? 0.25 : 0.18)),
+          width: isCurrentActive ? 1.8 : 1.1,
         ),
         boxShadow: [
-          if (isCurrentActive)
-            BoxShadow(
-              color:
-                  AppColors.primaryTeal.withValues(alpha: isDark ? 0.20 : 0.12),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            )
-          else if (isTourActive)
-            BoxShadow(
-              color:
-                  AppColors.primaryTeal.withValues(alpha: isDark ? 0.08 : 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            )
-          else
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+          BoxShadow(
+            color: AppColors.primaryTeal
+                .withValues(alpha: isCurrentActive ? (isDark ? 0.22 : 0.14) : (isDark ? 0.12 : 0.05)),
+            blurRadius: isCurrentActive ? 12 : 8,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
         ],
       ),
       child: InkWell(
@@ -595,7 +593,7 @@ class _TourCard extends ConsumerWidget {
               _TourMetricsStrip(
                 currencySymbol: tour.currencySymbol,
                 totalSpent: totalSpent,
-                perPerson: perPerson,
+                yourSpending: mySpending,
                 memberCount: memberCount,
                 expenseCount: expenseCount,
                 isLoading:
@@ -685,7 +683,7 @@ class _TourCard extends ConsumerWidget {
 class _TourMetricsStrip extends StatelessWidget {
   final String currencySymbol;
   final double totalSpent;
-  final double perPerson;
+  final double yourSpending;
   final int memberCount;
   final int expenseCount;
   final bool isLoading;
@@ -693,7 +691,7 @@ class _TourMetricsStrip extends StatelessWidget {
   const _TourMetricsStrip({
     required this.currencySymbol,
     required this.totalSpent,
-    required this.perPerson,
+    required this.yourSpending,
     required this.memberCount,
     required this.expenseCount,
     this.isLoading = false,
@@ -714,149 +712,187 @@ class _TourMetricsStrip extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6.5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark
-              ? AppColors.darkBorder.withValues(alpha: 0.6)
-              : AppColors.lightBorder,
-          width: 0.9,
+          color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.35 : 0.20),
+          width: 1.0,
         ),
       ),
-      child: Row(
-        children: [
-          _MiniMetric(
-            label: 'Total',
-            value: _formatAmount(totalSpent),
-            valueColor: AppColors.primaryTeal,
-            isLoading: isLoading,
-          ),
-          _MiniDivider(isDark: isDark),
-          _MiniMetric(
-            label: 'Per Person',
-            value: _formatAmount(perPerson),
-            valueColor: AppColors.primaryTeal,
-            isLoading: isLoading,
-          ),
-          _MiniDivider(isDark: isDark),
-          _MiniMetric(
-            label: 'Members',
-            value: '$memberCount',
-            icon: Icons.groups_rounded,
-            isLoading: false,
-          ),
-          _MiniDivider(isDark: isDark),
-          _MiniMetric(
-            label: 'Expenses',
-            value: '$expenseCount',
-            isLoading: isLoading,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-  final IconData? icon;
-  final bool isLoading;
-
-  const _MiniMetric({
-    required this.label,
-    required this.value,
-    this.valueColor,
-    this.icon,
-    this.isLoading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final effectiveColor = valueColor ?? defaultColor;
-
-    return Expanded(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (isLoading)
-            Container(
-              width: 28,
-              height: 13,
-              margin: const EdgeInsets.symmetric(vertical: 1),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(4),
+          Row(
+            children: [
+              // Total Spending Pill
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal
+                            .withValues(alpha: isDark ? 0.20 : 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        size: 14,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'TOTAL SPENT',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            isLoading ? '...' : _formatAmount(totalSpent),
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 12, color: effectiveColor),
-                  const SizedBox(width: 3),
-                ],
-                Flexible(
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              Container(
+                height: 28,
+                width: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                color: isDark
+                    ? AppColors.darkBorder.withValues(alpha: 0.8)
+                    : AppColors.lightBorder,
+              ),
+              // Your Spending Hero Pill
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal
+                            .withValues(alpha: isDark ? 0.25 : 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.pie_chart_rounded,
+                        size: 14,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'YOUR SPENDING',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                              color: AppColors.primaryTeal,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            isLoading ? '...' : _formatAmount(yourSpending),
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryTeal,
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Sub-chips row: Members & Expenses
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.groups_rounded,
+                    size: 13,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$memberCount members',
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: effectiveColor,
-                      height: 1.15,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
                     ),
                   ),
-                ),
-              ],
-            ),
-          const SizedBox(height: 1.5),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 9.5,
-              fontWeight: FontWeight.w500,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
-              letterSpacing: 0.1,
-              height: 1.1,
-            ),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.receipt_long_rounded,
+                    size: 13,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$expenseCount expenses',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MiniDivider extends StatelessWidget {
-  final bool isDark;
-  const _MiniDivider({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 18,
-      width: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 2),
-      color: isDark
-          ? AppColors.darkBorder.withValues(alpha: 0.6)
-          : AppColors.lightBorder,
     );
   }
 }

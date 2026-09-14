@@ -70,3 +70,11 @@ jobs:
           files: ${{ steps.prepare_asset.outputs.apk_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Broadcast FCM Update Notification
+        run: |
+          pip install cryptography || true
+          python3 scripts/broadcast_update_notification.py "${{ steps.prepare_asset.outputs.clean_version }}" "${{ github.event.inputs.release_notes || 'TourSplit update: Split the costs, keep the memories.' }}"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        continue-on-error: true

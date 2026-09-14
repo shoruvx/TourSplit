@@ -71,5 +71,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isLoggedIn();
     }
+
+    match /suggestions/{suggestionId} {
+      allow create: if isLoggedIn();
+      allow read, update, delete: if false;
+    }
   }
 }

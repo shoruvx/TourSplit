@@ -1,4 +1,6 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -396,8 +398,15 @@ class SettlementScreen extends ConsumerWidget {
     );
 
     if (confirmed == true) {
+      final members = ref.read(tourMembersStreamProvider(tour.id)).value ?? [];
+      final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+      final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
+      final currentUid = ref.read(currentUserProvider).value?.uid;
+      final isReceiver = currentUid == debt.toUserId;
+      final shouldAutoApprove = isReceiver || isOfflineReceiver;
+
       final repo = ref.read(settlementRepositoryProvider);
-      final settlement = await repo.requestSettlement(
+      await repo.requestSettlement(
         tourId: tour.id,
         fromUserId: debt.fromUserId,
         fromUserName: debt.fromUserName,
@@ -406,27 +415,19 @@ class SettlementScreen extends ConsumerWidget {
         amount: debt.amount,
         currency: tour.currency,
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+        autoApprove: shouldAutoApprove,
+        resolvedByUserId: currentUid ?? tour.adminId,
       );
 
-      final currentUid = ref.read(currentUserProvider).value?.uid;
-      final isReceiver = currentUid == debt.toUserId;
-      if (isReceiver) {
-        await repo.resolveSettlement(
-          tourId: tour.id,
-          settlementId: settlement.id,
-          status: SettlementStatus.approved,
-          resolvedByUserId: currentUid ?? tour.adminId,
-        );
-      }
-
       if (context.mounted) {
+        final message = isOfflineReceiver
+            ? 'Settlement recorded and auto-approved for offline member.'
+            : (isReceiver
+                ? 'Settlement recorded and approved!'
+                : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              isReceiver
-                  ? 'Settlement recorded and approved!'
-                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.',
-            ),
+            content: Text(message),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -533,15 +534,26 @@ class _SuggestedDebtCard extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        debt.fromUserName,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: AppColors.negative,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          if (debt.fromUserId == currentUserId) {
+                            context.push('/profile');
+                          } else {
+                            context.push('/member/${debt.fromUserId}');
+                          }
+                        },
+                        child: Text(
+                          debt.fromUserName,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.negative,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const Padding(
@@ -550,15 +562,26 @@ class _SuggestedDebtCard extends StatelessWidget {
                           size: 14, color: Colors.grey),
                     ),
                     Flexible(
-                      child: Text(
-                        debt.toUserName,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: AppColors.positive,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          if (debt.toUserId == currentUserId) {
+                            context.push('/profile');
+                          } else {
+                            context.push('/member/${debt.toUserId}');
+                          }
+                        },
+                        child: Text(
+                          debt.toUserName,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.positive,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -631,10 +654,10 @@ class _SettlementCard extends StatelessWidget {
         statusText = 'Pending';
       case SettlementStatus.approved:
         statusColor = AppColors.positive;
-        statusText = '✓ Approved';
+        statusText = 'Approved';
       case SettlementStatus.rejected:
         statusColor = AppColors.negative;
-        statusText = '✗ Rejected';
+        statusText = 'Rejected';
     }
 
     return Container(
@@ -662,15 +685,26 @@ class _SettlementCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
-                              settlement.fromUserName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.negative,
-                                fontFamily: 'Outfit',
-                                fontSize: 14,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                if (settlement.fromUserId == currentUserId) {
+                                  context.push('/profile');
+                                } else {
+                                  context.push('/member/${settlement.fromUserId}');
+                                }
+                              },
+                              child: Text(
+                                settlement.fromUserName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.negative,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const Padding(
@@ -679,15 +713,26 @@ class _SettlementCard extends StatelessWidget {
                                 size: 14, color: Colors.grey),
                           ),
                           Flexible(
-                            child: Text(
-                              settlement.toUserName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.positive,
-                                fontFamily: 'Outfit',
-                                fontSize: 14,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                if (settlement.toUserId == currentUserId) {
+                                  context.push('/profile');
+                                } else {
+                                  context.push('/member/${settlement.toUserId}');
+                                }
+                              },
+                              child: Text(
+                                settlement.toUserName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.positive,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

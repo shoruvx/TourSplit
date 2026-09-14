@@ -90,7 +90,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Joined "${tour.name}"! 🎉'),
+            content: Text('Joined "${tour.name}" successfully.'),
             backgroundColor: AppColors.positive,
           ),
         );

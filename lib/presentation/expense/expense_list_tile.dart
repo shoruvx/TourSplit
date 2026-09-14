@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -69,9 +72,10 @@ class ExpenseListTile extends StatelessWidget {
                 child: expense.splitType == SplitType.custom
                     ? const Icon(Icons.call_split_rounded,
                         color: AppColors.accent, size: 22)
-                    : Text(
-                        _getCategoryEmoji(expense.category),
-                        style: const TextStyle(fontSize: 22),
+                    : Icon(
+                        _getCategoryIcon(expense.category),
+                        color: AppColors.primaryTeal,
+                        size: 22,
                       ),
               ),
             ),
@@ -117,10 +121,33 @@ class ExpenseListTile extends StatelessWidget {
                         const Text(' · ', style: TextStyle(color: Colors.grey)),
                       ],
                       Flexible(
-                        child: Text(
-                          'Paid by ${expense.isMultiPayer ? expense.paidByName : expense.paidByName.split(' ').first}',
-                          style: theme.textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: expense.isMultiPayer
+                              ? null
+                              : () {
+                                  HapticFeedback.lightImpact();
+                                  final currentUid =
+                                      FirebaseAuth.instance.currentUser?.uid;
+                                  if (expense.paidByUserId == currentUid) {
+                                    context.push('/profile');
+                                  } else {
+                                    context.push(
+                                        '/member/${expense.paidByUserId}');
+                                  }
+                                },
+                          child: Text(
+                            'Paid by ${expense.isMultiPayer ? expense.paidByName : expense.paidByName.split(' ').first}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: !expense.isMultiPayer
+                                  ? AppColors.primaryTeal
+                                  : null,
+                              fontWeight: !expense.isMultiPayer
+                                  ? FontWeight.w600
+                                  : null,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
@@ -260,22 +287,22 @@ class ExpenseListTile extends StatelessWidget {
     );
   }
 
-  String _getCategoryEmoji(String category) {
+  IconData _getCategoryIcon(String category) {
     const map = {
-      'Food': '🍔',
-      'Food & Drinks': '🍽️',
-      'Transport': '🚗',
-      'Hotel': '🏨',
-      'Accommodation': '🏨',
-      'Snacks': '☕',
-      'Activities': '🎭',
-      'Shopping': '🛍️',
-      'Fuel': '⛽',
-      'Medical': '💊',
-      'Entry Tickets': '🎟️',
-      'Miscellaneous': '📦',
-      'General': '💳',
+      'Food': Icons.restaurant_rounded,
+      'Food & Drinks': Icons.restaurant_rounded,
+      'Transport': Icons.directions_car_rounded,
+      'Hotel': Icons.hotel_rounded,
+      'Accommodation': Icons.hotel_rounded,
+      'Snacks': Icons.local_cafe_rounded,
+      'Activities': Icons.attractions_rounded,
+      'Shopping': Icons.shopping_bag_rounded,
+      'Fuel': Icons.local_gas_station_rounded,
+      'Medical': Icons.medical_services_rounded,
+      'Entry Tickets': Icons.confirmation_number_rounded,
+      'Miscellaneous': Icons.inventory_2_rounded,
+      'General': Icons.credit_card_rounded,
     };
-    return map[category] ?? '💳';
+    return map[category] ?? Icons.receipt_long_rounded;
   }
 }

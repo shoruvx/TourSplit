@@ -180,12 +180,15 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
-        elevation: 0,
+        elevation: isDark ? 2.5 : 1.5,
+        shadowColor:
+            AppColors.primaryTeal.withValues(alpha: isDark ? 0.35 : 0.15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.card),
           side: BorderSide(
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            width: 1,
+            color:
+                AppColors.primaryTeal.withValues(alpha: isDark ? 0.40 : 0.28),
+            width: 1.1,
           ),
         ),
       ),
@@ -206,7 +209,11 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryTeal,
           foregroundColor: Colors.white,
-          elevation: 0,
+          elevation: 1,
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.85),
+            width: 1.0,
+          ),
           minimumSize: const Size(double.infinity, 50),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.button),

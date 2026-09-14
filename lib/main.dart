@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'firebase_options.dart';
 import 'core/routing/app_router.dart';
+import 'core/theme/theme_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/app_update_service.dart';
@@ -15,6 +16,7 @@ import 'presentation/widgets/app_update_listener.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.handleBackgroundMessage(message);
 }
 
 Future<void> main() async {
@@ -59,13 +61,14 @@ class TourExpenseTrackerApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     debugPrint('[APP] TourExpenseTrackerApp.build()');
     final router = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
       title: 'TourSplit',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
         ErrorWidget.builder = (details) {

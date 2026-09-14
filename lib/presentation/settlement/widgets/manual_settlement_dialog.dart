@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/tour_model.dart';
-import '../../../data/models/settlement_model.dart';
 import '../../../data/repositories/settlement_repository.dart';
 
 class ManualSettlementDialog {
@@ -355,8 +354,12 @@ class ManualSettlementDialog {
       final fromMember = members.firstWhere((m) => m.userId == fromUid);
       final toMember = members.firstWhere((m) => m.userId == toUid);
 
+      final isReceiver = currentUserId == toUid;
+      final isOfflineReceiver = toMember.isOffline || toUid.startsWith('offline_');
+      final shouldAutoApprove = isReceiver || isOfflineReceiver;
+
       final repo = ref.read(settlementRepositoryProvider);
-      final settlement = await repo.requestSettlement(
+      await repo.requestSettlement(
         tourId: tour.id,
         fromUserId: fromUid,
         fromUserName: fromMember.displayName,
@@ -365,26 +368,19 @@ class ManualSettlementDialog {
         amount: amt,
         currency: tour.currency,
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+        autoApprove: shouldAutoApprove,
+        resolvedByUserId: currentUserId,
       );
 
-      final isReceiver = currentUserId == toUid;
-      if (isReceiver) {
-        await repo.resolveSettlement(
-          tourId: tour.id,
-          settlementId: settlement.id,
-          status: SettlementStatus.approved,
-          resolvedByUserId: currentUserId,
-        );
-      }
-
       if (context.mounted) {
+        final message = isOfflineReceiver
+            ? 'Settlement recorded and auto-approved for offline member.'
+            : (isReceiver
+                ? 'Settlement recorded and approved! Balances adjusted.'
+                : 'Settlement recorded. Waiting for ${toMember.displayName} to approve.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              isReceiver
-                  ? 'Settlement recorded and approved! Balances adjusted.'
-                  : 'Settlement recorded. Waiting for ${toMember.displayName} to approve.',
-            ),
+            content: Text(message),
             backgroundColor: AppColors.positive,
           ),
         );

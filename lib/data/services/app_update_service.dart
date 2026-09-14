@@ -187,7 +187,7 @@ class AppUpdateService {
         final latestVersion =
             rawTag.startsWith('v') ? rawTag.substring(1) : rawTag;
         final releaseNotes =
-            data['body'] as String? ?? 'TourSplit release update! 🎉';
+            data['body'] as String? ?? 'TourSplit release update: Split the costs, keep the memories.';
         final assets = data['assets'] as List<dynamic>? ?? [];
 
         String apkUrl = '';
@@ -263,7 +263,7 @@ class AppUpdateService {
           buildNumber: 5,
           minSupportedVersion: '1.0.1',
           releaseNotes:
-              'TourSplit v$latestVersion is available on GitHub with the latest updates! 🎉',
+              'TourSplit v$latestVersion is available on GitHub with the latest updates.',
           apkUrl: apkUrl,
           forceUpdate: false,
           releasedAt: DateTime.now(),
@@ -298,7 +298,7 @@ class AppUpdateService {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'You are on the latest version of TourSplit (v$currentVer) ✨'),
+              'You are on the latest version of TourSplit (v$currentVer).'),
           backgroundColor: AppColors.positive,
         ),
       );
@@ -614,7 +614,7 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                 ).animate().scale(duration: 350.ms, curve: Curves.easeOutBack),
                 const SizedBox(height: 12),
                 const Text(
-                  'Update Available! 🚀',
+                  'Update Available',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Outfit',

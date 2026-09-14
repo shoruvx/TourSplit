@@ -21,6 +21,8 @@ class SettlementRepository {
     required double amount,
     required String currency,
     String? note,
+    bool autoApprove = false,
+    String? resolvedByUserId,
   }) async {
     final data = {
       'tourId': tourId,
@@ -30,10 +32,10 @@ class SettlementRepository {
       'toUserName': toUserName,
       'amount': amount,
       'currency': currency,
-      'status': 'requested',
+      'status': autoApprove ? 'approved' : 'requested',
       'requestedAt': FieldValue.serverTimestamp(),
-      'resolvedAt': null,
-      'resolvedBy': null,
+      'resolvedAt': autoApprove ? FieldValue.serverTimestamp() : null,
+      'resolvedBy': autoApprove ? (resolvedByUserId ?? fromUserId) : null,
       'note': note,
     };
 

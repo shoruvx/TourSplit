@@ -7,13 +7,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../core/constants/app_constants.dart';
 import '../../data/models/user_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/app_update_service.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/whats_new_dialog.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -63,7 +63,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Profile updated successfully! 🎉'),
+            content: Text('Profile updated successfully!'),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -115,7 +115,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Profile picture updated successfully! ✨'),
+            content: Text('Profile picture updated successfully!'),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -292,7 +292,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     if (mounted) {
                       messenger.showSnackBar(
                         const SnackBar(
-                          content: Text('Receiving account added! ✨'),
+                          content: Text('Receiving account added!'),
                           backgroundColor: AppColors.positive,
                         ),
                       );
@@ -400,8 +400,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.40 : 0.28),
+          width: 1.1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color:
+                AppColors.primaryTeal.withValues(alpha: isDark ? 0.10 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +430,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'Payout Methods',
+                      'Preferred Payout Methods',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w600,
@@ -855,186 +864,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _showPublishUpdateDialog(BuildContext context) {
-    final versionCtrl = TextEditingController(text: '1.2.0');
-    final buildCtrl = TextEditingController(text: '11');
-    final notesCtrl = TextEditingController(
-      text:
-          'TourSplit update: Split the costs, keep the memories! Math expression calculations, settlement fixes, offline-online linking, profile avatar updates, and performance polish.',
-    );
-    final urlCtrl = TextEditingController(
-      text:
-          'https://github.com/${AppConstants.githubRepo}/releases/download/v1.2.0/TourSplit-v1.2.0.apk',
-    );
-    bool forceUpdate = false;
-    bool autoDownload = true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color:
-                                AppColors.primaryTeal.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.rocket_launch_rounded,
-                              color: AppColors.primaryTeal),
-                        ),
-                        const SizedBox(width: 12),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Release App Update 🚀',
-                              style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700),
-                            ),
-                            Text(
-                              'All users will automatically receive update',
-                              style:
-                                  TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppTextField(
-                            controller: versionCtrl,
-                            label: 'Version (e.g. 1.1.0)',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: AppTextField(
-                            controller: buildCtrl,
-                            label: 'Build # (e.g. 2)',
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      controller: urlCtrl,
-                      label: 'Direct APK Download URL',
-                      hint: 'https://github.com/.../TourSplit.apk',
-                    ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      controller: notesCtrl,
-                      label: "What's New (Release Notes)",
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Auto-Download & Prompt Install',
-                          style: TextStyle(fontFamily: 'Outfit', fontSize: 14)),
-                      subtitle: const Text(
-                          'Background downloads APK & prompts install automatically',
-                          style: TextStyle(fontSize: 12)),
-                      value: autoDownload,
-                      onChanged: (v) => setModalState(() => autoDownload = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Mandatory / Force Update',
-                          style: TextStyle(fontFamily: 'Outfit', fontSize: 14)),
-                      subtitle: const Text(
-                          'Users must update before continuing',
-                          style: TextStyle(fontSize: 12)),
-                      value: forceUpdate,
-                      onChanged: (v) => setModalState(() => forceUpdate = v),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          Navigator.pop(ctx);
-                          final ver = versionCtrl.text.trim();
-                          String finalUrl = urlCtrl.text.trim();
-                          if (finalUrl.isEmpty ||
-                              !finalUrl.toLowerCase().endsWith('.apk')) {
-                            finalUrl =
-                                'https://github.com/${AppConstants.githubRepo}/releases/download/v$ver/TourSplit-v$ver.apk';
-                          }
-
-                          await AppUpdateService.publishUpdate(
-                            latestVersion: ver,
-                            buildNumber:
-                                int.tryParse(buildCtrl.text.trim()) ?? 1,
-                            releaseNotes: notesCtrl.text.trim(),
-                            apkUrl: finalUrl,
-                            forceUpdate: forceUpdate,
-                            autoDownload: autoDownload,
-                          );
-                          if (mounted) {
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Published v$ver! All devices will receive update automatically 🚀'),
-                                backgroundColor: AppColors.positive,
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.send_rounded,
-                            color: Colors.white, size: 20),
-                        label: const Text(
-                          'Publish Update to All Users',
-                          style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryTeal,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1079,6 +908,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     }
                   },
                 ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.feedback_outlined),
+                    tooltip: 'Contact Us & Suggestions',
+                    onPressed: () => context.push('/profile/contact-us'),
+                  ),
+                ],
               ),
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
@@ -1169,6 +1005,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
                         foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          width: 1.0,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadius.button),
                         ),
@@ -1215,11 +1055,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           border: Border.all(
                             color: hasUpdate
                                 ? AppColors.primaryTeal
-                                : (isDark
-                                    ? const Color(0xFF334155)
-                                    : const Color(0xFFE2E8F0)),
-                            width: hasUpdate ? 2 : 1,
+                                : AppColors.primaryTeal
+                                    .withValues(alpha: isDark ? 0.40 : 0.28),
+                            width: hasUpdate ? 1.8 : 1.1,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryTeal
+                                  .withValues(alpha: isDark ? 0.12 : 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1289,60 +1136,176 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ],
                             ),
                             const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () => AppUpdateService
-                                        .checkForUpdatesInteractive(
-                                            context, ref),
-                                    icon: Icon(
-                                      hasUpdate
-                                          ? Icons.system_update_alt_rounded
-                                          : Icons.check_circle_outline_rounded,
-                                      size: 18,
-                                      color: hasUpdate
-                                          ? AppColors.primaryTeal
-                                          : Colors.grey,
-                                    ),
-                                    label: Text(
-                                      hasUpdate
-                                          ? 'Update Available!'
-                                          : 'Check for Updates',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: hasUpdate
-                                            ? AppColors.primaryTeal
-                                            : null,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      side: BorderSide(
-                                        color: hasUpdate
-                                            ? AppColors.primaryTeal
-                                            : Colors.grey.shade400,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12)),
-                                    ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => AppUpdateService
+                                    .checkForUpdatesInteractive(
+                                        context, ref),
+                                icon: Icon(
+                                  hasUpdate
+                                      ? Icons.system_update_alt_rounded
+                                      : Icons.check_circle_outline_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  hasUpdate
+                                      ? 'Update Available!'
+                                      : 'Check for Updates',
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  onPressed: () =>
-                                      _showPublishUpdateDialog(context),
-                                  icon: const Icon(Icons.cloud_upload_outlined,
-                                      color: AppColors.primaryTeal),
-                                  tooltip: 'Publish New Release',
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primaryTeal,
+                                  foregroundColor: Colors.white,
+                                  elevation: 1,
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    width: 1.0,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(AppRadius.button)),
                                 ),
-                              ],
+                              ),
                             ),
                           ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final isDark =
+                          Theme.of(context).brightness == Brightness.dark;
+                      return Material(
+                        color: isDark
+                            ? const Color(0xFF131D2E)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: AppColors.primaryTeal
+                                  .withValues(alpha: isDark ? 0.40 : 0.28),
+                              width: 1.1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primaryTeal
+                                    .withValues(alpha: isDark ? 0.10 : 0.04),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              ListTile(
+                                onTap: () => WhatsNewDialog.show(context),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                leading: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryTeal
+                                        .withValues(alpha: isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 20,
+                                    color: AppColors.primaryTeal,
+                                  ),
+                                ),
+                                title: const Text(
+                                  'What\'s New',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Latest features and improvements',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary,
+                                  ),
+                                ),
+                                trailing: const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.grey,
+                                  size: 22,
+                                ),
+                              ),
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                indent: 16,
+                                endIndent: 16,
+                                color: isDark
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                              ListTile(
+                                onTap: () =>
+                                    context.push('/profile/contact-us'),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                leading: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryTeal
+                                        .withValues(alpha: isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.feedback_outlined,
+                                    size: 20,
+                                    color: AppColors.primaryTeal,
+                                  ),
+                                ),
+                                title: const Text(
+                                  'Contact Us & Suggestions',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Feedback and developer support',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary,
+                                  ),
+                                ),
+                                trailing: const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.grey,
+                                  size: 22,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

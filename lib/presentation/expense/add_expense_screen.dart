@@ -370,7 +370,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Expense updated successfully! ✨'),
+              content: Text('Expense updated successfully.'),
               backgroundColor: AppColors.positive,
             ),
           );
