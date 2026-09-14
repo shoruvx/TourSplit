@@ -1211,7 +1211,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: Column(
                             children: [
                               ListTile(
-                                onTap: () => WhatsNewDialog.show(context),
+                                onTap: () {
+                                  final curVer = ref
+                                      .read(currentAppVersionProvider)
+                                      .value
+                                      ?.version;
+                                  WhatsNewDialog.show(context, version: curVer);
+                                },
                                 contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 4),
                                 leading: Container(

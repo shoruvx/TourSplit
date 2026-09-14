@@ -7,11 +7,11 @@ import '../../core/theme/app_theme.dart';
 import '../../data/services/app_update_service.dart';
 
 class WhatsNewDialog extends StatelessWidget {
-  final String version;
+  final String? version;
 
   const WhatsNewDialog({
     super.key,
-    required this.version,
+    this.version,
   });
 
   static Future<void> checkAndShow(BuildContext context) async {
@@ -40,45 +40,59 @@ class WhatsNewDialog extends StatelessWidget {
     }
   }
 
-  static void show(BuildContext context, {String? version}) {
+  static Future<void> show(BuildContext context, {String? version}) async {
+    String? resolvedVersion = version;
+    if (resolvedVersion == null || resolvedVersion.isEmpty) {
+      try {
+        final info = await PackageInfo.fromPlatform();
+        resolvedVersion = info.version;
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => WhatsNewDialog(version: version ?? '1.3.0'),
+      builder: (ctx) => WhatsNewDialog(version: resolvedVersion),
     );
   }
 
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
+      icon: Icons.account_circle_rounded,
+      title: 'Member Profile Hub',
+      description:
+          'Tap any member avatar or name anywhere in the app to view their profile, role, contact info, and tour activity.',
+    ),
+    (
       icon: Icons.flash_on_rounded,
       title: 'Offline Auto-Settlement',
       description:
-          'Settlements involving offline companions now settle automatically without waiting for unachievable approvals.',
+          'Settlements with offline companions now resolve automatically without requiring approval from the offline friend.',
+    ),
+    (
+      icon: Icons.layers_rounded,
+      title: '3D Teal UI & System Theme',
+      description:
+          'Smooth 3D elevation cards with sleek teal borders, white-bordered buttons, and adaptive system default theme.',
     ),
     (
       icon: Icons.pie_chart_outline_rounded,
       title: 'Your Spending Breakdown',
       description:
-          'Tours now display your exact personal spending share rather than a generic per-person average.',
-    ),
-    (
-      icon: Icons.brightness_medium_rounded,
-      title: 'Quick Theme Switcher',
-      description:
-          'Seamlessly toggle between Light and Dark mode using the symmetrical sliding switch on the home header.',
-    ),
-    (
-      icon: Icons.center_focus_strong_rounded,
-      title: 'Clean & Centered Home',
-      description:
-          'Streamlined home layout removing visual distractions to keep trip actions right at your fingertips.',
+          'Tours and summary cards now display your exact personal spending share rather than a generic per-person average.',
     ),
     (
       icon: Icons.mark_email_unread_rounded,
-      title: 'Suggestions & Feedback',
+      title: 'Contact Us & Suggestion Portal',
       description:
-          'Connect directly with Constant Time Labs from your Profile screen to share ideas and feature requests.',
+          'Send feature ideas, feedback, and bug reports directly to Constant Time Labs from the Profile screen.',
+    ),
+    (
+      icon: Icons.system_update_rounded,
+      title: 'Over-The-Air Push Updates',
+      description:
+          'Stay up-to-date with background push alerts via Firebase Cloud Messaging and 1-tap seamless in-app APK installation.',
     ),
   ];
 
@@ -110,14 +124,25 @@ class WhatsNewDialog extends StatelessWidget {
                       color: AppColors.primaryTeal.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      'What\'s New in v$version',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryTeal,
-                      ),
+                    child: FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snapshot) {
+                        final v = (version != null && version!.isNotEmpty)
+                            ? version!
+                            : (snapshot.data?.version ?? '');
+                        final label = v.isNotEmpty
+                            ? 'What\'s New in v$v'
+                            : 'What\'s New';
+                        return Text(
+                          label,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTeal,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   IconButton(
