@@ -51,7 +51,7 @@ Anyone who has traveled with a group knows the drill: multiple people pay for ca
 ## Features
 
 ### Member Profile Exploration & Activity Hub
-- Tap any member's avatar or name anywhere it appears (daily ledger, balances, settlement lists, members manager) to open their dedicated **Member Profile Screen**.
+- Tap any member's avatar or name anywhere it appears (daily expenses, balances, settlement lists, members manager) to open their dedicated **Member Profile Screen**.
 - View their exact out-of-pocket spending, individual expense share, and current net settlement balance for the active tour.
 - Inspect their preferred payout methods (bKash, Nagad, Rocket, Bank) and send them an email with one tap.
 
@@ -87,14 +87,12 @@ Instead of everyone transferring small amounts back and forth:
 - TourSplit runs a **two-pointer greedy debt reduction algorithm** to collapse multi-party debts into the absolute minimum number of payments.
 - Directly approve settlements, record payment channels (bKash, Nagad, Cash, Bank Transfer), and maintain an unalterable audit log.
 
-### Collapsible Daily Ledger
-- Group expenses chronologically by day (Day 1, Day 2, Day 3...).
-- Keep days collapsed for a clean summary or expand any day to inspect individual line items.
-- Supports multi-payer bills (e.g., Alice paid ৳2,000 and Bob paid ৳1,500 on the same hotel invoice).
-- Split equally, split with selected companions, or enter custom exact share amounts.
+### Collapsible Daily Expenses
+- Group spending by day with collapsible cards, category icons, payer badges, and approval states.
+- Day totals and itemized breakdowns keep everyone on the same page.
 
-### Real-Time Profile Avatars
-- Express yourself on the group ledger with customizable profile photos.
+### Customizable User Profile
+- Express yourself on group expenses with customizable profile photos.
 - Pick pictures from your phone gallery, take a fresh selfie with your camera, or choose from travel-themed avatars.
 - Updates broadcast instantly in real-time across all tour member screens.
 
@@ -173,7 +171,7 @@ TourSplit/
 │   │   └── services/         # AppUpdateService, AuthService, BalanceService
 │   ├── presentation/         # Riverpod-powered UI screens & components
 │   │   ├── auth/             # Login, Registration, Password Reset
-│   │   ├── expense/          # Add/Edit Expense, Math amount input, Ledger views
+│   │   ├── expense/          # Add/Edit Expense, Math amount input, Daily expense views
 │   │   ├── home/             # 3-Card Home, Tour Dashboard, Settlements
 │   │   ├── profile/          # Profile screen, Avatar bottom sheet, Contact Us
 │   │   ├── reports/          # PDF export & printable expense summaries

@@ -11,7 +11,8 @@ import '../widgets/loading_overlay.dart';
 import 'widgets/tour_qr_scanner_view.dart';
 
 class JoinTourScreen extends ConsumerStatefulWidget {
-  const JoinTourScreen({super.key});
+  final String? initialCode;
+  const JoinTourScreen({super.key, this.initialCode});
 
   @override
   ConsumerState<JoinTourScreen> createState() => _JoinTourScreenState();
@@ -25,6 +26,25 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCode != null && widget.initialCode!.trim().isNotEmpty) {
+      _selectedTab = 1;
+      final clean = widget.initialCode!.trim().toUpperCase();
+      if (clean.length == 6) {
+        for (int i = 0; i < 6; i++) {
+          _codeControllers[i].text = clean[i];
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _submitCode(clean);
+          }
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -60,7 +80,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
 
       if (tour == null) {
         setState(() {
-          _selectedTab = 0;
+          _selectedTab = 1;
           _errorMessage =
               'No tour found with this code. Please check and try again.';
         });
@@ -100,7 +120,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
     } catch (e, st) {
       debugPrint('[JOIN_ERROR] Error joining tour: $e\n$st');
       setState(() {
-        _selectedTab = 0;
+        _selectedTab = 1;
         _errorMessage = 'Failed to join tour. Please try again.';
       });
     } finally {
@@ -158,16 +178,16 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
                     children: [
                       Expanded(
                         child: _TabSelectorButton(
-                          label: 'Enter Code',
-                          icon: Icons.pin_rounded,
+                          label: 'Scan QR',
+                          icon: Icons.qr_code_scanner_rounded,
                           isSelected: _selectedTab == 0,
                           onTap: () => setState(() => _selectedTab = 0),
                         ),
                       ),
                       Expanded(
                         child: _TabSelectorButton(
-                          label: 'Scan QR',
-                          icon: Icons.qr_code_scanner_rounded,
+                          label: 'Enter Code',
+                          icon: Icons.pin_rounded,
                           isSelected: _selectedTab == 1,
                           onTap: () => setState(() => _selectedTab = 1),
                         ),
@@ -178,8 +198,8 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
               ),
               Expanded(
                 child: _selectedTab == 0
-                    ? _buildCodeInputView(theme, isDark)
-                    : _buildQrScannerView(theme, isDark),
+                    ? _buildQrScannerView(theme, isDark)
+                    : _buildCodeInputView(theme, isDark),
               ),
             ],
           ),
@@ -309,7 +329,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Text(
             'Point your camera at the Tour QR Code',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -328,7 +348,44 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
               }
               _submitCode(code);
             },
-            onCancel: () => setState(() => _selectedTab = 0),
+            onCancel: () => setState(() => _selectedTab = 1),
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  setState(() => _selectedTab = 1);
+                },
+                icon: const Icon(Icons.keyboard_rounded, size: 20),
+                label: const Text(
+                  'Insert code manually',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(
+                    color: isDark
+                        ? AppColors.darkBorder
+                        : AppColors.primaryTeal.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  foregroundColor:
+                      isDark ? AppColors.darkText : AppColors.primaryTeal,
+                ),
+              ),
+            ),
           ),
         ),
       ],

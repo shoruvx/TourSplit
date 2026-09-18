@@ -5,12 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/user_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/app_update_service.dart';
 import '../widgets/member_avatar.dart';
+import '../widgets/image_crop_dialog.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/whats_new_dialog.dart';
@@ -90,21 +94,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: source,
-        maxWidth: 400,
-        maxHeight: 400,
-        imageQuality: 75,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 92,
       );
       if (picked == null) return;
 
+      final rawBytes = await picked.readAsBytes();
+      if (!mounted) return;
+
+      // Show interactive crop and positioning dialog
+      final croppedBytes = await ImageCropDialog.show(context, rawBytes);
+      if (croppedBytes == null) {
+        // User cancelled or closed the crop dialog
+        return;
+      }
+
       setState(() => _isLoading = true);
-      final bytes = await picked.readAsBytes();
-      final ext = picked.name.split('.').last.toLowerCase();
-      final safeExt =
-          (ext == 'png' || ext == 'jpg' || ext == 'jpeg') ? ext : 'jpg';
 
       final downloadUrl = await ref
           .read(authServiceProvider)
-          .uploadProfileImage(user.uid, bytes, safeExt);
+          .uploadProfileImage(user.uid, croppedBytes, 'png');
 
       await ref.read(authServiceProvider).updateProfilePhoto(
             user.uid,
@@ -113,10 +123,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           );
 
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile picture updated successfully!'),
             backgroundColor: AppColors.positive,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -708,15 +720,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _showChangePhotoBottomSheet(BuildContext context, UserModel user) {
-    final presetAvatars = [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
-    ];
-
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -784,45 +787,68 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   _pickAndUploadPhoto(ImageSource.camera, user);
                 },
               ),
-              const SizedBox(height: 10),
-              const Text('Or Pick a Travel Avatar:',
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey)),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 54,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: presetAvatars.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (ctx, i) {
-                    final avatarUrl = presetAvatars[i];
-                    return InkWell(
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        setState(() => _isLoading = true);
-                        try {
-                          await ref
-                              .read(authServiceProvider)
-                              .updateProfilePhoto(
-                                user.uid,
-                                avatarUrl,
-                                activeTourId: user.activeTourId,
-                              );
-                        } finally {
-                          if (mounted) setState(() => _isLoading = false);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(27),
-                      child: CircleAvatar(
-                        radius: 25,
-                        backgroundImage: NetworkImage(avatarUrl),
-                      ),
-                    );
-                  },
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.account_circle_rounded,
+                      color: Colors.redAccent, size: 22),
                 ),
+                title: const Text('Use Google Account Photo',
+                    style: TextStyle(
+                        fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                subtitle: const Text('Fetch directly from your Google profile',
+                    style: TextStyle(fontSize: 11.5, color: Colors.grey)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  setState(() => _isLoading = true);
+                  try {
+                    final photoUrl = await ref
+                        .read(authServiceProvider)
+                        .getGoogleProfilePhotoUrl();
+                    if (photoUrl != null && photoUrl.isNotEmpty) {
+                      await ref.read(authServiceProvider).updateProfilePhoto(
+                            user.uid,
+                            photoUrl,
+                            activeTourId: user.activeTourId,
+                          );
+                      if (mounted) {
+                        setState(() => _isLoading = false);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Profile photo updated from Google!'),
+                            backgroundColor: AppColors.positive,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No Google profile photo found.'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to get Google photo: $e'),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isLoading = false);
+                  }
+                },
               ),
               if (user.photoUrl != null && user.photoUrl!.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -857,6 +883,173 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   },
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showShareAppBottomSheet(BuildContext context) {
+    const downloadUrl =
+        'https://github.com/${AppConstants.githubRepo}/releases/latest';
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: isDark ? AppColors.darkCard : Colors.white,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 24),
+                  Text(
+                    'Share TourSplit',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Let your travel companions scan or download TourSplit to track and split expenses together.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 16,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: QrImageView(
+                  data: downloadUrl,
+                  version: QrVersions.auto,
+                  size: 190,
+                  backgroundColor: Colors.white,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Color(0xFF0F172A),
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppColors.darkSurface
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color:
+                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.link_rounded,
+                        size: 16, color: AppColors.primaryTeal),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'github.com/${AppConstants.githubRepo}/releases/latest',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Clipboard.setData(
+                            const ClipboardData(text: downloadUrl));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Download link copied to clipboard!'),
+                            backgroundColor: AppColors.accent,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      label: const Text('Copy Link'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Share.share(
+                          'Track and split tour expenses effortlessly with TourSplit!\n'
+                          'Download the latest release here: $downloadUrl',
+                        );
+                      },
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: const Text('Share App'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -937,6 +1130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: MemberAvatar(
                             initials: user.initials,
                             photoUrl: user.photoUrl,
+                            userId: user.uid,
                             radius: 48,
                           ),
                         ),
@@ -1296,6 +1490,57 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                                 subtitle: Text(
                                   'Feedback and developer support',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary,
+                                  ),
+                                ),
+                                trailing: const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.grey,
+                                  size: 22,
+                                ),
+                              ),
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                indent: 16,
+                                endIndent: 16,
+                                color: isDark
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                              ListTile(
+                                onTap: () => _showShareAppBottomSheet(context),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                leading: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryTeal
+                                        .withValues(alpha: isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.share_rounded,
+                                    size: 20,
+                                    color: AppColors.primaryTeal,
+                                  ),
+                                ),
+                                title: const Text(
+                                  'Share TourSplit',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Invite friends or share app download link',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
                                     fontSize: 12,

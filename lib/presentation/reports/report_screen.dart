@@ -148,7 +148,7 @@ class ReportScreen extends ConsumerWidget {
                         ).animate().fadeIn().scale(),
 
                         const SizedBox(height: 24),
-                        Text('Daily Expense Ledger',
+                        Text('Daily Expenses',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -370,7 +370,7 @@ class ReportScreen extends ConsumerWidget {
           ...debts.map((d) => pw.Text(
               '${d.fromUserName} -> ${d.toUserName}: $pdfCurrency ${d.amount.toStringAsFixed(2)}')),
         pw.SizedBox(height: 20),
-        pw.Text('DAILY EXPENSE LEDGER',
+        pw.Text('DAILY EXPENSES',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
         pw.SizedBox(height: 8),
         ...dayGroups.expand((g) {
@@ -428,7 +428,7 @@ class ReportScreen extends ConsumerWidget {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('Notes',
+                      child: pw.Text('Category',
                           style: pw.TextStyle(
                               fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     ),
@@ -438,15 +438,12 @@ class ReportScreen extends ConsumerWidget {
                   final payer = e.isMultiPayer
                       ? 'Multi (${e.paidByName})'
                       : e.paidByName.split(' ').first.toLowerCase();
-                  final baseNotes = e.description?.trim().isNotEmpty == true
-                      ? e.description!.trim()
-                      : (e.category != 'Other' ? e.category : '');
-                  final notes = e.isMultiPayer && baseNotes.isEmpty
+                  final categoryText = e.isMultiPayer
                       ? e.contributions.entries
                           .map((entry) =>
                               '${memberMap[entry.key] ?? entry.key}: $pdfCurrency ${entry.value.toStringAsFixed(0)}')
                           .join(', ')
-                      : baseNotes;
+                      : (e.category != 'Other' ? e.category : 'General');
                   return pw.TableRow(
                     children: [
                       pw.Padding(
@@ -469,7 +466,7 @@ class ReportScreen extends ConsumerWidget {
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(notes,
+                        child: pw.Text(categoryText,
                             style: const pw.TextStyle(fontSize: 9)),
                       ),
                     ],

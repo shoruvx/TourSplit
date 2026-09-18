@@ -394,6 +394,7 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                         child: MemberAvatar(
                           initials: initials,
                           photoUrl: photoUrl,
+                          userId: widget.userId,
                           radius: 44,
                           enableTap: false,
                           backgroundColor: isOffline

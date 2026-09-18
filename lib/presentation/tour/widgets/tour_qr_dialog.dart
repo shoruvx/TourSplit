@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 
 class TourQrDialog extends StatelessWidget {
@@ -28,6 +29,8 @@ class TourQrDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final joinUrl =
+        'https://github.com/${AppConstants.githubRepo}/releases/latest?code=$inviteCode';
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -69,7 +72,7 @@ class TourQrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Scan this code to join this tour instantly',
+              'Scan with TourSplit to join, or scan with camera to download the app.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isDark
                     ? AppColors.darkTextSecondary
@@ -92,7 +95,7 @@ class TourQrDialog extends StatelessWidget {
                 ],
               ),
               child: QrImageView(
-                data: inviteCode,
+                data: joinUrl,
                 version: QrVersions.auto,
                 size: 200,
                 backgroundColor: Colors.white,
@@ -156,7 +159,9 @@ class TourQrDialog extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Share.share(
-                        'Join my tour "$tourName" on TourSplit!\nInvite code: $inviteCode',
+                        'Join my tour "$tourName" on TourSplit!\n'
+                        'Invite code: $inviteCode\n\n'
+                        'Download TourSplit:\n$joinUrl',
                       );
                     },
                     icon: const Icon(Icons.share_rounded, size: 18),

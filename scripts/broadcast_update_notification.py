@@ -65,8 +65,13 @@ def main():
         }
 
         # Sign JWT using cryptography if available
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import padding
+        try:
+            from cryptography.hazmat.primitives import hashes, serialization  # type: ignore
+            from cryptography.hazmat.primitives.asymmetric import padding  # type: ignore
+        except ImportError:
+            print("Notice: Python 'cryptography' package not installed. Skipping FCM broadcast.")
+            print("Install via: pip install cryptography")
+            return
 
         private_key = serialization.load_pem_private_key(
             creds["private_key"].encode("utf-8"),

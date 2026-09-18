@@ -138,7 +138,7 @@ class SettlementScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'No outstanding balances or pending settlements.',
+                          'No unpaid balances or pending settlements.',
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: Colors.grey,

@@ -224,6 +224,7 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                                     ? widget.displayName[0].toUpperCase()
                                     : 'U'),
                             photoUrl: currentUser?.photoUrl,
+                            userId: currentUser?.uid,
                             radius: 18,
                           ),
                         ),
@@ -478,6 +479,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       MemberAvatar(
                         initials: request.initials,
                         photoUrl: request.photoUrl,
+                        userId: request.userId,
                         radius: 26,
                       ),
                       const SizedBox(width: 14),
@@ -1066,7 +1068,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 children: [
                   Text(
                     _showSpreadsheetView
-                        ? 'Daily Expense Ledger'
+                        ? 'Daily Expenses'
                         : 'All Expenses',
                     style: const TextStyle(
                       fontFamily: 'Outfit',
@@ -2347,6 +2349,7 @@ class _TourDashboardAppBar extends ConsumerWidget {
                     ? currentUser!.initials
                     : 'U',
                 photoUrl: currentUser?.photoUrl,
+                userId: currentUser?.uid,
                 radius: 15,
               ),
             ),
@@ -2543,6 +2546,7 @@ class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
                       initials:
                           r.displayName.isNotEmpty ? r.displayName[0] : '?',
                       photoUrl: r.photoUrl,
+                      userId: r.userId,
                       radius: 20,
                     ),
                     const SizedBox(width: 10),

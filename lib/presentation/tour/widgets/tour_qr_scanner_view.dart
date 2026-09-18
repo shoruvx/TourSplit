@@ -57,15 +57,43 @@ class _TourQrScannerViewState extends State<TourQrScannerView> {
 
   String _extractInviteCode(String input) {
     final clean = input.trim();
+
+    // 1. Try parsing as a URL for 'code' or 'join' query parameter
+    try {
+      final uri = Uri.tryParse(clean);
+      if (uri != null) {
+        final codeParam =
+            uri.queryParameters['code'] ?? uri.queryParameters['join'];
+        if (codeParam != null && codeParam.trim().length == 6) {
+          return codeParam.trim().toUpperCase();
+        }
+      }
+    } catch (_) {}
+
+    // 2. Look for code= or join= in raw string
+    final queryMatch = RegExp(r'[?&](?:code|join)=([A-Z0-9]{6})\b',
+            caseSensitive: false)
+        .firstMatch(clean);
+    if (queryMatch != null) {
+      return queryMatch.group(1)!.toUpperCase();
+    }
+
+    // 3. Direct 6-character clean code
     final direct = clean.replaceAll(RegExp(r'[\s-]+'), '').toUpperCase();
     if (direct.length == 6 && RegExp(r'^[A-Z0-9]{6}$').hasMatch(direct)) {
       return direct;
     }
-    final match =
-        RegExp(r'\b([A-Z0-9]{6})\b', caseSensitive: false).firstMatch(clean);
-    if (match != null) {
-      return match.group(1)!.toUpperCase();
+
+    // 4. Word boundary match, excluding common URL keywords like GITHUB, LATEST
+    final matches =
+        RegExp(r'\b([A-Z0-9]{6})\b', caseSensitive: false).allMatches(clean);
+    for (final m in matches) {
+      final val = m.group(1)!.toUpperCase();
+      if (val != 'GITHUB' && val != 'LATEST') {
+        return val;
+      }
     }
+
     return direct;
   }
 

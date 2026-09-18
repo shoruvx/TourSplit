@@ -212,7 +212,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                       Expanded(
                         flex: 3,
                         child: Text(
-                          'Notes',
+                          'Category',
                           textAlign: TextAlign.left,
                           style: TextStyle(
                             fontFamily: 'Outfit',
@@ -241,12 +241,9 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                   final payerDisplay = exp.isMultiPayer
                       ? 'multi-payer'
                       : payerName.toLowerCase();
-                  final note = exp.description != null &&
-                          exp.description!.trim().isNotEmpty
-                      ? exp.description!.trim()
-                      : (exp.isMultiPayer
-                          ? exp.paidByName
-                          : (exp.category != 'Other' ? exp.category : ''));
+                  final categoryDisplay = exp.isMultiPayer
+                      ? exp.paidByName
+                      : (exp.category != 'Other' ? exp.category : 'General');
 
                   return InkWell(
                     onTap: widget.onExpenseTap != null
@@ -398,7 +395,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                           Expanded(
                             flex: 3,
                             child: Text(
-                              note,
+                              categoryDisplay,
                               textAlign: TextAlign.left,
                               style: TextStyle(
                                 fontFamily: 'Outfit',
@@ -406,7 +403,6 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                                 color: isDark
                                     ? const Color(0xFF94A3B8)
                                     : const Color(0xFF64748B),
-                                fontStyle: FontStyle.italic,
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,

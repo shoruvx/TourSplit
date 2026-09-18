@@ -512,7 +512,7 @@ class MemberManagementScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Remove Member'),
         content: Text(
-            'Remove ${member.displayName} from this tour?\n\nNote: All expenses previously paid or shared by this member will remain intact in the tour ledger.'),
+            'Remove ${member.displayName} from this tour?\n\nNote: All expenses previously paid or shared by this member will remain intact in the tour history.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -628,6 +628,7 @@ class _PendingRequestsCard extends ConsumerWidget {
                       initials:
                           r.displayName.isNotEmpty ? r.displayName[0] : '?',
                       photoUrl: r.photoUrl,
+                      userId: r.userId,
                       radius: 18,
                     ),
                     const SizedBox(width: 10),

@@ -52,9 +52,9 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
     ),
     (
       icon: Icons.handshake_rounded,
-      title: 'Smart Settlement',
+      title: 'Easy Settlements',
       description:
-          'Real-time balances with minimum transactions to settle all debts effortlessly.',
+          'See who owes what and clear balances easily with minimal payments.',
     ),
   ];
 

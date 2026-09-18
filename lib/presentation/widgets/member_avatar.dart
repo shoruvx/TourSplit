@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/tour_model.dart';
+import '../../data/services/auth_service.dart';
 
 ImageProvider? _resolveImageProvider(String? photoUrl) {
   if (photoUrl == null || photoUrl.isEmpty) return null;
@@ -19,7 +21,7 @@ ImageProvider? _resolveImageProvider(String? photoUrl) {
   return NetworkImage(photoUrl);
 }
 
-class MemberAvatar extends StatelessWidget {
+class MemberAvatar extends ConsumerWidget {
   final String initials;
   final String? photoUrl;
   final double radius;
@@ -52,8 +54,29 @@ class MemberAvatar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final imageProvider = _resolveImageProvider(photoUrl);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final targetUid = userId ?? tourMember?.userId;
+    final currentUser = ref.watch(currentUserProvider).value;
+
+    String? effectivePhotoUrl = photoUrl;
+
+    // 1. If target is the logged-in user, always prioritize the live currentUser photoUrl
+    if (targetUid != null && currentUser != null && targetUid == currentUser.uid) {
+      if (currentUser.photoUrl != null && currentUser.photoUrl!.isNotEmpty) {
+        effectivePhotoUrl = currentUser.photoUrl;
+      }
+    } else if ((effectivePhotoUrl == null || effectivePhotoUrl.isEmpty) &&
+        targetUid != null &&
+        targetUid.isNotEmpty &&
+        !(tourMember?.isOffline ?? false)) {
+      // 2. If target is another online member whose record lacked photoUrl, check their live user profile
+      final liveProfile = ref.watch(userProfileProvider(targetUid)).value;
+      if (liveProfile?.photoUrl != null && liveProfile!.photoUrl!.isNotEmpty) {
+        effectivePhotoUrl = liveProfile.photoUrl;
+      }
+    }
+
+    final imageProvider = _resolveImageProvider(effectivePhotoUrl);
     final Widget avatarCore;
     if (imageProvider != null) {
       avatarCore = CircleAvatar(
@@ -79,7 +102,6 @@ class MemberAvatar extends StatelessWidget {
       );
     }
 
-    final targetUid = userId ?? tourMember?.userId;
     final isClickable = enableTap && (onTap != null || targetUid != null);
 
     if (isClickable) {
@@ -102,6 +124,7 @@ class MemberAvatar extends StatelessWidget {
 class MemberAvatarStack extends StatelessWidget {
   final List<String> initials;
   final List<String?> photoUrls;
+  final List<String>? userIds;
   final double radius;
   final int maxVisible;
 
@@ -109,6 +132,7 @@ class MemberAvatarStack extends StatelessWidget {
     super.key,
     required this.initials,
     required this.photoUrls,
+    this.userIds,
     this.radius = 16,
     this.maxVisible = 4,
   });
@@ -138,6 +162,7 @@ class MemberAvatarStack extends StatelessWidget {
                 child: MemberAvatar(
                   initials: visible[i],
                   photoUrl: i < photoUrls.length ? photoUrls[i] : null,
+                  userId: userIds != null && i < userIds!.length ? userIds![i] : null,
                   radius: radius,
                 ),
               ),

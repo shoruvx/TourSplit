@@ -254,7 +254,18 @@ def build_release_notes(repo_root: str, version: str, explicit_notes: str = None
 
 def main():
     parser = argparse.ArgumentParser(description="Generate detailed yet minimalistic What's New release notes")
-    parser.add_argument("version", nargs="?", default="1.4.1", help="Release version (e.g. 1.4.1 or v1.4.1)")
+    version_default = ""
+    pubspec_path = os.path.join(args_root if 'args_root' in locals() else os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "pubspec.yaml")
+    if os.path.exists(pubspec_path):
+        with open(pubspec_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("version:"):
+                    version_default = line.split(":")[1].strip().split("+")[0]
+                    break
+    if not version_default:
+        version_default = "1.4.2"
+
+    parser.add_argument("version", nargs="?", default=version_default, help="Release version (e.g. 1.4.2 or v1.4.2)")
     parser.add_argument("explicit_notes", nargs="?", default="", help="Optional explicit release notes")
     parser.add_argument("--repo-root", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     parser.add_argument("--github-output", action="store_true", help="Write step outputs to GITHUB_OUTPUT environment file")

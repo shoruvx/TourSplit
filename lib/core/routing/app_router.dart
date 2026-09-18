@@ -97,7 +97,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/tour/join',
         name: 'join-tour',
-        builder: (context, state) => const JoinTourScreen(),
+        builder: (context, state) {
+          final code = state.uri.queryParameters['code'] ??
+              state.uri.queryParameters['join'];
+          return JoinTourScreen(initialCode: code);
+        },
+      ),
+      GoRoute(
+        path: '/shoruvx/TourSplit/releases/latest',
+        redirect: (context, state) {
+          final code = state.uri.queryParameters['code'] ??
+              state.uri.queryParameters['join'];
+          if (code != null && code.isNotEmpty) {
+            return '/tour/join?code=$code';
+          }
+          return '/home';
+        },
+      ),
+      GoRoute(
+        path: '/join',
+        redirect: (context, state) {
+          final code = state.uri.queryParameters['code'] ??
+              state.uri.queryParameters['join'];
+          if (code != null && code.isNotEmpty) {
+            return '/tour/join?code=$code';
+          }
+          return '/tour/join';
+        },
       ),
       GoRoute(
         path: '/tour/settings',

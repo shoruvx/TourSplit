@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:collection/collection.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/math_expression_evaluator.dart';
@@ -41,7 +42,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
   final _amountFocusNode = FocusNode();
 
   bool _isLoading = false;
@@ -73,7 +73,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _titleCtrl.text = exp.title;
       _amountCtrl.text = exp.amount
           .toStringAsFixed(exp.amount.truncateToDouble() == exp.amount ? 0 : 2);
-      _descCtrl.text = exp.description ?? '';
       _selectedDateTime = exp.date;
 
       if (exp.payers != null && exp.payers!.length > 1) {
@@ -157,7 +156,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _amountFocusNode.dispose();
     _titleCtrl.dispose();
     _amountCtrl.dispose();
-    _descCtrl.dispose();
     for (final ctrl in _customSplitControllers.values) {
       ctrl.dispose();
     }
@@ -355,8 +353,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           'splitAmong': splitMembers,
           'customSplits': customSplitsMap,
           'date': _selectedDateTime,
-          'description':
-              _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+          'description': null,
           if (isAdmin) 'status': 'approved',
         };
 
@@ -399,8 +396,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         addedByUserId: currentUserId,
         status:
             isAdmin ? ExpenseStatus.approved : ExpenseStatus.pendingApproval,
-        description:
-            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        description: null,
       );
 
       await ref.read(expenseRepositoryProvider).addExpense(expense);
@@ -798,131 +794,131 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               ? 'Enter item name'
                               : null,
                         ),
-                        const SizedBox(height: 16),
-                        _SectionLabel(title: 'Notes (Optional)'),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _descCtrl,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: InputDecoration(
-                            hintText: 'Add note',
-                            filled: true,
-                            fillColor: isDark
-                                ? AppColors.darkSurface
-                                : const Color(0xFFF1F5F9),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                          ),
-                        ),
                         const SizedBox(height: 20),
-                        _SectionLabel(title: 'Expense Date *'),
+                        const _SectionLabel(title: 'Expense Date *'),
                         const SizedBox(height: 8),
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _pickDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppColors.darkSurface
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
+                        Builder(
+                          builder: (context) {
+                            final baseDate = DateTime(tour.startDate.year,
+                                tour.startDate.month, tour.startDate.day);
+                            final expDate = DateTime(
+                                _selectedDateTime.year,
+                                _selectedDateTime.month,
+                                _selectedDateTime.day);
+                            final diffDays =
+                                expDate.difference(baseDate).inDays;
+                            final dayNumber =
+                                diffDays >= 0 ? diffDays + 1 : 1;
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? AppColors.darkSurface
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
                                   color: isDark
                                       ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                            child: Builder(
-                              builder: (context) {
-                                final baseDate = DateTime(tour.startDate.year,
-                                    tour.startDate.month, tour.startDate.day);
-                                final expDate = DateTime(
-                                    _selectedDateTime.year,
-                                    _selectedDateTime.month,
-                                    _selectedDateTime.day);
-                                final diffDays =
-                                    expDate.difference(baseDate).inDays;
-                                final dayNumber =
-                                    diffDays >= 0 ? diffDays + 1 : 1;
-
-                                return Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryTeal,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        'Day $dayNumber',
-                                        style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
+                                      : AppColors.lightBorder,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.chevron_left_rounded,
+                                        size: 24),
+                                    tooltip: 'Previous Day',
+                                    color: AppColors.primaryTeal,
+                                    onPressed: () {
+                                      HapticFeedback.selectionClick();
+                                      final prevDay = _selectedDateTime
+                                          .subtract(const Duration(days: 1));
+                                      setState(
+                                          () => _selectedDateTime = prevDay);
+                                      ref
+                                          .read(
+                                              lastExpenseDateProvider.notifier)
+                                          .setDate(prevDay);
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: _pickDate,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 12),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primaryTeal,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                'Day $dayNumber',
+                                                style: const TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                                Icons.calendar_month_rounded,
+                                                size: 18,
+                                                color: AppColors.primaryTeal),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                DateFormat('EEE, MMM d, yyyy')
+                                                    .format(_selectedDateTime),
+                                                style: const TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14,
+                                                ),
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    const Icon(Icons.calendar_month_rounded,
-                                        size: 18, color: AppColors.primaryTeal),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      DateFormat('EEE, MMM d, yyyy')
-                                          .format(_selectedDateTime),
-                                      style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14),
-                                    ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? Colors.white.withValues(alpha: 0.08)
-                                            : Colors.black.withValues(alpha: 0.05),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.edit_calendar_rounded,
-                                              size: 14,
-                                              color: AppColors.primaryTeal),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'Change',
-                                            style: TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.primaryTeal,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.chevron_right_rounded,
+                                        size: 24),
+                                    tooltip: 'Next Day',
+                                    color: AppColors.primaryTeal,
+                                    onPressed: () {
+                                      HapticFeedback.selectionClick();
+                                      final nextDay = _selectedDateTime
+                                          .add(const Duration(days: 1));
+                                      setState(
+                                          () => _selectedDateTime = nextDay);
+                                      ref
+                                          .read(
+                                              lastExpenseDateProvider.notifier)
+                                          .setDate(nextDay);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 20),
                         Row(
@@ -1050,55 +1046,81 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         ),
                         const SizedBox(height: 8),
                         if (!_isMultiContributor) ...[
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: members.map((m) {
-                              final isSelected = _paidByUserId == m.userId;
-                              return ChoiceChip(
-                                avatar: CircleAvatar(
-                                  backgroundColor: isSelected
-                                      ? Colors.white
-                                      : AppColors.primaryTeal,
-                                  child: Text(
-                                    m.initials,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected
-                                          ? AppColors.primaryTeal
-                                          : Colors.white,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.darkSurface
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: members.any((m) => m.userId == _paidByUserId)
+                                    ? _paidByUserId
+                                    : (members.isNotEmpty
+                                        ? members.first.userId
+                                        : null),
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: AppColors.primaryTeal,
+                                ),
+                                dropdownColor:
+                                    isDark ? AppColors.darkCard : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                items: members.map((m) {
+                                  return DropdownMenuItem<String>(
+                                    value: m.userId,
+                                    child: Row(
+                                      children: [
+                                        MemberAvatar(
+                                          initials: m.initials,
+                                          photoUrl: m.photoUrl,
+                                          userId: m.userId,
+                                          tourMember: m,
+                                          radius: 14,
+                                          enableTap: false,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                              color: isDark
+                                                  ? AppColors.darkText
+                                                  : AppColors.lightText,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ),
-                                label: Text(
-                                    '${m.displayName}${m.isOffline ? ' (Offline)' : ''}'),
-                                selected: isSelected,
-                                selectedColor: AppColors.primaryTeal,
-                                backgroundColor: isDark
-                                    ? AppColors.darkSurface
-                                    : const Color(0xFFF1F5F9),
-                                labelStyle: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : (isDark
-                                          ? AppColors.darkText
-                                          : AppColors.lightText),
-                                ),
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _paidByUserId = m.userId;
-                                      _paidByName = m.displayName;
-                                    });
+                                  );
+                                }).toList(),
+                                onChanged: (selectedId) {
+                                  if (selectedId != null) {
+                                    final m = members.firstWhereOrNull(
+                                        (mem) => mem.userId == selectedId);
+                                    if (m != null) {
+                                      setState(() {
+                                        _paidByUserId = m.userId;
+                                        _paidByName = m.displayName;
+                                      });
+                                    }
                                   }
                                 },
-                              );
-                            }).toList(),
+                              ),
+                            ),
                           ),
                         ] else ...[
                           Container(
@@ -1152,6 +1174,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                         MemberAvatar(
                                           initials: m.initials,
                                           photoUrl: m.photoUrl,
+                                          userId: m.userId,
+                                          tourMember: m,
                                           radius: 14,
                                         ),
                                         const SizedBox(width: 8),

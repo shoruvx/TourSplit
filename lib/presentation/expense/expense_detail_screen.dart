@@ -222,8 +222,6 @@ class ExpenseDetailScreen extends ConsumerWidget {
                         _InfoRow(
                             label: 'Split Type',
                             value: _splitLabel(expense.splitType)),
-                        if (expense.description != null)
-                          _InfoRow(label: 'Note', value: expense.description!),
                         const Divider(height: 32),
                         if (expense.isMultiPayer) ...[
                           Text('Payment Contributions',

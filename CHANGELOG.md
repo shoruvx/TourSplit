@@ -4,6 +4,20 @@ All notable changes to TourSplit are documented in this file. Releases follow a 
 
 ---
 
+## [v1.4.2] - 2026-09-18
+
+- ✂️ **Interactive Photo Cropping**: Pinch to zoom, drag to position, and rotate your profile photos before saving with an instant circular guide preview.
+- 🔄 **Live Tour Profile Picture Sync**: Newly updated profile pictures now immediately reflect across all your tours, member lists, and expense splitters in real-time.
+- 📷 **QR-First Tour Joining**: The QR scanner opens by default when joining a tour, accompanied by an "Insert code manually" button to switch seamlessly.
+- ✨ **Streamlined Tour & Expense Creation**: Simplified the new tour setup and eliminated notes fields across expense entry and reports for a faster, clutter-free experience.
+- 🔗 **Share App & Smart Tour QR**: Share TourSplit via QR code or direct link. Scanning with a phone camera opens the latest APK release, while TourSplit users join instantly.
+- 📅 **Expense Date Day Stepper**: Step forward and backward between days using intuitive left and right arrow buttons, or tap the date directly to open the calendar picker.
+- 👤 **Single Payer Dropdown**: Select who paid from a clean, compact dropdown menu with member avatars and offline status when recording single-payer expenses.
+- 🖼️ **Google Profile Photo Import**: Import your high-resolution Google Account profile picture with a single tap in your profile settings.
+- 💬 **Simplified English Everywhere**: Replaced complex accounting terms like "ledger" with clear, everyday English ("Daily Expenses", "Tour History") for all travelers.
+
+---
+
 ## [v1.4.1] - 2026-09-14
 
 - 👤 **Member Profile Hub**: Tap any member avatar or name anywhere in the app to view their profile, role, contact info, and tour activity.

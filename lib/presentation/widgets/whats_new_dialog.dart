@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/app_update_service.dart';
 
-class WhatsNewDialog extends StatelessWidget {
+class WhatsNewDialog extends ConsumerWidget {
   final String? version;
 
   const WhatsNewDialog({
@@ -56,50 +57,137 @@ class WhatsNewDialog extends StatelessWidget {
     );
   }
 
+  static List<({IconData icon, String title, String description})>
+      get features => _features;
+
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
-      icon: Icons.account_circle_rounded,
-      title: 'Member Profile Hub',
+      icon: Icons.crop_rotate_rounded,
+      title: 'Interactive Photo Cropping',
       description:
-          'Tap any member avatar or name anywhere in the app to view their profile, role, contact info, and tour activity.',
+          'Pinch to zoom, drag to position, and rotate your profile photos before saving with an instant circular guide preview.',
+    ),
+    (
+      icon: Icons.sync_rounded,
+      title: 'Live Tour Profile Picture Sync',
+      description:
+          'Newly updated profile pictures now immediately reflect across all your tours, member lists, and expense splitters in real-time.',
+    ),
+    (
+      icon: Icons.qr_code_scanner_rounded,
+      title: 'QR-First Tour Joining',
+      description:
+          'The QR scanner opens by default when joining a tour, accompanied by an "Insert code manually" button to switch seamlessly.',
     ),
     (
       icon: Icons.flash_on_rounded,
-      title: 'Offline Auto-Settlement',
+      title: 'Streamlined Tour & Expense Creation',
       description:
-          'Settlements with offline companions now resolve automatically without requiring approval from the offline friend.',
+          'Simplified the new tour setup and eliminated notes fields across expense entry and reports for a faster, clutter-free experience.',
     ),
     (
-      icon: Icons.layers_rounded,
-      title: '3D Teal UI & System Theme',
+      icon: Icons.share_rounded,
+      title: 'Share App & Smart Tour QR',
       description:
-          'Smooth 3D elevation cards with sleek teal borders, white-bordered buttons, and adaptive system default theme.',
+          'Share TourSplit via QR code or direct link. Scanning with a phone camera opens the latest APK release, while TourSplit users join instantly.',
     ),
     (
-      icon: Icons.pie_chart_outline_rounded,
-      title: 'Your Spending Breakdown',
+      icon: Icons.calendar_month_rounded,
+      title: 'Expense Date Day Stepper',
       description:
-          'Tours and summary cards now display your exact personal spending share rather than a generic per-person average.',
+          'Step forward and backward between days using intuitive left and right arrow buttons, or tap the date directly to open the calendar picker.',
     ),
     (
-      icon: Icons.mark_email_unread_rounded,
-      title: 'Contact Us & Suggestion Portal',
+      icon: Icons.arrow_drop_down_circle_rounded,
+      title: 'Single Payer Dropdown',
       description:
-          'Send feature ideas, feedback, and bug reports directly to Constant Time Labs from the Profile screen.',
+          'Select who paid from a clean, compact dropdown menu with member avatars and offline status when recording single-payer expenses.',
     ),
     (
-      icon: Icons.system_update_rounded,
-      title: 'Over-The-Air Push Updates',
+      icon: Icons.account_circle_rounded,
+      title: 'Google Profile Photo Import',
       description:
-          'Stay up-to-date with background push alerts via Firebase Cloud Messaging and 1-tap seamless in-app APK installation.',
+          'Import your high-resolution Google Account profile picture with a single tap in your profile settings.',
+    ),
+    (
+      icon: Icons.translate_rounded,
+      title: 'Simplified English Everywhere',
+      description:
+          'Replaced complex accounting terms like "ledger" with clear, everyday English ("Daily Expenses", "Tour History") for all travelers.',
     ),
   ];
 
+  static IconData _iconForEmoji(String emoji) {
+    if (emoji.contains('📷') || emoji.contains('📸') || emoji.contains('🔍')) {
+      return Icons.qr_code_scanner_rounded;
+    }
+    if (emoji.contains('👤') || emoji.contains('👥')) {
+      return Icons.account_circle_rounded;
+    }
+    if (emoji.contains('📅') || emoji.contains('🗓️')) {
+      return Icons.calendar_month_rounded;
+    }
+    if (emoji.contains('🔗') || emoji.contains('📱') || emoji.contains('✈️')) {
+      return Icons.share_rounded;
+    }
+    if (emoji.contains('⚡') || emoji.contains('🚀')) {
+      return Icons.flash_on_rounded;
+    }
+    if (emoji.contains('🎨')) return Icons.palette_rounded;
+    if (emoji.contains('📊') || emoji.contains('📈')) {
+      return Icons.pie_chart_outline_rounded;
+    }
+    if (emoji.contains('💬') || emoji.contains('✨')) {
+      return Icons.translate_rounded;
+    }
+    if (emoji.contains('🧾') || emoji.contains('💳')) {
+      return Icons.receipt_long_rounded;
+    }
+    if (emoji.contains('🖼️')) return Icons.image_rounded;
+    return Icons.auto_awesome_rounded;
+  }
+
+  static List<({IconData icon, String title, String description})>
+      _parseReleaseNotes(String notes) {
+    final lines = notes.split('\n');
+    final items = <({IconData icon, String title, String description})>[];
+
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (!line.startsWith('-') && !line.startsWith('*')) continue;
+
+      final match = RegExp(
+              r'^[-*]\s*(?:([^\w\s]+)\s*)?\*\*(.*?)\*\*:\s*(.*)$')
+          .firstMatch(line);
+      if (match != null) {
+        final emoji = match.group(1) ?? '✨';
+        final title = match.group(2)!.trim();
+        final desc = match.group(3)!.trim();
+        items.add((
+          icon: _iconForEmoji(emoji),
+          title: title,
+          description: desc,
+        ));
+      }
+    }
+    return items;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    final updateInfo = ref.watch(effectiveUpdateInfoProvider);
+    List<({IconData icon, String title, String description})> activeFeatures =
+        _features;
+    if (updateInfo != null && updateInfo.releaseNotes.isNotEmpty) {
+      final parsed = _parseReleaseNotes(updateInfo.releaseNotes);
+      if (parsed.isNotEmpty) {
+        activeFeatures = parsed;
+      }
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -179,7 +267,7 @@ class WhatsNewDialog extends StatelessWidget {
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
-                    children: _features.map((feature) {
+                    children: activeFeatures.map((feature) {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
                         child: Row(

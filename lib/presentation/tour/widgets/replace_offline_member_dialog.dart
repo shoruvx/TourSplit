@@ -336,6 +336,7 @@ class _ReplaceOfflineMemberDialogState
                                 ? _selectedOnlineUserName![0].toUpperCase()
                                 : '?',
                             photoUrl: _selectedOnlineUserPhotoUrl,
+                            userId: _selectedOnlineUserId,
                             radius: 20,
                           ),
                           const SizedBox(height: 6),
@@ -378,7 +379,7 @@ class _ReplaceOfflineMemberDialogState
           const SizedBox(height: 8),
           _bulletPoint(
             icon: Icons.receipt_long_rounded,
-            title: 'Expense Ledger Transferred',
+            title: 'Expenses Transferred',
             desc:
                 'All expenses paid by "${widget.offlineMember.displayName}" are reassigned to "$_selectedOnlineUserName".',
           ),
@@ -555,6 +556,8 @@ class _ReplaceOfflineMemberDialogState
           leading: MemberAvatar(
             initials: m.initials,
             photoUrl: m.photoUrl,
+            userId: m.userId,
+            tourMember: m,
             radius: 18,
           ),
           title: Text(
@@ -680,6 +683,7 @@ class _ReplaceOfflineMemberDialogState
                   MemberAvatar(
                     initials: _foundUser!.initials,
                     photoUrl: _foundUser!.photoUrl,
+                    userId: _foundUser!.uid,
                     radius: 20,
                   ),
                   const SizedBox(width: 10),

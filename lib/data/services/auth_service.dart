@@ -1,5 +1,6 @@
-import 'dart:typed_data';
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -251,34 +252,73 @@ class AuthService {
     final mime = (cleanExt == 'png') ? 'image/png' : 'image/jpeg';
     final safeExt = (cleanExt == 'png') ? 'png' : 'jpg';
 
+    // 1. Try default storage bucket with 4s timeout
     try {
       final ref = _storage.ref().child(
           'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$safeExt');
-      final uploadTask = ref.putData(
-        imageBytes,
-        SettableMetadata(contentType: mime),
-      );
-      final snapshot = await uploadTask;
-      return await snapshot.ref.getDownloadURL();
-    } catch (_) {
-      // Fallback: If Firebase Storage is restricted or offline,
-      // store as a data URI directly so the photo update NEVER fails.
-      final base64String = base64Encode(imageBytes);
-      return 'data:$mime;base64,$base64String';
+      final snapshot = await ref
+          .putData(
+            imageBytes,
+            SettableMetadata(contentType: mime),
+          )
+          .timeout(const Duration(seconds: 4));
+      return await snapshot.ref
+          .getDownloadURL()
+          .timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('[STORAGE_PRIMARY_FAILED_OR_TIMEOUT] $e');
     }
+
+    // 2. Try alternate bucket with 2.5s timeout
+    try {
+      final altStorage = FirebaseStorage.instanceFor(
+        bucket: 'tourexpensetracker-3da34.appspot.com',
+      );
+      final ref = altStorage.ref().child(
+          'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$safeExt');
+      final snapshot = await ref
+          .putData(
+            imageBytes,
+            SettableMetadata(contentType: mime),
+          )
+          .timeout(const Duration(milliseconds: 2500));
+      return await snapshot.ref
+          .getDownloadURL()
+          .timeout(const Duration(seconds: 2));
+    } catch (e) {
+      debugPrint('[STORAGE_ALTSPOT_FAILED_OR_TIMEOUT] $e');
+    }
+
+    // 3. Fallback: Store as a data URI so profile picture update NEVER fails and finishes instantly
+    final base64String = base64Encode(imageBytes);
+    return 'data:$mime;base64,$base64String';
   }
 
   Future<void> updateProfilePhoto(String uid, String? photoUrl,
       {String? activeTourId}) async {
     final user = _auth.currentUser;
     if (user != null) {
-      await user.updatePhotoURL(photoUrl);
+      if (photoUrl == null) {
+        try {
+          await user.updatePhotoURL(null);
+        } catch (_) {}
+      } else if (!photoUrl.startsWith('data:') &&
+          photoUrl.length <= 2000 &&
+          (photoUrl.startsWith('http://') || photoUrl.startsWith('https://'))) {
+        try {
+          await user.updatePhotoURL(photoUrl);
+        } catch (e) {
+          debugPrint('[AUTH] updatePhotoURL ignored: $e');
+        }
+      }
     }
 
+    // 1. Immediately update user document in Firestore (instant UI update via currentUserProvider)
     await _firestore.collection(AppConstants.usersCollection).doc(uid).update({
       'photoUrl': photoUrl,
     });
 
+    // 2. Immediately update active tour member document if present
     if (activeTourId != null && activeTourId.isNotEmpty) {
       try {
         await _firestore
@@ -286,11 +326,99 @@ class AuthService {
             .doc(activeTourId)
             .collection(AppConstants.membersSubcollection)
             .doc(uid)
-            .update({
-          'photoUrl': photoUrl,
-        });
-      } catch (_) {}
+            .set({'photoUrl': photoUrl}, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('[AUTH] Active tour member sync error: $e');
+      }
     }
+
+    // 3. Background sync across all other tours without blocking the screen
+    unawaited(_syncAllToursMemberPhoto(uid, photoUrl, activeTourId));
+  }
+
+  Future<void> _syncAllToursMemberPhoto(
+      String uid, String? photoUrl, String? activeTourId) async {
+    try {
+      final Set<String> tourDocIds = {};
+
+      final toursSnapshot = await _firestore
+          .collection(AppConstants.toursCollection)
+          .where('members', arrayContains: uid)
+          .get();
+      for (final doc in toursSnapshot.docs) {
+        if (doc.id != activeTourId) {
+          tourDocIds.add(doc.id);
+        }
+      }
+
+      final adminToursSnapshot = await _firestore
+          .collection(AppConstants.toursCollection)
+          .where('adminId', isEqualTo: uid)
+          .get();
+      for (final doc in adminToursSnapshot.docs) {
+        if (doc.id != activeTourId) {
+          tourDocIds.add(doc.id);
+        }
+      }
+
+      if (tourDocIds.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (final tourId in tourDocIds) {
+          final memberRef = _firestore
+              .collection(AppConstants.toursCollection)
+              .doc(tourId)
+              .collection(AppConstants.membersSubcollection)
+              .doc(uid);
+          batch.set(memberRef, {'photoUrl': photoUrl}, SetOptions(merge: true));
+        }
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint('[AUTH] Background tour member photo sync error: $e');
+    }
+  }
+
+  /// Retrieves the profile photo URL from the user's Google account.
+  /// Checks Firebase Auth providerData, then active GoogleSignIn user,
+  /// and finally triggers silent/interactive Google Sign-In if necessary.
+  Future<String?> getGoogleProfilePhotoUrl() async {
+    // 1. Check providerData on the currently signed-in Firebase user
+    final user = _auth.currentUser;
+    if (user != null) {
+      for (final profile in user.providerData) {
+        if (profile.providerId == 'google.com' &&
+            profile.photoURL != null &&
+            profile.photoURL!.isNotEmpty) {
+          return _enhanceGooglePhotoUrl(profile.photoURL!);
+        }
+      }
+    }
+
+    // 2. Check if GoogleSignIn has an active user
+    try {
+      var googleUser = _googleSignIn.currentUser;
+      googleUser ??= await _googleSignIn.signInSilently();
+      if (googleUser?.photoUrl != null && googleUser!.photoUrl!.isNotEmpty) {
+        return _enhanceGooglePhotoUrl(googleUser.photoUrl!);
+      }
+
+      // 3. Fallback to interactive Google Sign-In prompt
+      googleUser = await _googleSignIn.signIn();
+      if (googleUser?.photoUrl != null && googleUser!.photoUrl!.isNotEmpty) {
+        return _enhanceGooglePhotoUrl(googleUser.photoUrl!);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[AUTH] Failed to get Google profile photo: $e');
+      return null;
+    }
+  }
+
+  String _enhanceGooglePhotoUrl(String url) {
+    if (url.contains('googleusercontent.com') && url.contains('=s')) {
+      return url.replaceAll(RegExp(r'=s\d+(-c)?'), '=s400-c');
+    }
+    return url;
   }
 
   Future<void> updateFcmToken(String uid, String token) async {

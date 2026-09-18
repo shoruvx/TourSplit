@@ -10,6 +10,7 @@ import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
+import 'widgets/tour_created_dialog.dart';
 
 class CreateTourScreen extends ConsumerStatefulWidget {
   const CreateTourScreen({super.key});
@@ -21,29 +22,16 @@ class CreateTourScreen extends ConsumerStatefulWidget {
 class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _budgetCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
 
   bool _isLoading = false;
   String _selectedCurrency = 'BDT';
   String _selectedCurrencySymbol = '৳';
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 4));
-  String? _selectedCoverPreset;
-
-  final List<({String name, IconData icon, String desc})> _coverPresets = const [
-    (name: 'Beach', icon: Icons.beach_access_rounded, desc: 'Coastal & Tropical'),
-    (name: 'Mountains', icon: Icons.terrain_rounded, desc: 'Hiking & Peaks'),
-    (name: 'Road Trip', icon: Icons.directions_car_rounded, desc: 'Highway Drive'),
-    (name: 'Camping', icon: Icons.forest_rounded, desc: 'Outdoors & Tents'),
-    (name: 'City Life', icon: Icons.location_city_rounded, desc: 'Urban & Sights'),
-  ];
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _budgetCtrl.dispose();
-    _descCtrl.dispose();
     super.dispose();
   }
 
@@ -82,35 +70,36 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
       final user = ref.read(currentUserProvider).value;
       if (user == null) return;
 
-      final budgetText = _budgetCtrl.text.trim();
-      final budget = budgetText.isNotEmpty ? double.tryParse(budgetText) : null;
-
       final tourRepo = ref.read(tourRepositoryProvider);
       final tour = await tourRepo.createTour(
         name: _nameCtrl.text.trim(),
-        description:
-            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        description: null,
         currency: _selectedCurrency,
         currencySymbol: _selectedCurrencySymbol,
         adminId: user.uid,
         startDate: _startDate,
         endDate: _endDate,
-        budget: budget,
-        coverImageUrl: _selectedCoverPreset,
+        budget: null,
+        coverImageUrl: null,
       );
 
       await tourRepo.addAdminAsMember(tourId: tour.id, admin: user);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Tour "${tour.name}" created! Invite code: ${tour.inviteCode}'),
-            backgroundColor: AppColors.accent,
-            duration: const Duration(seconds: 4),
-          ),
+        setState(() => _isLoading = false);
+        await TourCreatedDialog.show(
+          context,
+          tourName: tour.name,
+          inviteCode: tour.inviteCode,
+          onDone: () {
+            Navigator.of(context).pop();
+            context.go('/home');
+          },
         );
-        context.go('/home');
+        if (mounted) {
+          context.go('/home');
+        }
+        return;
       }
     } catch (e) {
       if (mounted) {
@@ -130,7 +119,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final user = ref.watch(currentUserProvider).value;
 
     return PopScope(
       canPop: false,
@@ -205,105 +193,6 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                       : null,
                 ).animate().fadeIn(delay: 100.ms),
                 const SizedBox(height: 20),
-                _FieldLabel(label: 'Your Name (Admin) *'),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.darkSurface
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color:
-                          isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                    ),
-                  ),
-                  child: Text(
-                    user?.displayName ?? 'Tour Admin',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 16,
-                      color: isDark ? AppColors.darkText : AppColors.lightText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 150.ms),
-                const SizedBox(height: 20),
-                _FieldLabel(label: 'Tour Cover Theme (Optional)'),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 90,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _coverPresets.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (ctx, i) {
-                      final item = _coverPresets[i];
-                      final isSelected = _selectedCoverPreset == item.name;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedCoverPreset =
-                                isSelected ? null : item.name;
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 86,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.primaryTeal.withValues(alpha: 0.15)
-                                : (isDark
-                                    ? AppColors.darkSurface
-                                    : const Color(0xFFF1F5F9)),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.primaryTeal
-                                  : (isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                              width: isSelected ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                item.icon,
-                                size: 28,
-                                color: isSelected
-                                    ? AppColors.primaryTeal
-                                    : (isDark ? Colors.white70 : Colors.black54),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item.name,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? AppColors.primaryTeal
-                                      : (isDark
-                                          ? AppColors.darkText
-                                          : AppColors.lightText),
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ).animate().fadeIn(delay: 200.ms),
-                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
@@ -336,40 +225,7 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                       ),
                     ),
                   ],
-                ).animate().fadeIn(delay: 250.ms),
-                const SizedBox(height: 20),
-                _FieldLabel(label: 'Budget Limit (Optional)'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _budgetCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    hintText: '0',
-                    prefixText: '$_selectedCurrencySymbol ',
-                    prefixStyle: const TextStyle(fontWeight: FontWeight.bold),
-                    filled: true,
-                    fillColor: isDark
-                        ? AppColors.darkSurface
-                        : const Color(0xFFF1F5F9),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.lightBorder,
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.lightBorder,
-                      ),
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 300.ms),
+                ).animate().fadeIn(delay: 150.ms),
                 const SizedBox(height: 20),
                 _FieldLabel(label: 'Currency'),
                 const SizedBox(height: 8),
@@ -414,14 +270,14 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
                       });
                     }
                   },
-                ).animate().fadeIn(delay: 350.ms),
+                ).animate().fadeIn(delay: 200.ms),
                 const SizedBox(height: 32),
                 GradientButton(
                   onPressed: _createTour,
                   label: 'Create Tour',
                   icon: Icons.add_rounded,
                   gradient: AppColors.primaryGradient,
-                ).animate().fadeIn(delay: 400.ms),
+                ).animate().fadeIn(delay: 250.ms),
               ],
             ),
           ),
