@@ -22,6 +22,7 @@ import '../../presentation/reports/report_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/profile/contact_us_screen.dart';
 import '../../presentation/profile/member_profile_screen.dart';
+import '../../presentation/chat/tour_chat_screen.dart';
 import '../../data/models/tour_model.dart';
 
 class _RouterRefreshNotifier extends ChangeNotifier {
@@ -134,6 +135,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/tour/members',
         name: 'tour-members',
         builder: (context, state) => const MemberManagementScreen(),
+      ),
+      GoRoute(
+        path: '/tour/chat/:tourId',
+        name: 'tour-chat',
+        builder: (context, state) {
+          final tourId = state.pathParameters['tourId']!;
+          final tourName = state.uri.queryParameters['name'] ?? 'Tour Chat';
+          return TourChatScreen(tourId: tourId, tourName: tourName);
+        },
       ),
       GoRoute(
         path: '/expense/add',

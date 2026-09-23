@@ -4,6 +4,17 @@ All notable changes to TourSplit are documented in this file. Releases follow a 
 
 ---
 
+## [v1.5.0] - 2026-09-23
+
+- 💬 **Hybrid Offline & Cloud Tour Chat**: Coordinate with companions in real-time over cloud sync, or chat completely offline via automatic peer-to-peer Bluetooth and Wi-Fi mesh.
+- 💬 **Quote Replies & Member Mentions**: Long-press or swipe any message to reply with quote snippets, and tag tour companions with instant @mention autocomplete chips.
+- ⚡ **Seamless Android 7+ Compatibility**: Zero-setup silent Bluetooth activation on older Android 7.0+ devices with intelligent permission adapters and zero radio lockups.
+- 🧹 **7-Day Inactivity Auto-Pruning**: Old tour chats are automatically purged after 7 days of inactivity to keep your device storage light and protect free-tier cloud limits.
+- 🛡️ **Telegram-Style Complete Message Erasing**: Delete messages cleanly for yourself or everyone without leaving ugly placeholder boxes or residual clutter in the conversation.
+- 🎨 **Teal & White Floating Chat Head**: Ergonomic Messenger-style floating button with vibrant teal styling, dynamic live unread message counts, and bottom navigation placement.
+
+---
+
 ## [v1.4.3] - 2026-09-23
 
 - 🏷️ **Usernames & Privacy Protection**: Set your unique @username across TourSplit. Raw email addresses are kept private across tours, profiles, and member lists with tap-to-copy handles.

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/tour_model.dart';
@@ -11,6 +12,7 @@ import '../../core/constants/app_constants.dart';
 
 class TourRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   CollectionReference get _tours =>
       _db.collection(AppConstants.toursCollection);
@@ -120,8 +122,44 @@ class TourRepository {
       'balance': 0.0,
     });
 
-    final userRef = _db.collection(AppConstants.usersCollection).doc(user.uid);
-    batch.update(userRef, {'activeTourId': tourId});
+    // Only update activeTourId if the joining user is the currently authenticated user
+    if (_auth.currentUser?.uid == user.uid) {
+      final userRef = _db.collection(AppConstants.usersCollection).doc(user.uid);
+      batch.update(userRef, {'activeTourId': tourId});
+    }
+
+    await batch.commit();
+  }
+
+  /// Explicitly add a member to the tour without attempting to mutate the target user's private document
+  Future<void> addMemberToTour({
+    required String tourId,
+    required UserModel user,
+  }) async {
+    final batch = _db.batch();
+
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayUnion([user.uid]),
+    });
+
+    final memberRef = _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(user.uid);
+    batch.set(memberRef, {
+      'userId': user.uid,
+      'displayName': user.displayName,
+      'email': user.email,
+      'photoUrl': user.photoUrl,
+      'role': 'member',
+      'joinedAt': FieldValue.serverTimestamp(),
+      'balance': 0.0,
+    });
+
+    if (_auth.currentUser?.uid == user.uid) {
+      final userRef = _db.collection(AppConstants.usersCollection).doc(user.uid);
+      batch.update(userRef, {'activeTourId': tourId});
+    }
 
     await batch.commit();
   }
@@ -244,6 +282,7 @@ class TourRepository {
       AppConstants.settlementsSubcollection,
       AppConstants.categoriesSubcollection,
       'join_requests',
+      'chats',
     ];
 
     for (final sub in subcollections) {

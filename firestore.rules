@@ -59,11 +59,14 @@ service cloud.firestore {
       match /join_requests/{requestId} {
         allow read, create, update, delete: if isLoggedIn();
       }
+
+      match /chats/{chatId} {
+        allow read, create, update, delete: if isLoggedIn();
+      }
     }
 
     match /invites/{inviteId} {
-      allow create: if isLoggedIn();
-      allow update: if isLoggedIn();
+      allow read, create, update: if isLoggedIn();
       allow delete: if false;
     }
 

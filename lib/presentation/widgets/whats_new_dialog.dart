@@ -63,46 +63,40 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
-      icon: Icons.alternate_email_rounded,
-      title: 'Usernames & Privacy Protection',
+      icon: Icons.forum_rounded,
+      title: 'Hybrid Offline & Cloud Tour Chat',
       description:
-          'Set your unique @username across TourSplit. Raw email addresses are kept private across tours, profiles, and member lists with tap-to-copy handles.',
+          'Coordinate with companions in real-time over cloud sync, or chat completely offline via automatic peer-to-peer Bluetooth and Wi-Fi mesh.',
     ),
     (
-      icon: Icons.person_remove_rounded,
-      title: 'Zero-Transaction Member Removal',
+      icon: Icons.reply_rounded,
+      title: 'Quote Replies & Member Mentions',
       description:
-          'Tour admins can cleanly remove mistakenly added members who have recorded zero contributions or expenses from the active tour.',
+          'Long-press or swipe any message to reply with quote snippets, and tag tour companions with instant @mention autocomplete chips.',
     ),
     (
-      icon: Icons.person_add_alt_1_rounded,
-      title: 'Unified Add Member Experience',
+      icon: Icons.bluetooth_audio_rounded,
+      title: 'Seamless Android 7+ Compatibility',
       description:
-          'Instantly add companions via @username lookup, registered email invitations, or create offline friend profiles from one simplified dialog.',
+          'Zero-setup silent Bluetooth activation on older Android 7.0+ devices with intelligent permission adapters and zero radio lockups.',
     ),
     (
-      icon: Icons.touch_app_rounded,
-      title: 'Ergonomic One-Handed Home Layout',
+      icon: Icons.auto_delete_rounded,
+      title: '7-Day Inactivity Auto-Pruning',
       description:
-          'Re-anchored the "Create Tour" button and primary actions to the upper-middle screen for effortless thumb reach when holding your phone.',
+          'Old tour chats are automatically purged after 7 days of inactivity to keep your device storage light and protect free-tier cloud limits.',
     ),
     (
-      icon: Icons.people_alt_rounded,
-      title: 'Consistent Companion Naming',
+      icon: Icons.delete_sweep_rounded,
+      title: 'Telegram-Style Complete Message Erasing',
       description:
-          'Unified member types throughout the app under clear, intuitive "Online Friend" and "Offline Friend" labels.',
+          'Delete messages cleanly for yourself or everyone without leaving ugly placeholder boxes or residual clutter in the conversation.',
     ),
     (
-      icon: Icons.mark_chat_unread_outlined,
-      title: 'Direct Developer Contact',
+      icon: Icons.mark_chat_unread_rounded,
+      title: 'Teal & White Floating Chat Head',
       description:
-          'Submit feature requests, bug reports, and suggestions directly through the simplified Contact Us portal in Profile settings.',
-    ),
-    (
-      icon: Icons.auto_awesome_rounded,
-      title: 'Clean Visuals & Refined Actions',
-      description:
-          'Modernized top action icons with high-contrast white styling in dark mode, balanced profile spacing, and clutter-free settlement cards.',
+          'Ergonomic Messenger-style floating button with vibrant teal styling, dynamic live unread message counts, and bottom navigation placement.',
     ),
   ];
 

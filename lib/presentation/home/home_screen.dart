@@ -17,6 +17,7 @@ import '../../data/services/balance_service.dart';
 import '../../data/services/app_update_service.dart';
 import '../../data/services/welcome_greeting_service.dart';
 import '../../data/repositories/settlement_repository.dart';
+import '../../data/services/chat_sync_service.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/theme_switch_toggle.dart';
 import '../expense/expense_list_tile.dart';
@@ -26,6 +27,7 @@ import '../widgets/first_time_guide_dialog.dart';
 import '../widgets/whats_new_dialog.dart';
 import '../settlement/widgets/manual_settlement_dialog.dart';
 import '../settlement/widgets/receiver_payment_accounts_view.dart';
+import '../chat/widgets/messenger_chat_head.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -657,6 +659,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final expensesStream = ref.watch(tourExpensesStreamProvider(widget.tourId));
     final settlementsStream =
         ref.watch(tourSettlementsStreamProvider(widget.tourId));
+    final currentUser = ref.watch(currentUserProvider).value;
+    final syncService = ref.watch(chatSyncServiceProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      syncService.setActiveTour(widget.tourId);
+    });
 
     return tourStream.when(
       loading: () =>
@@ -788,12 +795,14 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 .clearUserActiveTour(widget.userId);
           },
           child: Scaffold(
-            body: CustomScrollView(
-              slivers: [
-                _TourDashboardAppBar(
-                  tour: tour,
-                  isAdmin: isAdmin,
-                ),
+            body: Stack(
+              children: [
+                CustomScrollView(
+                  slivers: [
+                    _TourDashboardAppBar(
+                      tour: tour,
+                      isAdmin: isAdmin,
+                    ),
               SliverPadding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1048,8 +1057,21 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
             ],
           ),
-        ),
-      );
+          MessengerChatHead(
+            tourId: tour.id,
+            tourName: tour.name,
+            userId: widget.userId,
+          ),
+        ],
+      ),
+      bottomNavigationBar: _TourBottomNavigationBar(
+        tour: tour,
+        isAdmin: isAdmin,
+        currentUser: currentUser,
+        membersCount: membersList.length,
+      ),
+    ),
+  );
     },
     );
   }
@@ -2277,7 +2299,6 @@ class _TourDashboardAppBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currentUser = ref.watch(currentUserProvider).value;
 
     return SliverAppBar(
       pinned: true,
@@ -2328,41 +2349,16 @@ class _TourDashboardAppBar extends ConsumerWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.groups_rounded),
-          tooltip: 'Members',
-          onPressed: () => context.push('/tour/members'),
-        ),
-        if (isAdmin)
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Tour Settings',
-            onPressed: () => context.push('/tour/settings'),
-          ),
-        InkWell(
-          onTap: () => context.push('/profile'),
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.only(left: 4, right: 14),
-            child: Container(
-              padding: const EdgeInsets.all(1.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.6),
-                  width: 1.5,
-                ),
-              ),
-              child: MemberAvatar(
-                initials: currentUser?.initials.isNotEmpty == true
-                    ? currentUser!.initials
-                    : 'U',
-                photoUrl: currentUser?.photoUrl,
-                userId: currentUser?.uid,
-                radius: 15,
-              ),
-            ),
+          icon: const Icon(Icons.qr_code_2_rounded),
+          tooltip: 'Invite & QR Code',
+          onPressed: () => TourQrDialog.show(
+            context,
+            tourName: tour.name,
+            inviteCode: tour.inviteCode,
           ),
         ),
+        const ThemeSwitchToggle(),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -2661,3 +2657,218 @@ class _ViewToggleButton extends StatelessWidget {
     );
   }
 }
+
+/// Messenger-style bottom navigation bar bringing Members, Settings, and Profile down
+class _TourBottomNavigationBar extends StatelessWidget {
+  final TourModel tour;
+  final bool isAdmin;
+  final dynamic currentUser;
+  final int membersCount;
+
+  const _TourBottomNavigationBar({
+    required this.tour,
+    required this.isAdmin,
+    required this.currentUser,
+    required this.membersCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: isDark
+                ? AppColors.darkBorder.withValues(alpha: 0.6)
+                : AppColors.lightBorder,
+            width: 0.8,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // 1. Dashboard / Trips
+              _BottomNavItem(
+                icon: Icons.dashboard_rounded,
+                label: 'Dashboard',
+                isSelected: true,
+                onTap: () {},
+              ),
+
+              // 2. Members (like "People" in Messenger)
+              _BottomNavItem(
+                icon: Icons.people_alt_rounded,
+                label: 'Members',
+                badgeText: membersCount > 0 ? '$membersCount' : null,
+                onTap: () => context.push('/tour/members'),
+              ),
+
+              // 3. Settings (Tour settings if admin)
+              if (isAdmin)
+                _BottomNavItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  onTap: () => context.push('/tour/settings'),
+                ),
+
+              // 4. Profile / Menu (with avatar like Messenger)
+              _BottomProfileNavItem(
+                currentUser: currentUser,
+                onTap: () => context.push('/profile'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final String? badgeText;
+  final VoidCallback onTap;
+
+  const _BottomNavItem({
+    required this.icon,
+    required this.label,
+    this.isSelected = false,
+    this.badgeText,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final activeColor = AppColors.primaryTeal;
+    final inactiveColor = isDark ? Colors.white60 : Colors.black54;
+
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Badge(
+              isLabelVisible: badgeText != null,
+              label: badgeText != null
+                  ? Text(
+                      badgeText!,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+                  : null,
+              backgroundColor: AppColors.primaryTeal,
+              child: Icon(
+                icon,
+                size: 24,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomProfileNavItem extends StatelessWidget {
+  final dynamic currentUser;
+  final VoidCallback onTap;
+
+  const _BottomProfileNavItem({
+    required this.currentUser,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(1.5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.primaryTeal.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+              ),
+              child: MemberAvatar(
+                initials: currentUser?.initials?.isNotEmpty == true
+                    ? currentUser!.initials!
+                    : 'U',
+                photoUrl: currentUser?.photoUrl,
+                userId: currentUser?.uid,
+                radius: 11,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Profile',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+

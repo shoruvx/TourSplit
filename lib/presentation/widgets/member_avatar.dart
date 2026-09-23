@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/services/auth_service.dart';
@@ -18,7 +19,7 @@ ImageProvider? _resolveImageProvider(String? photoUrl) {
       return null;
     }
   }
-  return NetworkImage(photoUrl);
+  return CachedNetworkImageProvider(photoUrl);
 }
 
 class MemberAvatar extends ConsumerWidget {

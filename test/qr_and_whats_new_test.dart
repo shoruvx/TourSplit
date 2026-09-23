@@ -74,14 +74,13 @@ void main() {
 
   group('WhatsNewDialog Features Tests', () {
     test('static features list contains the updated features', () {
-      expect(WhatsNewDialog.features.length, 7);
-      expect(WhatsNewDialog.features[0].title, 'Usernames & Privacy Protection');
-      expect(WhatsNewDialog.features[1].title, 'Zero-Transaction Member Removal');
-      expect(WhatsNewDialog.features[2].title, 'Unified Add Member Experience');
-      expect(WhatsNewDialog.features[3].title, 'Ergonomic One-Handed Home Layout');
-      expect(WhatsNewDialog.features[4].title, 'Consistent Companion Naming');
-      expect(WhatsNewDialog.features[5].title, 'Direct Developer Contact');
-      expect(WhatsNewDialog.features[6].title, 'Clean Visuals & Refined Actions');
+      expect(WhatsNewDialog.features.length, 6);
+      expect(WhatsNewDialog.features[0].title, 'Hybrid Offline & Cloud Tour Chat');
+      expect(WhatsNewDialog.features[1].title, 'Quote Replies & Member Mentions');
+      expect(WhatsNewDialog.features[2].title, 'Seamless Android 7+ Compatibility');
+      expect(WhatsNewDialog.features[3].title, '7-Day Inactivity Auto-Pruning');
+      expect(WhatsNewDialog.features[4].title, 'Telegram-Style Complete Message Erasing');
+      expect(WhatsNewDialog.features[5].title, 'Teal & White Floating Chat Head');
     });
   });
 

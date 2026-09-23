@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'firebase_options.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/theme/app_theme.dart';
+import 'data/models/chat_message.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/app_update_service.dart';
 import 'data/services/welcome_greeting_service.dart';
@@ -28,12 +30,19 @@ Future<void> main() async {
   );
   debugPrint('[APP] Firebase initialized');
 
+  // Phase 1: Enable Firestore offline persistence to reduce network reads
+  FirebaseFirestore.instance.settings =
+      const Settings(persistenceEnabled: true);
+
   await Hive.initFlutter();
+  Hive.registerAdapter(ChatMessageAdapter());
   try {
     await Hive.openBox('app_preferences');
+    await Hive.openBox<ChatMessage>('chat_box');
+    await Hive.openBox<Map>('user_box');
     await WelcomeGreetingService.advanceSessionGreeting();
   } catch (e) {
-    debugPrint('[APP] Error opening app_preferences: $e');
+    debugPrint('[APP] Error opening Hive boxes: $e');
   }
   debugPrint('[APP] Hive initialized');
 

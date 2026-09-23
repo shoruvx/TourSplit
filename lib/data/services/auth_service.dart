@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/user_model.dart';
 import '../../core/constants/app_constants.dart';
@@ -360,9 +361,38 @@ class AuthService {
 
   Future<String> uploadProfileImage(
       String uid, Uint8List imageBytes, String extension) async {
-    final cleanExt = extension.toLowerCase();
-    final mime = (cleanExt == 'png') ? 'image/png' : 'image/jpeg';
-    final safeExt = (cleanExt == 'png') ? 'png' : 'jpg';
+    // Phase 1: Pipe image bytes through flutter_image_compress (target size < 150KB, format JPEG)
+    Uint8List processedBytes = imageBytes;
+    try {
+      int quality = 85;
+      var compressed = await FlutterImageCompress.compressWithList(
+        imageBytes,
+        minWidth: 1024,
+        minHeight: 1024,
+        quality: quality,
+        format: CompressFormat.jpeg,
+      );
+
+      // Iteratively reduce quality/dimensions if still >= 150KB (153600 bytes)
+      while (compressed.lengthInBytes > 150 * 1024 && quality > 25) {
+        quality -= 15;
+        compressed = await FlutterImageCompress.compressWithList(
+          compressed,
+          minWidth: 600,
+          minHeight: 600,
+          quality: quality,
+          format: CompressFormat.jpeg,
+        );
+      }
+      if (compressed.isNotEmpty) {
+        processedBytes = compressed;
+      }
+    } catch (e) {
+      debugPrint('[STORAGE_COMPRESS] Compression failed, proceeding with original: $e');
+    }
+
+    const mime = 'image/jpeg';
+    const safeExt = 'jpg';
 
     // 1. Try default storage bucket with 4s timeout
     try {
@@ -370,7 +400,7 @@ class AuthService {
           'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$safeExt');
       final snapshot = await ref
           .putData(
-            imageBytes,
+            processedBytes,
             SettableMetadata(contentType: mime),
           )
           .timeout(const Duration(seconds: 4));
@@ -390,7 +420,7 @@ class AuthService {
           'users/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.$safeExt');
       final snapshot = await ref
           .putData(
-            imageBytes,
+            processedBytes,
             SettableMetadata(contentType: mime),
           )
           .timeout(const Duration(milliseconds: 2500));
@@ -402,7 +432,7 @@ class AuthService {
     }
 
     // 3. Fallback: Store as a data URI so profile picture update NEVER fails and finishes instantly
-    final base64String = base64Encode(imageBytes);
+    final base64String = base64Encode(processedBytes);
     return 'data:$mime;base64,$base64String';
   }
 

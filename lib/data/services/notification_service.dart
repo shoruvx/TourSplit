@@ -1,6 +1,8 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/routing/app_router.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
@@ -10,6 +12,13 @@ class NotificationService {
     'tour_expense_tracker_channel',
     'TourSplit',
     description: 'Notifications for tour expense updates',
+    importance: Importance.high,
+  );
+
+  static const AndroidNotificationChannel _chatChannel = AndroidNotificationChannel(
+    'tour_chat_messages_channel',
+    'Tour Chat Messages',
+    description: 'Notifications for tour messages and mesh chat updates',
     importance: Importance.high,
   );
 
@@ -37,12 +46,22 @@ class NotificationService {
           android: androidSettings,
           iOS: iosSettings,
         ),
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          final payload = response.payload;
+          if (payload != null && payload.isNotEmpty) {
+            final context = rootNavigatorKey.currentContext;
+            if (context != null) {
+              context.push(payload);
+            }
+          }
+        },
       );
 
-      await _localNotifications
+      final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(_channel);
+              AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(_channel);
+      await androidPlugin?.createNotificationChannel(_chatChannel);
 
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         _showLocalNotification(message);
@@ -98,8 +117,57 @@ class NotificationService {
       } else if (message.data['type'] == 'app_update') {
         final version = message.data['version'] ?? 'latest';
         await showUpdateNotification(latestVersion: version);
+      } else if (message.data['type'] == 'chat') {
+        final tourId = message.data['tourId'] ?? '';
+        final tourName = message.data['tourName'] ?? 'Tour';
+        final senderName = message.data['senderName'] ?? 'Tour Member';
+        final content = message.data['content'] ??
+            message.notification?.body ??
+            'New message';
+        await showChatMessageNotification(
+          tourId: tourId,
+          tourName: tourName,
+          senderName: senderName,
+          messageText: content,
+        );
       }
     } catch (_) {}
+  }
+
+  static Future<void> showChatMessageNotification({
+    required String tourId,
+    required String tourName,
+    required String senderName,
+    required String messageText,
+    String? messageId,
+  }) async {
+    try {
+      final notifId = (messageId ?? '${tourId}_${DateTime.now().millisecondsSinceEpoch}').hashCode;
+      await _localNotifications.show(
+        id: notifId,
+        title: tourName.isNotEmpty ? '$senderName • $tourName' : senderName,
+        body: messageText,
+        payload: '/tour/chat/$tourId?name=${Uri.encodeComponent(tourName)}',
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _chatChannel.id,
+            _chatChannel.name,
+            channelDescription: _chatChannel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            showWhen: true,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[NOTIFICATION] Error showing chat notification: $e');
+    }
   }
 
   static Future<void> _showLocalNotification(RemoteMessage message) async {

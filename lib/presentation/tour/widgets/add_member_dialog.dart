@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,14 +50,53 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
   final _offlineFormKey = GlobalKey<FormState>();
 
   bool _isSubmitting = false;
+  bool _isSearching = false;
   String? _onlineError;
   UserModel? _foundUser;
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _onlineInputCtrl.dispose();
     _offlineNameCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String rawQuery) {
+    _debounceTimer?.cancel();
+    final query = rawQuery.trim().replaceAll(RegExp(r'^@'), '');
+    if (query.isEmpty) {
+      setState(() {
+        _foundUser = null;
+        _onlineError = null;
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearching = true);
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final user = await ref.read(tourRepositoryProvider).findUserByUsernameOrEmail(query);
+        if (!mounted) return;
+        setState(() {
+          _isSearching = false;
+          _foundUser = user;
+          if (user != null) {
+            final isAlreadyMember = widget.currentMembers.any((m) => m.userId == user.uid);
+            if (isAlreadyMember) {
+              _onlineError = '${user.displayName} is already a member of this tour.';
+            } else {
+              _onlineError = null;
+            }
+          }
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _isSearching = false);
+      }
+    });
   }
 
   Future<void> _submitOnlineUser() async {
@@ -96,7 +136,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
         }
 
         // Add user directly to tour
-        await ref.read(tourRepositoryProvider).joinTour(
+        await ref.read(tourRepositoryProvider).addMemberToTour(
               tourId: widget.tourId,
               user: user,
             );
@@ -354,28 +394,34 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
           autofocus: true,
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _submitOnlineUser(),
-          onChanged: (_) {
-            if (_onlineError != null) {
-              setState(() => _onlineError = null);
-            }
-          },
+          onChanged: _onSearchChanged,
           decoration: InputDecoration(
             labelText: 'Username or Email',
             hintText: 'e.g. @rahim or rahim@gmail.com',
             hintStyle: const TextStyle(fontSize: 13),
             prefixIcon: const Icon(Icons.alternate_email_rounded, size: 20),
-            suffixIcon: _onlineInputCtrl.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear_rounded, size: 18),
-                    onPressed: () {
-                      _onlineInputCtrl.clear();
-                      setState(() {
-                        _foundUser = null;
-                        _onlineError = null;
-                      });
-                    },
+            suffixIcon: _isSearching
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
-                : null,
+                : (_onlineInputCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 18),
+                        onPressed: () {
+                          _onlineInputCtrl.clear();
+                          setState(() {
+                            _foundUser = null;
+                            _onlineError = null;
+                            _isSearching = false;
+                          });
+                        },
+                      )
+                    : null),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
@@ -418,12 +464,14 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
         if (_foundUser != null) ...[
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.primaryTeal.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
+              color: AppColors.primaryTeal.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.3)),
+                color: AppColors.primaryTeal.withValues(alpha: 0.4),
+                width: 1.5,
+              ),
             ),
             child: Row(
               children: [
@@ -431,33 +479,75 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
                   initials: _foundUser!.initials,
                   photoUrl: _foundUser!.photoUrl,
                   userId: _foundUser!.uid,
-                  radius: 20,
+                  radius: 22,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _foundUser!.displayName,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _foundUser!.displayName,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color:
+                                  AppColors.positive.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Found ✓',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.positive,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 3),
                       Text(
                         _foundUser!.username.isNotEmpty
                             ? '@${_foundUser!.username}'
                             : _foundUser!.email,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: 'Outfit',
-                          fontSize: 12,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.lightTextSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryTeal,
                         ),
                       ),
+                      if (_foundUser!.username.isNotEmpty &&
+                          _foundUser!.email.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _foundUser!.email,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
                   ),
                 ),
