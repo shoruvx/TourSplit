@@ -84,57 +84,75 @@ class AppTheme {
           isDark ? AppColors.darkCard : AppColors.lightCard,
     );
 
+    const fontFallbacks = [
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '.SF Pro Text',
+      '.SF UI Text',
+      'Outfit',
+      'sans-serif',
+    ];
+
     final textTheme = TextTheme(
       displayLarge: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 57,
         fontWeight: FontWeight.w700,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       displayMedium: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 45,
         fontWeight: FontWeight.w700,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       displaySmall: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 36,
         fontWeight: FontWeight.w600,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       headlineLarge: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 32,
         fontWeight: FontWeight.w600,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       headlineMedium: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 28,
         fontWeight: FontWeight.w600,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       headlineSmall: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 24,
         fontWeight: FontWeight.w600,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       titleLarge: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 22,
         fontWeight: FontWeight.w600,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       titleMedium: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 16,
         fontWeight: FontWeight.w500,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       titleSmall: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 14,
         fontWeight: FontWeight.w500,
         color: isDark
@@ -143,18 +161,21 @@ class AppTheme {
       ),
       bodyLarge: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       bodyMedium: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: isDark ? AppColors.darkText : AppColors.lightText,
       ),
       bodySmall: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color:
@@ -162,6 +183,7 @@ class AppTheme {
       ),
       labelLarge: TextStyle(
         fontFamily: 'Outfit',
+        fontFamilyFallback: fontFallbacks,
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: isDark ? AppColors.darkText : AppColors.lightText,

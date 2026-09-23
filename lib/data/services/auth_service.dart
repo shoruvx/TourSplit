@@ -40,7 +40,17 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
           .snapshots()
           .asyncMap((doc) async {
         if (doc.exists) {
-          return UserModel.fromFirestore(doc);
+          final model = UserModel.fromFirestore(doc);
+          if (user.email != null && user.email!.isNotEmpty) {
+            AuthService.recordUserEmail(
+              email: user.email!,
+              uid: user.uid,
+              username: model.username,
+              displayName: model.displayName,
+              photoUrl: model.photoUrl,
+            );
+          }
+          return model;
         } else {
           final nameParts = (user.displayName ?? '').split(' ');
           final emailPrefix = (user.email ?? 'user').split('@').first;
@@ -81,6 +91,38 @@ class AuthService {
         '57491876636-hssqr3kr22ul02175nrufl5953h88po6.apps.googleusercontent.com',
   );
 
+  static Future<void> recordUserEmail({
+    required String email,
+    required String uid,
+    String? username,
+    String? displayName,
+    String? photoUrl,
+    String? provider,
+  }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection(AppConstants.registeredEmailsCollection)
+          .doc(cleanEmail)
+          .set({
+        'email': cleanEmail,
+        'uid': uid,
+        if (username != null && username.isNotEmpty)
+          'username': username.toLowerCase().trim(),
+        if (displayName != null && displayName.isNotEmpty)
+          'displayName': displayName.trim(),
+        if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
+        if (provider != null) 'provider': provider,
+        'registeredAt': FieldValue.serverTimestamp(),
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AUTH] Failed to record user email: $e');
+    }
+  }
+
   Future<UserModel> registerWithEmail({
     required String email,
     required String password,
@@ -109,6 +151,14 @@ class AuthService {
         .collection(AppConstants.usersCollection)
         .doc(user.uid)
         .set(userModel.toFirestore());
+
+    await recordUserEmail(
+      email: email,
+      uid: user.uid,
+      username: username,
+      displayName: '$firstName $lastName',
+      provider: 'email',
+    );
 
     return userModel;
   }
@@ -144,6 +194,13 @@ class AuthService {
           .doc(user.uid)
           .set(userModel.toFirestore());
     }
+
+    await recordUserEmail(
+      email: email,
+      uid: user.uid,
+      displayName: user.displayName,
+      provider: 'email',
+    );
 
     return user;
   }
@@ -186,7 +243,28 @@ class AuthService {
           .doc(user.uid)
           .set(userModel.toFirestore());
 
+      if (user.email != null) {
+        await recordUserEmail(
+          email: user.email!,
+          uid: user.uid,
+          username: userModel.username,
+          displayName: user.displayName,
+          photoUrl: user.photoURL,
+          provider: 'google',
+        );
+      }
+
       return userModel;
+    }
+
+    if (user.email != null) {
+      await recordUserEmail(
+        email: user.email!,
+        uid: user.uid,
+        displayName: user.displayName,
+        photoUrl: user.photoURL,
+        provider: 'google',
+      );
     }
 
     return UserModel.fromFirestore(doc);
@@ -203,39 +281,73 @@ class AuthService {
 
   Future<void> updateProfile({
     required String uid,
-    required String firstName,
-    required String lastName,
+    String? name,
+    String? username,
+    String? firstName,
+    String? lastName,
     String? activeTourId,
   }) async {
-    final cleanFirst = firstName.trim();
-    final cleanLast = lastName.trim();
-    final fullName =
-        cleanLast.isNotEmpty ? '$cleanFirst $cleanLast' : cleanFirst;
+    final cleanName = (name ?? '').trim().isNotEmpty
+        ? name!.trim()
+        : '${firstName ?? ''} ${lastName ?? ''}'.trim();
+    String cleanUsername = (username ?? '').trim().toLowerCase();
+    if (cleanUsername.startsWith('@')) {
+      cleanUsername = cleanUsername.substring(1).trim();
+    }
+
+    if (cleanUsername.isNotEmpty) {
+      final available =
+          await isUsernameAvailable(cleanUsername, excludeUid: uid);
+      if (!available) {
+        throw Exception(
+            'Username "@$cleanUsername" is already taken. Please choose another.');
+      }
+    }
 
     // 1. Update Firebase Auth displayName
     final user = _auth.currentUser;
-    if (user != null) {
-      await user.updateDisplayName(fullName);
+    if (user != null && cleanName.isNotEmpty) {
+      await user.updateDisplayName(cleanName);
     }
 
     // 2. Update Firestore users collection
-    await _firestore.collection(AppConstants.usersCollection).doc(uid).update({
-      'firstName': cleanFirst,
-      'lastName': cleanLast,
-    });
+    final updateData = <String, dynamic>{
+      'firstName': cleanName,
+      'lastName': '',
+    };
+    if (cleanUsername.isNotEmpty) {
+      updateData['username'] = cleanUsername;
+    }
+
+    await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(uid)
+        .update(updateData);
 
     // 3. Update member document in active tour if present
     if (activeTourId != null && activeTourId.isNotEmpty) {
       try {
+        final memberUpdate = <String, dynamic>{'displayName': cleanName};
+        if (cleanUsername.isNotEmpty) {
+          memberUpdate['username'] = cleanUsername;
+        }
         await _firestore
             .collection(AppConstants.toursCollection)
             .doc(activeTourId)
             .collection(AppConstants.membersSubcollection)
             .doc(uid)
-            .update({
-          'displayName': fullName,
-        });
+            .update(memberUpdate);
       } catch (_) {}
+    }
+
+    final authUser = _auth.currentUser;
+    if (authUser?.email != null) {
+      recordUserEmail(
+        email: authUser!.email!,
+        uid: uid,
+        username: cleanUsername.isNotEmpty ? cleanUsername : null,
+        displayName: cleanName,
+      );
     }
   }
 
@@ -428,14 +540,22 @@ class AuthService {
         .update({'fcmToken': token});
   }
 
-  Future<bool> isUsernameAvailable(String username) async {
+  Future<bool> isUsernameAvailable(String username, {String? excludeUid}) async {
     try {
+      final clean = username.toLowerCase().trim().replaceAll('@', '');
+      if (clean.isEmpty) return false;
       final query = await _firestore
           .collection(AppConstants.usersCollection)
-          .where('username', isEqualTo: username.toLowerCase())
-          .limit(1)
+          .where('username', isEqualTo: clean)
+          .limit(2)
           .get();
-      return query.docs.isEmpty;
+      if (query.docs.isEmpty) return true;
+      if (excludeUid != null &&
+          query.docs.length == 1 &&
+          query.docs.first.id == excludeUid) {
+        return true;
+      }
+      return false;
     } catch (_) {
       return true;
     }

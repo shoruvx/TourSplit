@@ -27,27 +27,40 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   bool _isLoading = false;
   bool _initialized = false;
   bool _isAccountsExpanded = false;
 
   @override
   void dispose() {
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
+    _nameCtrl.dispose();
+    _usernameCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _saveProfile(UserModel user) async {
-    final first = _firstNameCtrl.text.trim();
-    final last = _lastNameCtrl.text.trim();
+    final name = _nameCtrl.text.trim();
+    String username = _usernameCtrl.text.trim().toLowerCase();
+    if (username.startsWith('@')) {
+      username = username.substring(1).trim();
+    }
 
-    if (first.isEmpty) {
+    if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('First name cannot be empty'),
+          content: Text('Name cannot be empty'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username cannot be empty'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -59,8 +72,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       await ref.read(authServiceProvider).updateProfile(
             uid: user.uid,
-            firstName: first,
-            lastName: last,
+            name: name,
+            username: username,
             activeTourId: user.activeTourId,
           );
 
@@ -82,9 +95,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -407,7 +418,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: _isAccountsExpanded ? 12 : 11,
+      ),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.card),
@@ -426,6 +440,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           InkWell(
             onTap: () {
@@ -434,7 +449,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             },
             borderRadius: BorderRadius.circular(AppRadius.button),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 children: [
                   const Icon(Icons.account_balance_wallet_rounded,
@@ -1060,6 +1075,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final userAsync = ref.watch(currentUserProvider);
 
     return userAsync.when(
@@ -1070,8 +1086,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         if (user == null) return const Scaffold();
 
         if (!_initialized) {
-          _firstNameCtrl.text = user.firstName;
-          _lastNameCtrl.text = user.lastName;
+          _nameCtrl.text = user.displayName;
+          _usernameCtrl.text = user.username.isNotEmpty
+              ? user.username
+              : user.email.split('@').first;
           _initialized = true;
         }
 
@@ -1089,28 +1107,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             isLoading: _isLoading,
             child: Scaffold(
               appBar: AppBar(
-                title: const Text('Profile'),
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                  tooltip: 'Back',
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/home');
-                    }
-                  },
+                automaticallyImplyLeading: false,
+                toolbarHeight: 64,
+                titleSpacing: 20,
+                title: const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Profile',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: AppColors.primaryTeal,
+                    ),
+                  ),
                 ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.feedback_outlined),
-                    tooltip: 'Contact Us & Suggestions',
+                    icon: Icon(Icons.mark_chat_unread_outlined,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                    tooltip: 'Contact Us',
                     onPressed: () => context.push('/profile/contact-us'),
                   ),
                 ],
               ),
             body: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
               child: Column(
                 children: [
                   Center(
@@ -1172,25 +1195,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       .animate()
                       .fadeIn(delay: 100.ms),
                   const SizedBox(height: 4),
-                  Text(user.email, style: theme.textTheme.bodySmall)
-                      .animate()
-                      .fadeIn(delay: 150.ms),
+                  Text(
+                    '@${user.username.isNotEmpty ? user.username : user.email.split('@').first}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ).animate().fadeIn(delay: 150.ms),
                   const SizedBox(height: 12),
                   _buildPaymentAccountsSection(context, user)
                       .animate()
                       .fadeIn(delay: 180.ms),
                   const SizedBox(height: 14),
                   AppTextField(
-                    controller: _firstNameCtrl,
-                    label: 'First Name',
+                    controller: _nameCtrl,
+                    label: 'Name',
                     prefixIcon: Icons.person_outline,
                     textCapitalization: TextCapitalization.words,
                   ).animate().fadeIn(delay: 200.ms),
                   const SizedBox(height: 16),
                   AppTextField(
-                    controller: _lastNameCtrl,
-                    label: 'Last Name',
-                    textCapitalization: TextCapitalization.words,
+                    controller: _usernameCtrl,
+                    label: 'Username',
+                    prefixIcon: Icons.alternate_email_rounded,
                   ).animate().fadeIn(delay: 250.ms),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -1475,13 +1504,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Icon(
-                                    Icons.feedback_outlined,
+                                    Icons.mark_chat_unread_outlined,
                                     size: 20,
                                     color: AppColors.primaryTeal,
                                   ),
                                 ),
                                 title: const Text(
-                                  'Contact Us & Suggestions',
+                                  'Contact Us',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
                                     fontWeight: FontWeight.w700,

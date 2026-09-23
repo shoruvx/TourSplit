@@ -74,17 +74,14 @@ void main() {
 
   group('WhatsNewDialog Features Tests', () {
     test('static features list contains the updated features', () {
-      expect(WhatsNewDialog.features.length, 9);
-      expect(WhatsNewDialog.features[0].title, 'Interactive Photo Cropping');
-      expect(WhatsNewDialog.features[1].title, 'Live Tour Profile Picture Sync');
-      expect(WhatsNewDialog.features[2].title, 'QR-First Tour Joining');
-      expect(WhatsNewDialog.features[3].title,
-          'Streamlined Tour & Expense Creation');
-      expect(WhatsNewDialog.features[4].title, 'Share App & Smart Tour QR');
-      expect(WhatsNewDialog.features[5].title, 'Expense Date Day Stepper');
-      expect(WhatsNewDialog.features[6].title, 'Single Payer Dropdown');
-      expect(WhatsNewDialog.features[7].title, 'Google Profile Photo Import');
-      expect(WhatsNewDialog.features[8].title, 'Simplified English Everywhere');
+      expect(WhatsNewDialog.features.length, 7);
+      expect(WhatsNewDialog.features[0].title, 'Usernames & Privacy Protection');
+      expect(WhatsNewDialog.features[1].title, 'Zero-Transaction Member Removal');
+      expect(WhatsNewDialog.features[2].title, 'Unified Add Member Experience');
+      expect(WhatsNewDialog.features[3].title, 'Ergonomic One-Handed Home Layout');
+      expect(WhatsNewDialog.features[4].title, 'Consistent Companion Naming');
+      expect(WhatsNewDialog.features[5].title, 'Direct Developer Contact');
+      expect(WhatsNewDialog.features[6].title, 'Clean Visuals & Refined Actions');
     });
   });
 

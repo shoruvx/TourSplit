@@ -206,26 +206,32 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Your Tours'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            tooltip: 'Back',
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/home');
-              }
-            },
+          automaticallyImplyLeading: false,
+          toolbarHeight: 64,
+          titleSpacing: 20,
+          title: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Tours',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+                color: AppColors.primaryTeal,
+              ),
+            ),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.qr_code_scanner_rounded),
+              icon: Icon(Icons.qr_code_scanner_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A)),
               tooltip: 'Join Tour',
               onPressed: () => context.push('/tour/join'),
             ),
             IconButton(
-              icon: const Icon(Icons.add_rounded),
+              icon: Icon(Icons.add_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A)),
               tooltip: 'Create Tour',
               onPressed: () => context.push('/tour/create'),
             ),
@@ -809,14 +815,16 @@ class _TourMetricsStrip extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
+                          Text(
                             'YOUR SPENDING',
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontSize: 9.5,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5,
-                              color: AppColors.primaryTeal,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
                             ),
                           ),
                           const SizedBox(height: 1),
@@ -826,7 +834,6 @@ class _TourMetricsStrip extends StatelessWidget {
                               fontFamily: 'Outfit',
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.primaryTeal,
                               letterSpacing: -0.2,
                             ),
                             maxLines: 1,

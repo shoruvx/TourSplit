@@ -102,6 +102,8 @@ class ExpenseDetailScreen extends ConsumerWidget {
                   for (final m in members) m.userId: m.displayName
                 };
 
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+
                 return Scaffold(
                   appBar: AppBar(
                     title: const Text('Expense Details'),
@@ -114,8 +116,8 @@ class ExpenseDetailScreen extends ConsumerWidget {
                     actions: [
                       if (canEdit)
                         IconButton(
-                          icon: const Icon(Icons.edit_rounded,
-                              color: AppColors.primaryTeal),
+                          icon: Icon(Icons.edit_rounded,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A)),
                           tooltip: 'Edit Expense',
                           onPressed: () =>
                               context.push('/expense/edit', extra: expense),

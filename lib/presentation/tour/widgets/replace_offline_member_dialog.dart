@@ -74,8 +74,11 @@ class _ReplaceOfflineMemberDialogState
   }
 
   Future<void> _handleSearch() async {
-    final query = _searchCtrl.text.trim();
+    String query = _searchCtrl.text.trim();
     if (query.isEmpty) return;
+    if (query.startsWith('@')) {
+      query = query.substring(1).trim();
+    }
 
     FocusScope.of(context).unfocus();
     setState(() {
@@ -198,7 +201,7 @@ class _ReplaceOfflineMemberDialogState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Link Online Account',
+                  'Link Online Friend',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
@@ -352,7 +355,7 @@ class _ReplaceOfflineMemberDialogState
                             overflow: TextOverflow.ellipsis,
                           ),
                           const Text(
-                            'Online Account',
+                            'Online Friend',
                             style: TextStyle(
                               fontSize: 10,
                               color: AppColors.primaryTeal,
@@ -490,7 +493,7 @@ class _ReplaceOfflineMemberDialogState
             ),
             tabs: [
               Tab(text: 'Tour Members (${onlineTourMembers.length})'),
-              const Tab(text: 'Search Online User'),
+              const Tab(text: 'Search Online Friend'),
             ],
           ),
         ),
@@ -529,7 +532,7 @@ class _ReplaceOfflineMemberDialogState
               ),
               const SizedBox(height: 4),
               Text(
-                'Switch to "Search Online User" to find their account by username or email.',
+                'Switch to "Search Online Friend" to find their account by username or email.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 11,
@@ -569,9 +572,14 @@ class _ReplaceOfflineMemberDialogState
             ),
           ),
           subtitle: Text(
-            m.email,
+            m.isOffline
+                ? 'Offline companion'
+                : (m.email.contains('@')
+                    ? '@${m.email.split('@').first}'
+                    : m.email),
             style: TextStyle(
               fontSize: 11,
+              fontWeight: FontWeight.w600,
               color: isDark
                   ? AppColors.darkTextSecondary
                   : AppColors.lightTextSecondary,
@@ -700,9 +708,10 @@ class _ReplaceOfflineMemberDialogState
                           ),
                         ),
                         Text(
-                          _foundUser!.email,
+                          '@${_foundUser!.username.isNotEmpty ? _foundUser!.username : _foundUser!.email.split('@').first}',
                           style: TextStyle(
                             fontSize: 11,
+                            fontWeight: FontWeight.w600,
                             color: isDark
                                 ? AppColors.darkTextSecondary
                                 : AppColors.lightTextSecondary,

@@ -76,5 +76,10 @@ service cloud.firestore {
       allow create: if isLoggedIn();
       allow read, update, delete: if false;
     }
+
+    match /registered_emails/{emailDoc} {
+      allow read, create, update: if isLoggedIn();
+      allow delete: if false;
+    }
   }
 }

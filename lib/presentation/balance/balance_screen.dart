@@ -95,22 +95,26 @@ class BalanceScreen extends ConsumerWidget {
                   },
                   child: Scaffold(
                     appBar: AppBar(
-                      title: const Text('Balances'),
-                      leading: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                        tooltip: 'Back',
-                        onPressed: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.go('/home');
-                          }
-                        },
+                      automaticallyImplyLeading: false,
+                      toolbarHeight: 64,
+                      titleSpacing: 20,
+                      title: const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Balances',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                            color: AppColors.primaryTeal,
+                          ),
+                        ),
                       ),
                       actions: [
                         IconButton(
-                          icon: const Icon(Icons.handshake_rounded,
-                              color: AppColors.primaryTeal),
+                          icon: Icon(Icons.handshake_rounded,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A)),
                           tooltip: 'Manual Settlement',
                           onPressed: () => ManualSettlementDialog.show(
                             context,

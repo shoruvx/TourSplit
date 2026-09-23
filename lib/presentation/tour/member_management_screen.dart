@@ -12,6 +12,7 @@ import '../../data/models/tour_model.dart';
 import '../widgets/member_avatar.dart';
 import 'widgets/tour_qr_dialog.dart';
 import 'widgets/replace_offline_member_dialog.dart';
+import 'widgets/add_member_dialog.dart';
 
 class MemberManagementScreen extends ConsumerWidget {
   const MemberManagementScreen({super.key});
@@ -52,6 +53,7 @@ class MemberManagementScreen extends ConsumerWidget {
           );
         }
         final isAdmin = tour.isAdmin(user.uid);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return PopScope(
           canPop: false,
@@ -65,30 +67,40 @@ class MemberManagementScreen extends ConsumerWidget {
           },
           child: Scaffold(
             appBar: AppBar(
-              title: const Text('Members'),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                tooltip: 'Back',
-                onPressed: () =>
-                    context.canPop() ? context.pop() : context.go('/home'),
+              automaticallyImplyLeading: false,
+              toolbarHeight: 64,
+              titleSpacing: 20,
+              title: const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Members',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: AppColors.primaryTeal,
+                  ),
+                ),
               ),
-            actions: [
-              if (isAdmin) ...[
-                IconButton(
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  onPressed: () =>
-                      _showAddOfflineMemberDialog(context, ref, tour.id),
-                  tooltip: 'Add Offline Friend',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.mail_outline_rounded),
-                  onPressed: () =>
-                      _showInviteDialog(context, ref, tour, user.displayName),
-                  tooltip: 'Invite by Email',
-                ),
+              actions: [
+                if (isAdmin)
+                  IconButton(
+                    icon: Icon(Icons.person_add_alt_1_rounded,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                    onPressed: () {
+                      final members = membersStream.value ?? [];
+                      AddMemberDialog.show(
+                        context,
+                        tourId: tour.id,
+                        inviterName: user.displayName,
+                        currentMembers: members,
+                      );
+                    },
+                    tooltip: 'Add Member',
+                  ),
               ],
-            ],
-          ),
+            ),
           body: Column(
             children: [
               _InviteCodeBanner(
@@ -102,11 +114,18 @@ class MemberManagementScreen extends ConsumerWidget {
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _showAddOfflineMemberDialog(context, ref, tour.id),
+                      onPressed: () {
+                        final members = membersStream.value ?? [];
+                        AddMemberDialog.show(
+                          context,
+                          tourId: tour.id,
+                          inviterName: user.displayName,
+                          currentMembers: members,
+                        );
+                      },
                       icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
                       label: const Text(
-                        'Add Offline Friend (Name Only)',
+                        'Add Member (Username, Email, or Offline)',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w700,
@@ -235,185 +254,7 @@ class MemberManagementScreen extends ConsumerWidget {
     );
   }
 
-  void _showInviteDialog(
-      BuildContext context, WidgetRef ref, TourModel tour, String inviterName) {
-    final emailCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Invite Member',
-            style:
-                TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Invite by email or share the tour code:',
-                style: TextStyle(fontFamily: 'Outfit')),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Email address',
-                hintText: 'member@example.com',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (emailCtrl.text.trim().isNotEmpty) {
-                await ref.read(tourRepositoryProvider).inviteMemberByEmail(
-                      tourId: tour.id,
-                      email: emailCtrl.text.trim(),
-                      inviterName: inviterName,
-                    );
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Invite sent!'),
-                        backgroundColor: AppColors.accent),
-                  );
-                }
-              }
-            },
-            child: const Text('Send Invite'),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _showAddOfflineMemberDialog(
-      BuildContext context, WidgetRef ref, String tourId) {
-    final nameCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primaryTeal.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.person_add_alt_1_rounded,
-                  color: AppColors.primaryTeal, size: 22),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Add Offline Friend',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Add a friend using only their name. No phone, email, or device needed. You can track expenses & splits for them, and they will be visible to all members in this tour.',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: nameCtrl,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: 'Friend\'s Name',
-                  hintText: 'e.g. Alex, Rahim, John',
-                  prefixIcon: const Icon(Icons.badge_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Please enter a name';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryTeal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-            onPressed: () async {
-              if (formKey.currentState?.validate() == true) {
-                final name = nameCtrl.text.trim();
-                Navigator.pop(ctx);
-                try {
-                  await ref.read(tourRepositoryProvider).addOfflineMember(
-                        tourId: tourId,
-                        name: name,
-                      );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Offline friend "$name" added to tour!'),
-                        backgroundColor: AppColors.positive,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to add offline member: $e'),
-                        backgroundColor: AppColors.danger,
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            child: const Text(
-              'Add to Tour',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showRenameOfflineMemberDialog(BuildContext context, WidgetRef ref,
       String tourId, TourMemberModel member) {
@@ -506,30 +347,64 @@ class MemberManagementScreen extends ConsumerWidget {
   }
 
   void _removeMember(BuildContext context, WidgetRef ref, String tourId,
-      TourMemberModel member) {
+      TourMemberModel member) async {
+    final hasTransactions = await ref
+        .read(tourRepositoryProvider)
+        .hasMemberTransactions(tourId, member.userId);
+
+    if (!context.mounted) return;
+
+    if (hasTransactions) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Member Cannot Be Removed'),
+          content: Text(
+            '${member.displayName} has recorded contributions, expenses, or settlements in this tour.\n\nTo preserve mathematical integrity of tour balances, members with recorded spending or splits cannot be completely removed. If they are leaving the tour, their history remains intact.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Remove Member'),
         content: Text(
-            'Remove ${member.displayName} from this tour?\n\nNote: All expenses previously paid or shared by this member will remain intact in the tour history.'),
+          'Remove mistakenly added member "${member.displayName}" from this tour?\n\nSince this member has no contributions or expenses, they will be completely removed from tour calculations, member lists, and the tour card.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               try {
                 await ref
                     .read(tourRepositoryProvider)
-                    .removeMember(tourId, member.userId);
+                    .removeMistakenMember(tourId: tourId, userId: member.userId);
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${member.displayName} removed from tour'),
+                      backgroundColor: AppColors.positive,
                     ),
                   );
                 }
@@ -642,9 +517,12 @@ class _PendingRequestsCard extends ConsumerWidget {
                                 fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           Text(
-                            r.email,
+                            r.email.contains('@')
+                                ? '@${r.email.split('@').first}'
+                                : r.email,
                             style: TextStyle(
                               fontSize: 11,
+                              fontWeight: FontWeight.w600,
                               color: isDark
                                   ? AppColors.darkTextSecondary
                                   : AppColors.lightTextSecondary,
@@ -897,7 +775,7 @@ class _MemberCard extends StatelessWidget {
                                       size: 11, color: AppColors.primaryTeal),
                                   SizedBox(width: 3),
                                   Text(
-                                    'Link Online',
+                                    'Link Online Friend',
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: AppColors.primaryTeal,
@@ -991,12 +869,15 @@ class _MemberCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     member.isOffline
-                        ? 'Offline friend · Visible to all members'
-                        : member.email,
+                        ? 'Offline Friend · Visible to all members'
+                        : (member.email.contains('@')
+                            ? '@${member.email.split('@').first}'
+                            : member.email),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isDark
                           ? AppColors.darkTextSecondary
                           : AppColors.lightTextSecondary,
+                      fontWeight: FontWeight.w600,
                       fontStyle:
                           member.isOffline ? FontStyle.italic : FontStyle.normal,
                     ),
@@ -1035,7 +916,7 @@ class _MemberCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (isAdmin && !isCreator && !isCurrentUser && !member.isLeft) ...[
+            if (isAdmin && !isCreator && !isCurrentUser) ...[
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded, size: 20),
                 onSelected: (val) {
@@ -1050,12 +931,12 @@ class _MemberCard extends StatelessWidget {
                   }
                 },
                 itemBuilder: (ctx) => [
-                  if (!member.isOffline)
+                  if (!member.isOffline && !member.isLeft)
                     PopupMenuItem(
                       value: 'role',
                       child: Text(isMemberAdmin ? 'Revoke Admin' : 'Make Admin'),
                     ),
-                  if (member.isOffline) ...[
+                  if (member.isOffline && !member.isLeft) ...[
                     const PopupMenuItem(
                       value: 'link_online',
                       child: Row(
@@ -1064,7 +945,7 @@ class _MemberCard extends StatelessWidget {
                               size: 18, color: AppColors.primaryTeal),
                           SizedBox(width: 8),
                           Text(
-                            'Replace with Online',
+                            'Replace with Online Friend',
                             style: TextStyle(
                               color: AppColors.primaryTeal,
                               fontWeight: FontWeight.w600,
@@ -1079,20 +960,27 @@ class _MemberCard extends StatelessWidget {
                         children: [
                           Icon(Icons.edit_outlined, size: 18),
                           SizedBox(width: 8),
-                          Text('Rename Friend'),
+                          Text('Rename Offline Friend'),
                         ],
                       ),
                     ),
                   ],
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'remove',
                     child: Row(
                       children: [
-                        Icon(Icons.delete_outline_rounded,
+                        const Icon(Icons.person_remove_rounded,
                             size: 18, color: AppColors.danger),
-                        SizedBox(width: 8),
-                        Text('Remove Member',
-                            style: TextStyle(color: AppColors.danger)),
+                        const SizedBox(width: 8),
+                        Text(
+                          member.isLeft
+                              ? 'Remove Completely'
+                              : 'Remove Member',
+                          style: const TextStyle(
+                            color: AppColors.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),

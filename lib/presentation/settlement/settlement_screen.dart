@@ -55,18 +55,30 @@ class SettlementScreen extends ConsumerWidget {
         data: (tour) {
           if (tour == null) return const Scaffold();
           final isAdmin = tour.isAdmin(user.uid);
+          final isDark = Theme.of(context).brightness == Brightness.dark;
 
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Settlements'),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                onPressed: () => _handleBack(context),
+              automaticallyImplyLeading: false,
+              toolbarHeight: 64,
+              titleSpacing: 20,
+              title: const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Settlements',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: AppColors.primaryTeal,
+                  ),
+                ),
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.add_circle_outline_rounded,
-                      color: AppColors.primaryTeal),
+                  icon: Icon(Icons.add_circle_outline_rounded,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A)),
                   tooltip: 'Record Settlement',
                   onPressed: () {
                     final approvedExp = expensesStream.maybeWhen(

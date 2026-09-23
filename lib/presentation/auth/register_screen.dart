@@ -18,8 +18,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -32,8 +31,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
+    _nameCtrl.dispose();
     _usernameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -65,8 +63,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             email: _emailCtrl.text.trim(),
             password: _passwordCtrl.text,
             username: _usernameCtrl.text.trim(),
-            firstName: _firstNameCtrl.text.trim(),
-            lastName: _lastNameCtrl.text.trim(),
+            firstName: _nameCtrl.text.trim(),
+            lastName: '',
           );
       if (mounted) context.go('/home');
     } catch (e) {
@@ -172,31 +170,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AppTextField(
-                              controller: _firstNameCtrl,
-                              label: 'First Name',
-                              hint: 'John',
-                              prefixIcon: Icons.person_outline,
-                              textCapitalization: TextCapitalization.words,
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? 'Required' : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: AppTextField(
-                              controller: _lastNameCtrl,
-                              label: 'Last Name',
-                              hint: 'Doe',
-                              textCapitalization: TextCapitalization.words,
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? 'Required' : null,
-                            ),
-                          ),
-                        ],
+                      AppTextField(
+                        controller: _nameCtrl,
+                        label: 'Name',
+                        hint: 'John Doe',
+                        prefixIcon: Icons.person_outline,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Name is required' : null,
                       ).animate().fadeIn(delay: 150.ms, duration: 300.ms),
                       const SizedBox(height: 16),
                       AppTextField(

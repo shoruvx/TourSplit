@@ -1,5 +1,6 @@
 class AppConstants {
   static const String usersCollection = 'users';
+  static const String registeredEmailsCollection = 'registered_emails';
   static const String toursCollection = 'tours';
   static const String membersSubcollection = 'members';
   static const String expensesSubcollection = 'expenses';

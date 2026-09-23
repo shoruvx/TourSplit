@@ -55,10 +55,33 @@ class UserModel {
     this.paymentAccounts = const [],
   });
 
-  String get displayName => '$firstName $lastName';
-  String get initials =>
-      '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}'
-          .toUpperCase();
+  String get displayName {
+    final cleanFirst = firstName.trim();
+    final cleanLast = lastName.trim();
+    if (cleanFirst.isNotEmpty && cleanLast.isNotEmpty) {
+      return '$cleanFirst $cleanLast';
+    }
+    return cleanFirst.isNotEmpty ? cleanFirst : (username.isNotEmpty ? username : 'User');
+  }
+
+  String get initials {
+    final cleanFirst = firstName.trim();
+    final cleanLast = lastName.trim();
+    if (cleanFirst.isNotEmpty && cleanLast.isNotEmpty) {
+      return '${cleanFirst[0]}${cleanLast[0]}'.toUpperCase();
+    }
+    if (cleanFirst.isNotEmpty) {
+      return cleanFirst.length >= 2
+          ? cleanFirst.substring(0, 2).toUpperCase()
+          : cleanFirst[0].toUpperCase();
+    }
+    if (username.isNotEmpty) {
+      return username.length >= 2
+          ? username.substring(0, 2).toUpperCase()
+          : username[0].toUpperCase();
+    }
+    return 'U';
+  }
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     final data = (doc.data() as Map<String, dynamic>?) ?? {};

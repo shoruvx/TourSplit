@@ -4,6 +4,18 @@ All notable changes to TourSplit are documented in this file. Releases follow a 
 
 ---
 
+## [v1.4.3] - 2026-09-23
+
+- 🏷️ **Usernames & Privacy Protection**: Set your unique @username across TourSplit. Raw email addresses are kept private across tours, profiles, and member lists with tap-to-copy handles.
+- 🧹 **Zero-Transaction Member Removal**: Tour admins can cleanly remove mistakenly added members who have recorded zero contributions or expenses from the active tour.
+- 👥 **Unified Add Member Experience**: Instantly add companions via @username lookup, registered email invitations, or create offline friend profiles from one simplified dialog.
+- 📱 **Ergonomic One-Handed Home Layout**: Re-anchored the "Create Tour" button and primary actions to the upper-middle screen for effortless thumb reach when holding your phone.
+- 🤝 **Consistent Companion Naming**: Unified member types throughout the app under clear, intuitive "Online Friend" and "Offline Friend" labels.
+- 📬 **Direct Developer Contact**: Submit feature requests, bug reports, and suggestions directly through the simplified Contact Us portal in Profile settings.
+- ✨ **Clean Visuals & Refined Actions**: Modernized top action icons with high-contrast white styling in dark mode, balanced profile spacing, and clutter-free settlement cards.
+
+---
+
 ## [v1.4.2] - 2026-09-18
 
 - ✂️ **Interactive Photo Cropping**: Pinch to zoom, drag to position, and rotate your profile photos before saving with an instant circular guide preview.

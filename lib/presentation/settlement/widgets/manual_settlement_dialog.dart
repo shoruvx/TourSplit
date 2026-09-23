@@ -302,7 +302,7 @@ class ManualSettlementDialog {
                   const SizedBox(height: 10),
 
                   Text(
-                    'ℹ️ Note: Paying one person your full due will automatically adjust and recalculate the remaining debts across other members.',
+                    'Note: Paying one person your full due will automatically adjust and recalculate the remaining debts across other members.',
                     style: TextStyle(
                       fontSize: 11,
                       color: isDark ? Colors.white54 : Colors.black54,

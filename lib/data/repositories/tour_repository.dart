@@ -172,7 +172,11 @@ class TourRepository {
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => TourMemberModel.fromFirestore(d))
-            .where((m) => m.role != 'pending' && m.role != 'rejected')
+            .where((m) =>
+                m.role != 'pending' &&
+                m.role != 'rejected' &&
+                m.role != 'deleted' &&
+                m.status != 'deleted')
             .toList());
   }
 
@@ -509,6 +513,107 @@ class TourRepository {
             .update({'activeTourId': tourId});
       }
     } catch (_) {}
+  }
+
+  Future<bool> hasMemberTransactions(String tourId, String userId) async {
+    try {
+      final expensesSnap = await _tours
+          .doc(tourId)
+          .collection(AppConstants.expensesSubcollection)
+          .get();
+
+      for (final doc in expensesSnap.docs) {
+        final data = doc.data();
+        if (data['status'] == 'rejected') continue;
+        if (data['paidByUserId'] == userId || data['paidBy'] == userId) return true;
+
+        final contributions = data['contributions'] as Map<String, dynamic>?;
+        if (contributions != null && contributions.containsKey(userId)) {
+          final amt = (contributions[userId] as num?)?.toDouble() ?? 0.0;
+          if (amt > 0.009) return true;
+        }
+
+        final payers = data['payers'] as Map<String, dynamic>?;
+        if (payers != null && payers.containsKey(userId)) {
+          final amt = (payers[userId] as num?)?.toDouble() ?? 0.0;
+          if (amt > 0.009) return true;
+        }
+
+        final splitAmong = data['splitAmong'] as List<dynamic>?;
+        if (splitAmong != null && splitAmong.contains(userId)) return true;
+
+        final splits = data['splits'] as Map<String, dynamic>?;
+        if (splits != null && splits.containsKey(userId)) {
+          final amt = (splits[userId] as num?)?.toDouble() ?? 0.0;
+          if (amt > 0.009) return true;
+        }
+
+        final customSplits = data['customSplits'] as Map<String, dynamic>?;
+        if (customSplits != null && customSplits.containsKey(userId)) {
+          final amt = (customSplits[userId] as num?)?.toDouble() ?? 0.0;
+          if (amt > 0.009) return true;
+        }
+      }
+
+      final settlementsSnap = await _tours
+          .doc(tourId)
+          .collection(AppConstants.settlementsSubcollection)
+          .get();
+
+      for (final doc in settlementsSnap.docs) {
+        final data = doc.data();
+        if (data['fromUserId'] == userId || data['toUserId'] == userId) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> removeMistakenMember({
+    required String tourId,
+    required String userId,
+  }) async {
+    final batch = _db.batch();
+
+    // 1. Completely remove from tour members and pastMembers arrays
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayRemove([userId]),
+      'pastMembers': FieldValue.arrayRemove([userId]),
+    });
+
+    // 2. Mark member as removed/rejected in subcollection
+    final memberRef = _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(userId);
+    batch.set(
+      memberRef,
+      {
+        'status': 'deleted',
+        'role': 'rejected',
+      },
+      SetOptions(merge: true),
+    );
+
+    // Commit the batch update (both operations permitted for authenticated users)
+    await batch.commit();
+
+    // 3. Attempt permanent deletion of member doc from subcollection
+    try {
+      await memberRef.delete();
+    } catch (_) {}
+
+    // 4. Clear user active tour if pointing here (best effort; current user only according to security rules)
+    if (!userId.startsWith('offline_')) {
+      try {
+        final userRef = _db.collection(AppConstants.usersCollection).doc(userId);
+        await userRef.update({'activeTourId': null});
+      } catch (_) {}
+    }
   }
 
   Future<void> removeMember(String tourId, String userId,

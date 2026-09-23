@@ -118,8 +118,15 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
     return [
       timeGreeting,
       'Welcome, $clean!',
+      'Ready for the next trip, $clean?',
+      'Adventure awaits, $clean!',
+      'Where to next, $clean?',
+      'Pack your bags, $clean!',
+      'Wanderlust calling, $clean!',
+      'Great to see you, $clean!',
+      'Split smart, travel far, $clean!',
+      'New memories await, $clean!',
       'Hey there, $clean!',
-      'Ready for the next trip, $clean!',
       'Howdy, $clean!',
     ];
   }
@@ -186,7 +193,7 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -213,7 +220,8 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: AppColors.primaryTeal.withValues(alpha: 0.6),
+                              color: AppColors.primaryTeal
+                                  .withValues(alpha: 0.6),
                               width: 1.5,
                             ),
                           ),
@@ -233,7 +241,7 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                   ),
                 ],
               ),
-              const Spacer(),
+              const Spacer(flex: 2),
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -279,13 +287,13 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                         height: 1.4,
                       ),
                     ).animate().fadeIn(delay: 200.ms),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 28),
                     SizedBox(
                       width: 220,
                       child: ElevatedButton.icon(
                         onPressed: () => context.push('/tour/create'),
-                        icon:
-                            const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                        icon: const Icon(Icons.add_rounded,
+                            color: Colors.white, size: 20),
                         label: const Text(
                           'Create Tour',
                           style: TextStyle(
@@ -304,7 +312,8 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.button),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button),
                           ),
                           elevation: 2,
                         ),
@@ -329,7 +338,8 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                           foregroundColor: AppColors.primaryTeal,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.button),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button),
                           ),
                           side: const BorderSide(
                               color: AppColors.primaryTeal, width: 1.5),
@@ -341,8 +351,7 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                       width: 220,
                       child: OutlinedButton.icon(
                         onPressed: () => context.push('/tours'),
-                        icon:
-                            const Icon(Icons.luggage_rounded, size: 20),
+                        icon: const Icon(Icons.luggage_rounded, size: 20),
                         label: const Text(
                           'View All Tours',
                           style: TextStyle(
@@ -357,12 +366,12 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                               : AppColors.lightText,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.button),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button),
                           ),
                           side: BorderSide(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color:
+                                isDark ? AppColors.darkBorder : Colors.black,
                             width: 1.5,
                           ),
                         ),
@@ -371,7 +380,7 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                   ],
                 ),
               ),
-              const Spacer(),
+              const Spacer(flex: 3),
             ],
           ),
         ),
@@ -1386,7 +1395,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     const SizedBox(width: 8),
                     const Flexible(
                       child: Text(
-                        'Smart Settlements',
+                        'Settlements',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 15.5,
@@ -1941,13 +1950,13 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
           _MetricColumn(
             value: '$currencySymbol${totalSpent.toStringAsFixed(0)}',
             label: 'Total',
-            color: AppColors.primaryTeal,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
           _MetricDivider(isDark: isDark),
           _MetricColumn(
             value: '$currencySymbol${yourSpending.toStringAsFixed(0)}',
             label: 'Your Spending',
-            color: AppColors.primaryTeal,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
           _MetricDivider(isDark: isDark),
           _MetricColumn(
@@ -2156,20 +2165,27 @@ class _SquareActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+            size: 22,
           ),
         ),
-        child: Icon(icon, color: AppColors.primaryTeal, size: 22),
       ),
     );
   }
@@ -2266,18 +2282,9 @@ class _TourDashboardAppBar extends ConsumerWidget {
     return SliverAppBar(
       pinned: true,
       elevation: 0,
+      automaticallyImplyLeading: false,
+      titleSpacing: 20,
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-        tooltip: 'Back to Home',
-        onPressed: () async {
-          if (currentUser != null) {
-            await ref
-                .read(tourRepositoryProvider)
-                .clearUserActiveTour(currentUser.uid);
-          }
-        },
-      ),
       title: InkWell(
         onTap: () => context.push('/tours'),
         borderRadius: BorderRadius.circular(10),
@@ -2294,8 +2301,9 @@ class _TourDashboardAppBar extends ConsumerWidget {
                       tour.name,
                       style: const TextStyle(
                         fontFamily: 'Outfit',
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -2307,7 +2315,7 @@ class _TourDashboardAppBar extends ConsumerWidget {
               Text(
                 '${tour.status == TourStatus.active ? 'Active' : 'Completed'} · ${tour.currency} · ${DateFormat('MMM d').format(tour.startDate)}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: isDark
                       ? AppColors.darkTextSecondary
                       : AppColors.lightTextSecondary,

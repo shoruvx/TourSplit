@@ -6,8 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../core/theme/app_theme.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/tour_model.dart';
@@ -87,18 +85,6 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
     });
   }
 
-  Future<void> _sendEmail(String email) async {
-    final uri = Uri.parse('mailto:$email');
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        _copyToClipboard(email, 'email address');
-      }
-    } catch (_) {
-      _copyToClipboard(email, 'email address');
-    }
-  }
 
   void _showRenameOfflineDialog(
       BuildContext parentContext, String tourId, TourMemberModel member) {
@@ -241,6 +227,10 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
         ? currentTourMember!.email
         : (onlineUser?.email ?? '');
 
+    final usernameHandle = (onlineUser?.username.isNotEmpty == true)
+        ? onlineUser!.username
+        : (email.contains('@') ? email.split('@').first : '');
+
     final photoUrl = currentTourMember?.photoUrl ?? onlineUser?.photoUrl;
 
     final initials = currentTourMember?.initials ??
@@ -249,7 +239,6 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
             : (displayName.isNotEmpty ? displayName[0].toUpperCase() : '?'));
 
     final isCreator = tour != null && tour.adminId == widget.userId;
-    final isMemberAdmin = tour != null && tour.isAdmin(widget.userId);
     final isCurrentAdmin =
         tour != null && currentUser != null && tour.isAdmin(currentUser.uid);
 
@@ -306,14 +295,15 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
         actions: [
           if (isCurrentSelf)
             IconButton(
-              icon: const Icon(Icons.edit_rounded, color: AppColors.primaryTeal),
+              icon: Icon(Icons.edit_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A)),
               tooltip: 'Edit My Profile',
               onPressed: () => context.push('/profile'),
             )
-          else if (isOffline && isCurrentAdmin && currentTourMember != null)
+          else if (isCurrentAdmin && !isCurrentSelf && !isCreator && currentTourMember != null)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
-              tooltip: 'Manage Friend',
+              tooltip: 'Manage Member',
               onSelected: (val) {
                 if (val == 'rename') {
                   _showRenameOfflineDialog(context, tour.id, currentTourMember);
@@ -324,27 +314,50 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                     offlineMember: currentTourMember,
                     allMembers: allMembers,
                   );
+                } else if (val == 'remove') {
+                  _confirmRemoveMember(context, tour.id, currentTourMember);
                 }
               },
               itemBuilder: (ctx) => [
-                const PopupMenuItem(
-                  value: 'rename',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_rounded, size: 18),
-                      SizedBox(width: 8),
-                      Text('Rename Friend'),
-                    ],
+                if (isOffline && !currentTourMember.isLeft) ...[
+                  const PopupMenuItem(
+                    value: 'rename',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('Rename Offline Friend'),
+                      ],
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'link',
+                  const PopupMenuItem(
+                    value: 'link',
+                    child: Row(
+                      children: [
+                        Icon(Icons.link_rounded,
+                            size: 18, color: AppColors.primaryTeal),
+                        SizedBox(width: 8),
+                        Text('Link Online Friend'),
+                      ],
+                    ),
+                  ),
+                ],
+                PopupMenuItem(
+                  value: 'remove',
                   child: Row(
                     children: [
-                      Icon(Icons.link_rounded,
-                          size: 18, color: AppColors.primaryTeal),
-                      SizedBox(width: 8),
-                      Text('Link Online Account'),
+                      const Icon(Icons.person_remove_rounded,
+                          size: 18, color: AppColors.danger),
+                      const SizedBox(width: 8),
+                      Text(
+                        currentTourMember.isLeft
+                            ? 'Remove Completely'
+                            : 'Remove Member',
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -432,18 +445,39 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  if (onlineUser?.username != null &&
-                      onlineUser!.username.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${onlineUser.username}',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
+                  if (!isOffline && usernameHandle.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    InkWell(
+                      onTap: () =>
+                          _copyToClipboard('@$usernameHandle', 'username'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '@$usernameHandle',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 13,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -470,18 +504,6 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                           label: 'Tour Creator',
                           icon: Icons.star_rounded,
                           color: Colors.amber,
-                        )
-                      else if (isMemberAdmin)
-                        _buildStatusChip(
-                          label: 'Tour Admin',
-                          icon: Icons.shield_rounded,
-                          color: AppColors.primaryTeal,
-                        )
-                      else if (currentTourMember != null)
-                        _buildStatusChip(
-                          label: 'Tour Member',
-                          icon: Icons.person_rounded,
-                          color: AppColors.primaryBlue,
                         ),
                       if (isCurrentSelf)
                         _buildStatusChip(
@@ -491,47 +513,6 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                         ),
                     ],
                   ),
-                  if (!isOffline && email.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    InkWell(
-                      onTap: () => _copyToClipboard(email, 'email'),
-                      borderRadius: BorderRadius.circular(AppRadius.chip),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1E293B)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(AppRadius.chip),
-                          border: Border.all(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.mail_outline_rounded,
-                                size: 14, color: AppColors.primaryTeal),
-                            const SizedBox(width: 6),
-                            Text(
-                              email,
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.copy_rounded,
-                                size: 12, color: Colors.grey),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ).animate().fadeIn(duration: 250.ms).slideY(begin: 0.05, end: 0),
@@ -1034,37 +1015,7 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                     ),
                   ),
                 ),
-              if (!isOffline && email.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark
-                          ? AppColors.darkText
-                          : AppColors.lightText,
-                      side: BorderSide(
-                        color: AppColors.primaryTeal.withValues(alpha: 0.4),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
-                    ),
-                    onPressed: () => _sendEmail(email),
-                    icon: const Icon(Icons.send_rounded,
-                        size: 16, color: AppColors.primaryTeal),
-                    label: Text(
-                      'Send Email to $displayName',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+
               if (isOffline && isCurrentAdmin && currentTourMember != null) ...[
                 const SizedBox(height: 10),
                 Row(
@@ -1085,7 +1036,7 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                             context, tour.id, currentTourMember),
                         icon: const Icon(Icons.edit_rounded, size: 16),
                         label: const Text(
-                          'Rename Friend',
+                          'Rename Offline Friend',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w600,
@@ -1114,7 +1065,7 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                         ),
                         icon: const Icon(Icons.link_rounded, size: 16),
                         label: const Text(
-                          'Link Online',
+                          'Link Online Friend',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w700,
@@ -1220,6 +1171,89 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRemoveMember(
+      BuildContext context, String tourId, TourMemberModel member) async {
+    final hasTransactions = await ref
+        .read(tourRepositoryProvider)
+        .hasMemberTransactions(tourId, member.userId);
+
+    if (!context.mounted) return;
+
+    if (hasTransactions) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Member Cannot Be Removed'),
+          content: Text(
+            '${member.displayName} has recorded contributions, expenses, or settlements in this tour.\n\nTo preserve mathematical integrity of tour balances, members with recorded spending or splits cannot be completely removed.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Remove Member'),
+        content: Text(
+          'Remove "${member.displayName}" from this tour?\n\nSince this member has no contributions or expenses, they will be completely removed from tour calculations, member lists, and the tour card.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              try {
+                await ref.read(tourRepositoryProvider).removeMistakenMember(
+                      tourId: tourId,
+                      userId: member.userId,
+                    );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${member.displayName} removed from tour'),
+                      backgroundColor: AppColors.positive,
+                    ),
+                  );
+                  context.pop();
+                }
+              } catch (e) {
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to remove member: $e'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Remove'),
           ),
         ],
       ),

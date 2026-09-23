@@ -63,58 +63,46 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
-      icon: Icons.crop_rotate_rounded,
-      title: 'Interactive Photo Cropping',
+      icon: Icons.alternate_email_rounded,
+      title: 'Usernames & Privacy Protection',
       description:
-          'Pinch to zoom, drag to position, and rotate your profile photos before saving with an instant circular guide preview.',
+          'Set your unique @username across TourSplit. Raw email addresses are kept private across tours, profiles, and member lists with tap-to-copy handles.',
     ),
     (
-      icon: Icons.sync_rounded,
-      title: 'Live Tour Profile Picture Sync',
+      icon: Icons.person_remove_rounded,
+      title: 'Zero-Transaction Member Removal',
       description:
-          'Newly updated profile pictures now immediately reflect across all your tours, member lists, and expense splitters in real-time.',
+          'Tour admins can cleanly remove mistakenly added members who have recorded zero contributions or expenses from the active tour.',
     ),
     (
-      icon: Icons.qr_code_scanner_rounded,
-      title: 'QR-First Tour Joining',
+      icon: Icons.person_add_alt_1_rounded,
+      title: 'Unified Add Member Experience',
       description:
-          'The QR scanner opens by default when joining a tour, accompanied by an "Insert code manually" button to switch seamlessly.',
+          'Instantly add companions via @username lookup, registered email invitations, or create offline friend profiles from one simplified dialog.',
     ),
     (
-      icon: Icons.flash_on_rounded,
-      title: 'Streamlined Tour & Expense Creation',
+      icon: Icons.touch_app_rounded,
+      title: 'Ergonomic One-Handed Home Layout',
       description:
-          'Simplified the new tour setup and eliminated notes fields across expense entry and reports for a faster, clutter-free experience.',
+          'Re-anchored the "Create Tour" button and primary actions to the upper-middle screen for effortless thumb reach when holding your phone.',
     ),
     (
-      icon: Icons.share_rounded,
-      title: 'Share App & Smart Tour QR',
+      icon: Icons.people_alt_rounded,
+      title: 'Consistent Companion Naming',
       description:
-          'Share TourSplit via QR code or direct link. Scanning with a phone camera opens the latest APK release, while TourSplit users join instantly.',
+          'Unified member types throughout the app under clear, intuitive "Online Friend" and "Offline Friend" labels.',
     ),
     (
-      icon: Icons.calendar_month_rounded,
-      title: 'Expense Date Day Stepper',
+      icon: Icons.mark_chat_unread_outlined,
+      title: 'Direct Developer Contact',
       description:
-          'Step forward and backward between days using intuitive left and right arrow buttons, or tap the date directly to open the calendar picker.',
+          'Submit feature requests, bug reports, and suggestions directly through the simplified Contact Us portal in Profile settings.',
     ),
     (
-      icon: Icons.arrow_drop_down_circle_rounded,
-      title: 'Single Payer Dropdown',
+      icon: Icons.auto_awesome_rounded,
+      title: 'Clean Visuals & Refined Actions',
       description:
-          'Select who paid from a clean, compact dropdown menu with member avatars and offline status when recording single-payer expenses.',
-    ),
-    (
-      icon: Icons.account_circle_rounded,
-      title: 'Google Profile Photo Import',
-      description:
-          'Import your high-resolution Google Account profile picture with a single tap in your profile settings.',
-    ),
-    (
-      icon: Icons.translate_rounded,
-      title: 'Simplified English Everywhere',
-      description:
-          'Replaced complex accounting terms like "ledger" with clear, everyday English ("Daily Expenses", "Tour History") for all travelers.',
+          'Modernized top action icons with high-contrast white styling in dark mode, balanced profile spacing, and clutter-free settlement cards.',
     ),
   ];
 
