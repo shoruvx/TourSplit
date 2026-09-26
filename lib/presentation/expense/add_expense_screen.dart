@@ -8,6 +8,10 @@ import 'package:collection/collection.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/math_expression_evaluator.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
+import '../../data/services/offline_tour_queue_service.dart';
+import '../../data/services/user_cache_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/models/expense_model.dart';
@@ -15,6 +19,7 @@ import '../../data/models/tour_model.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/member_avatar.dart';
+import '../home/home_screen.dart' show localMembersRefreshProvider;
 
 class LastExpenseDateNotifier extends Notifier<DateTime?> {
   @override
@@ -31,8 +36,9 @@ final lastExpenseDateProvider =
 );
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
+  final String? tourId;
   final ExpenseModel? existingExpense;
-  const AddExpenseScreen({super.key, this.existingExpense});
+  const AddExpenseScreen({super.key, this.tourId, this.existingExpense});
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -209,7 +215,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   Future<void> _submit(
-      TourModel tour, String currentUserId, bool isAdmin) async {
+      TourModel tour, String currentUserId, String currentUserName, bool isAdmin) async {
     _evaluateAmount();
     if (!_formKey.currentState!.validate()) return;
 
@@ -339,10 +345,29 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     setState(() => _isLoading = true);
     try {
       if (widget.existingExpense != null) {
-        final updateData = {
-          'title': _titleCtrl.text.trim().isNotEmpty
+        final updatedExpense = widget.existingExpense!.copyWith(
+          title: _titleCtrl.text.trim().isNotEmpty
               ? _titleCtrl.text.trim()
               : 'Expense',
+          amount: totalAmount,
+          category: category,
+          paidByUserId: finalPaidByUserId,
+          paidByName: finalPaidByName,
+          payers: payersMap,
+          splitType: splitType,
+          splitAmong: splitMembers,
+          customSplits: customSplitsMap,
+          date: _selectedDateTime,
+          status: isAdmin ? ExpenseStatus.approved : widget.existingExpense!.status,
+        );
+
+        // 1. Immediately cache and queue offline for instant UI updates
+        await ref.read(offlineExpenseQueueProvider).queueExpense(updatedExpense);
+        await ActiveTourCacheService.appendCachedExpense(tour.id, updatedExpense);
+        ref.read(localExpensesRefreshProvider.notifier).bump();
+
+        final updateData = {
+          'title': updatedExpense.title,
           'amount': totalAmount,
           'category': category,
           'paidBy': finalPaidByUserId,
@@ -357,11 +382,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           if (isAdmin) 'status': 'approved',
         };
 
-        await ref.read(expenseRepositoryProvider).updateExpense(
-              tour.id,
-              widget.existingExpense!.id,
-              updateData,
-            );
+        // 2. If online and not a local tour, attempt immediate Firestore update
+        if (!tour.id.startsWith('local_')) {
+          try {
+            await ref.read(expenseRepositoryProvider).updateExpense(
+                  tour.id,
+                  widget.existingExpense!.id,
+                  updateData,
+                ).timeout(const Duration(milliseconds: 1500));
+            // Succeeded online immediately, clean up local queue entry
+            await ref.read(offlineExpenseQueueProvider).deleteQueuedExpense(widget.existingExpense!.id);
+          } catch (err) {
+            debugPrint('[UPDATE_EXPENSE] Firestore update timed out/offline (queued offline): $err');
+          }
+        }
         ref.read(lastExpenseDateProvider.notifier).setDate(_selectedDateTime);
 
         if (mounted) {
@@ -376,8 +410,26 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         return;
       }
 
+      final expenseRepo = ref.read(expenseRepositoryProvider);
+      final expenseId = widget.existingExpense?.id ?? expenseRepo.generateExpenseId(tour.id);
+
+      // Immutable addedBy tracking: original creator cannot be changed when editing an expense
+      final originalAddedByUserId = widget.existingExpense?.addedByUserId;
+      final effectiveAddedByUserId = (originalAddedByUserId != null && originalAddedByUserId.isNotEmpty)
+          ? originalAddedByUserId
+          : currentUserId;
+
+      final originalAddedByName = widget.existingExpense?.addedByName;
+      final effectiveAddedByName = (originalAddedByName != null && originalAddedByName.isNotEmpty)
+          ? originalAddedByName
+          : (widget.existingExpense != null
+              ? widget.existingExpense!.resolveAddedByName(
+                  UserCacheService.getUser(effectiveAddedByUserId)?.displayName ??
+                  (effectiveAddedByUserId == currentUserId ? currentUserName : null))
+              : (currentUserName.isNotEmpty ? currentUserName : 'Member'));
+
       final expense = ExpenseModel(
-        id: '',
+        id: expenseId,
         tourId: tour.id,
         title: _titleCtrl.text.trim().isNotEmpty
             ? _titleCtrl.text.trim()
@@ -392,22 +444,32 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         splitAmong: splitMembers,
         customSplits: customSplitsMap,
         date: _selectedDateTime,
-        createdAt: DateTime.now(),
-        addedByUserId: currentUserId,
+        createdAt: widget.existingExpense?.createdAt ?? DateTime.now(),
+        addedByUserId: effectiveAddedByUserId,
+        addedByName: effectiveAddedByName,
         status:
             isAdmin ? ExpenseStatus.approved : ExpenseStatus.pendingApproval,
         description: null,
       );
 
-      await ref.read(expenseRepositoryProvider).addExpense(expense);
+      bool savedOfflineLocally = false;
+      try {
+        await expenseRepo.addExpense(expense).timeout(const Duration(milliseconds: 1500));
+      } catch (err) {
+        debugPrint('[ADD_EXPENSE] Firestore write halted/timed out/offline: $err, queueing locally...');
+        await ref.read(offlineExpenseQueueProvider).queueExpense(expense);
+        savedOfflineLocally = true;
+      }
       ref.read(lastExpenseDateProvider.notifier).setDate(_selectedDateTime);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isAdmin
-                ? 'Expense saved successfully!'
-                : 'Expense submitted for admin approval'),
+            content: Text(savedOfflineLocally
+                ? 'Offline: Expense saved and will sync automatically when back online!'
+                : (isAdmin
+                    ? 'Expense saved successfully!'
+                    : 'Expense submitted for admin approval')),
             backgroundColor: AppColors.accent,
           ),
         );
@@ -431,39 +493,135 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final user = ref.watch(currentUserProvider).value;
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final tourId = widget.tourId ??
+        widget.existingExpense?.tourId ??
+        activeTourId ??
+        user?.activeTourId ??
+        cachedTour?.id ??
+        ActiveTourCacheService.getActiveTourId();
 
-    if (user == null || user.activeTourId == null) {
+    if (tourId == null) {
+      if (userAsync.isLoading) {
+        return const Scaffold(
+            body: Center(child: CircularProgressIndicator()));
+      }
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
 
-    final tourId = user.activeTourId!;
+    final currentUserId = user?.uid ?? ref.watch(authServiceProvider).currentUser?.uid ?? '';
+    final currentUserName = user?.displayName ??
+        UserCacheService.getUser(currentUserId)?.displayName ??
+        ref.watch(authServiceProvider).currentUser?.displayName ??
+        'Member';
     final tourStream = ref.watch(tourStreamProvider(tourId));
     final membersStream = ref.watch(tourMembersStreamProvider(tourId));
 
-    return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (tour) {
-        if (tour == null) return const Scaffold();
-        final isAdmin = tour.isAdmin(user.uid);
+    final effectiveTour = tourStream.value ??
+        (cachedTour?.id == tourId ? cachedTour : null) ??
+        cachedTour ??
+        TourModel(
+          id: tourId,
+          name: 'Tour',
+          currency: 'BDT',
+          currencySymbol: '৳',
+          adminId: currentUserId,
+          inviteCode: '',
+          status: TourStatus.active,
+          startDate: DateTime.now(),
+          createdAt: DateTime.now(),
+          memberIds: currentUserId.isNotEmpty ? [currentUserId] : [],
+          adminIds: currentUserId.isNotEmpty ? [currentUserId] : [],
+        );
 
-        return membersStream.when(
-          loading: () =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
-          error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-          data: (members) {
-            _members = members;
-            if (_paidByUserId == null && members.isNotEmpty) {
-              final defaultPayer = members.firstWhere(
-                (m) => m.userId == user.uid,
-                orElse: () => members.first,
-              );
-              _paidByUserId = defaultPayer.userId;
-              _paidByName = defaultPayer.displayName;
-              _selectedMemberIds = members.map((m) => m.userId).toList();
-            }
+    final tour = effectiveTour;
+    final isAdmin = tour.isAdmin(currentUserId);
+
+    ref.watch(localMembersRefreshProvider);
+
+    final cachedMembers = ActiveTourCacheService.getCachedMembers(tourId);
+    final streamMembers = membersStream.value ?? [];
+    final localMembers = tourId.startsWith('local_')
+        ? ref.read(tourRepositoryProvider).getLocalTourMembers(tourId)
+        : <TourMemberModel>[];
+    final queuedMembers = ref.read(offlineTourQueueProvider).getQueuedMembersForTour(tourId);
+
+    final Map<String, TourMemberModel> membersMap = {};
+    for (final m in streamMembers) {
+      membersMap[m.userId] = m;
+    }
+    for (final m in cachedMembers) {
+      membersMap.putIfAbsent(m.userId, () => m);
+    }
+    for (final m in localMembers) {
+      membersMap.putIfAbsent(m.userId, () => m);
+    }
+    for (final m in queuedMembers) {
+      membersMap.putIfAbsent(m.userId, () => m);
+    }
+
+    if (currentUserId.isNotEmpty && !membersMap.containsKey(currentUserId)) {
+      membersMap[currentUserId] = TourMemberModel(
+        userId: currentUserId,
+        displayName: user?.displayName ?? 'You',
+        username: user?.username ?? '',
+        email: user?.email ?? '',
+        photoUrl: user?.photoUrl,
+        role: 'admin',
+        status: 'active',
+        joinedAt: DateTime.now(),
+      );
+    }
+
+    final ids = tour.memberIds.isNotEmpty
+        ? tour.memberIds
+        : (currentUserId.isNotEmpty ? [currentUserId] : <String>[]);
+    for (final uid in ids) {
+      if (!membersMap.containsKey(uid)) {
+        final cachedUser = UserCacheService.getUser(uid);
+        membersMap[uid] = TourMemberModel(
+          userId: uid,
+          displayName: cachedUser?.displayName ??
+              (uid == currentUserId ? (user?.displayName ?? 'You') : 'Member'),
+          username: cachedUser?.username ?? '',
+          email: uid == currentUserId ? (user?.email ?? '') : '',
+          photoUrl: cachedUser?.photoUrl ?? (uid == currentUserId ? user?.photoUrl : null),
+          role: tour.isAdmin(uid) ? 'admin' : 'member',
+          status: 'active',
+          joinedAt: tour.createdAt,
+          balance: 0.0,
+          isOffline: uid.startsWith('offline_'),
+        );
+      }
+    }
+
+    final resolvedMembers = membersMap.values.toList();
+
+    if (cachedMembers.isEmpty && resolvedMembers.isNotEmpty) {
+      ActiveTourCacheService.cacheActiveTour(
+        tour: tour,
+        members: resolvedMembers,
+      );
+    }
+
+    final members = resolvedMembers;
+    _members = members;
+    if (members.isNotEmpty) {
+      if (_paidByUserId == null || !members.any((m) => m.userId == _paidByUserId)) {
+        final defaultPayer = members.firstWhere(
+          (m) => m.userId == currentUserId,
+          orElse: () => members.first,
+        );
+        _paidByUserId = defaultPayer.userId;
+        _paidByName = defaultPayer.displayName;
+      }
+      if (_selectedMemberIds.isEmpty) {
+        _selectedMemberIds = members.map((m) => m.userId).toList();
+      }
+    }
 
             for (final m in members) {
               if (!_customSplitControllers.containsKey(m.userId)) {
@@ -1444,7 +1602,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         ],
                         const SizedBox(height: 32),
                         GradientButton(
-                          onPressed: () => _submit(tour, user.uid, isAdmin),
+                          onPressed: () => _submit(tour, currentUserId, currentUserName, isAdmin),
                           label: widget.existingExpense != null
                               ? 'Update Expense'
                               : 'Save Expense',
@@ -1458,10 +1616,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               ),
             ),
           );
-          },
-        );
-      },
-    );
   }
 }
 

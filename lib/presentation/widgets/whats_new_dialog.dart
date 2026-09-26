@@ -15,7 +15,11 @@ class WhatsNewDialog extends ConsumerWidget {
     this.version,
   });
 
+  static bool _hasCheckedThisSession = false;
+
   static Future<void> checkAndShow(BuildContext context) async {
+    if (_hasCheckedThisSession) return;
+    _hasCheckedThisSession = true;
     try {
       final info = await PackageInfo.fromPlatform();
       final currentVersion = info.version;
@@ -63,40 +67,34 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
-      icon: Icons.forum_rounded,
-      title: 'Hybrid Offline & Cloud Tour Chat',
+      icon: Icons.navigation_rounded,
+      title: 'Unified Bottom Navigation',
       description:
-          'Coordinate with companions in real-time over cloud sync, or chat completely offline via automatic peer-to-peer Bluetooth and Wi-Fi mesh.',
+          'Seamless context-aware navigation bar across Home, My Tours, Profile, and all tour screens, eliminating top-bar clutter and duplicate back buttons.',
     ),
     (
-      icon: Icons.reply_rounded,
-      title: 'Quote Replies & Member Mentions',
+      icon: Icons.assignment_ind_rounded,
+      title: 'Expense Attribution Tracking',
       description:
-          'Long-press or swipe any message to reply with quote snippets, and tag tour companions with instant @mention autocomplete chips.',
+          'Automatic immutable recording of who created each expense across Sheet, Cards, reports, and detail views to avoid misunderstandings.',
     ),
     (
-      icon: Icons.bluetooth_audio_rounded,
-      title: 'Seamless Android 7+ Compatibility',
+      icon: Icons.chat_bubble_outline_rounded,
+      title: 'Online & Offline Tour Chat',
       description:
-          'Zero-setup silent Bluetooth activation on older Android 7.0+ devices with intelligent permission adapters and zero radio lockups.',
+          'Coordinate in real-time over cloud sync, or chat completely offline via peer-to-peer Bluetooth mesh networking with auto-reconnection.',
     ),
     (
-      icon: Icons.auto_delete_rounded,
-      title: '7-Day Inactivity Auto-Pruning',
+      icon: Icons.add_reaction_rounded,
+      title: 'Interactive Chat Reactions',
       description:
-          'Old tour chats are automatically purged after 7 days of inactivity to keep your device storage light and protect free-tier cloud limits.',
+          'Long-press any message to react, view aggregate reaction pills, and tap to toggle counts without distracting clutter.',
     ),
     (
-      icon: Icons.delete_sweep_rounded,
-      title: 'Telegram-Style Complete Message Erasing',
+      icon: Icons.sync_rounded,
+      title: 'Offline Reliability & Sync',
       description:
-          'Delete messages cleanly for yourself or everyone without leaving ugly placeholder boxes or residual clutter in the conversation.',
-    ),
-    (
-      icon: Icons.mark_chat_unread_rounded,
-      title: 'Teal & White Floating Chat Head',
-      description:
-          'Ergonomic Messenger-style floating button with vibrant teal styling, dynamic live unread message counts, and bottom navigation placement.',
+          'Complete offline usability with background queueing, automatic sync upon reconnection, and streamlined tour settings.',
     ),
   ];
 

@@ -62,11 +62,18 @@ class UserCacheService {
     String username = '',
   }) async {
     if (!Hive.isBoxOpen(boxName)) return;
+    final existing = box.get(uid);
+    final existingUsername =
+        existing != null ? (existing['username'] as String? ?? '') : '';
+    final finalUsername = username.isNotEmpty ? username : existingUsername;
+    final finalPhotoUrl = (photoUrl != null && photoUrl.isNotEmpty)
+        ? photoUrl
+        : (existing != null ? (existing['photoUrl'] as String?) : null);
     await box.put(uid, {
       'uid': uid,
       'displayName': displayName,
-      'photoUrl': photoUrl,
-      'username': username,
+      'photoUrl': finalPhotoUrl,
+      'username': finalUsername,
     });
   }
 
@@ -84,8 +91,13 @@ class UserCacheService {
       uid: member.userId,
       displayName: member.displayName,
       photoUrl: member.photoUrl,
-      username: '',
+      username: member.username,
     );
+  }
+
+  static Future<void> invalidateUser(String uid) async {
+    if (!Hive.isBoxOpen(boxName)) return;
+    await box.delete(uid);
   }
 }
 
@@ -93,17 +105,7 @@ class UserCacheService {
 final userBoxProvider = Provider.family<CachedUser?, String>((ref, uid) {
   if (uid.isEmpty) return null;
 
-  // Listen to Hive box changes so UI re-renders reactively when user is cached
-  if (Hive.isBoxOpen(UserCacheService.boxName)) {
-    final box = UserCacheService.box;
-    // Watch box for this specific key
-    final cached = box.get(uid);
-    if (cached != null) {
-      return CachedUser.fromMap(cached);
-    }
-  }
-
-  // If not in cache, fallback to userProfileProvider and populate user_box asynchronously
+  // 1. Prioritize live stream profile from userProfileProvider
   final asyncProfile = ref.watch(userProfileProvider(uid)).value;
   if (asyncProfile != null) {
     UserCacheService.cacheUserModel(asyncProfile);
@@ -113,6 +115,15 @@ final userBoxProvider = Provider.family<CachedUser?, String>((ref, uid) {
       photoUrl: asyncProfile.photoUrl,
       username: asyncProfile.username,
     );
+  }
+
+  // 2. Fallback to Hive box while stream is loading or when offline
+  if (Hive.isBoxOpen(UserCacheService.boxName)) {
+    final box = UserCacheService.box;
+    final cached = box.get(uid);
+    if (cached != null) {
+      return CachedUser.fromMap(cached);
+    }
   }
 
   return null;

@@ -43,57 +43,57 @@ class ChatSyncService {
         _firestore = firestore,
         _connectivity = connectivity;
 
+  void initialize() {
+    _connectivitySub = _connectivity.onConnectivityChanged.listen((results) {
+      final hasConnection = results.any((r) => r != ConnectivityResult.none);
+      if (hasConnection && _activeTourId != null) {
+        triggerSync(tourId: _activeTourId);
+      }
+    });
+  }
+
+  final Map<String, StreamSubscription<QuerySnapshot>> _liveTourSubs = {};
+  final Map<String, String> _tourNames = {};
+
   void setActiveTour(String? tourId, {String? tourName}) {
-    if (_activeTourId == tourId && _liveChatsSub != null) {
-      if (tourName != null) _activeTourName = tourName;
+    if (tourId == null || tourId.isEmpty) {
+      _activeTourId = null;
       return;
     }
 
-    if (_activeTourId != null && _activeTourId != tourId) {
-      try {
-        FirebaseMessaging.instance.unsubscribeFromTopic('tour_$_activeTourId');
-      } catch (_) {}
-    }
-
     _activeTourId = tourId;
-    if (tourName != null) _activeTourName = tourName;
-    _liveChatsSub?.cancel();
-    _liveChatsSub = null;
-
-    if (_activeTourId != null && _activeTourId!.isNotEmpty) {
-      try {
-        FirebaseMessaging.instance.subscribeToTopic('tour_$_activeTourId');
-      } catch (_) {}
-      triggerSync(tourId: _activeTourId);
-      _startLiveTourListener(_activeTourId!);
+    if (tourName != null) {
+      _activeTourName = tourName;
+      _tourNames[tourId] = tourName;
     }
+
+    // Only stream the active tour to save memory and storage
+    for (final entry in _liveTourSubs.entries) {
+      if (entry.key != tourId) {
+        entry.value.cancel();
+      }
+    }
+    _liveTourSubs.removeWhere((k, _) => k != tourId);
+
+    listenToTour(tourId, tourName: tourName);
+    triggerSync(tourId: tourId);
   }
 
-  void initialize() {
-    _connectivitySub = _connectivity.onConnectivityChanged.listen((results) {
-      final isOnline = results.any((r) => r != ConnectivityResult.none);
-      debugPrint('[CHAT_SYNC] Connectivity changed. Online: $isOnline');
-      if (isOnline) {
-        triggerSync(tourId: _activeTourId);
-      }
-    });
+  void listenToTour(String tourId, {String? tourName}) {
+    if (tourId.isEmpty) return;
+    if (tourName != null && tourName.isNotEmpty) {
+      _tourNames[tourId] = tourName;
+    }
 
-    // Check initial connectivity
-    _connectivity.checkConnectivity().then((results) {
-      if (results.any((r) => r != ConnectivityResult.none)) {
-        triggerSync(tourId: _activeTourId);
-      }
-    }).catchError((e) {
-      debugPrint('[CHAT_SYNC] Error checking connectivity: $e');
-    });
-  }
+    try {
+      FirebaseMessaging.instance.subscribeToTopic('tour_$tourId');
+    } catch (_) {}
 
-  /// Start real-time Firestore listener for active tour to download new messages in real-time
-  void _startLiveTourListener(String tourId) {
-    _liveChatsSub?.cancel();
+    if (_liveTourSubs.containsKey(tourId)) return;
+
     final lastTimestamp = _chatRepo.getLastTimestamp(tourId);
     try {
-      _liveChatsSub = _firestore
+      _liveTourSubs[tourId] = _firestore
           .collection('tours')
           .doc(tourId)
           .collection('chats')
@@ -117,9 +117,11 @@ class ChatSyncService {
               final authorName =
                   UserCacheService.getUser(incoming.authorId)?.displayName ??
                       'Tour Member';
+              final resolvedTourName =
+                  _tourNames[tourId] ?? _activeTourName ?? 'Tour';
               NotificationService.showChatMessageNotification(
                 tourId: tourId,
-                tourName: _activeTourName ?? 'Tour Chat',
+                tourName: resolvedTourName,
                 senderName: authorName,
                 messageText: incoming.text ?? '',
                 messageId: incoming.id,
@@ -131,10 +133,10 @@ class ChatSyncService {
           }
         }
       }, onError: (e) {
-        debugPrint('[CHAT_SYNC] Live tour chats listener error: $e');
+        debugPrint('[CHAT_SYNC] Live tour chats listener error for $tourId: $e');
       });
     } catch (e) {
-      debugPrint('[CHAT_SYNC] Could not start live listener: $e');
+      debugPrint('[CHAT_SYNC] Could not start live listener for $tourId: $e');
     }
   }
 
@@ -152,7 +154,7 @@ class ChatSyncService {
         final targetTourId = tourId ?? _activeTourId;
 
         // 1. Upstream Bridge Sync (Upload local unsynced messages to Firestore)
-        await _syncUpstream(tourId: targetTourId);
+        await syncUpstream(tourId: targetTourId);
 
         // 2. Downstream Delta Sync (Download new messages since last local timestamp)
         if (targetTourId != null && targetTourId.isNotEmpty) {
@@ -171,7 +173,7 @@ class ChatSyncService {
 
   /// Phase 4.2: Bridge Sync (Upstream)
   /// Query Hive for messages where syncedToServer == false, upload to tours/{tourId}/chats
-  Future<void> _syncUpstream({String? tourId}) async {
+  Future<void> syncUpstream({String? tourId}) async {
     final unsynced = _chatRepo.getUnsyncedMessages(tourId: tourId);
     if (unsynced.isEmpty) return;
 
@@ -253,23 +255,23 @@ class ChatSyncService {
     }
   }
 
-  /// Execute a batch delete in Firestore for messages older than 7 days to save space
+  /// Execute a batch delete in Firestore for messages older than 3 days to save space
   Future<void> _pruneOldFirestoreMessages(String tourId) async {
-    final sevenDaysAgoMs =
-        DateTime.now().subtract(const Duration(days: 7)).millisecondsSinceEpoch;
+    final threeDaysAgoMs =
+        DateTime.now().subtract(const Duration(days: 3)).millisecondsSinceEpoch;
 
     try {
       final oldDocsSnapshot = await _firestore
           .collection('tours')
           .doc(tourId)
           .collection('chats')
-          .where('c', isLessThan: sevenDaysAgoMs)
+          .where('c', isLessThan: threeDaysAgoMs)
           .limit(50)
           .get();
 
       if (oldDocsSnapshot.docs.isEmpty) return;
 
-      debugPrint('[CHAT_SYNC] Pruning ${oldDocsSnapshot.docs.length} messages older than 7 days from Firestore');
+      debugPrint('[CHAT_SYNC] Pruning ${oldDocsSnapshot.docs.length} messages older than 3 days from Firestore');
       final batch = _firestore.batch();
       for (final doc in oldDocsSnapshot.docs) {
         batch.delete(doc.reference);
@@ -283,5 +285,9 @@ class ChatSyncService {
   void dispose() {
     _connectivitySub?.cancel();
     _liveChatsSub?.cancel();
+    for (final sub in _liveTourSubs.values) {
+      sub.cancel();
+    }
+    _liveTourSubs.clear();
   }
 }

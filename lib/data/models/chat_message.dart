@@ -33,6 +33,9 @@ class ChatMessage extends HiveObject {
   @HiveField(9)
   final String? replyToText;
 
+  @HiveField(10)
+  final Map<String, String>? reactions;
+
   ChatMessage({
     required this.id,
     required this.authorId,
@@ -44,7 +47,21 @@ class ChatMessage extends HiveObject {
     this.replyToId,
     this.replyToAuthor,
     this.replyToText,
+    this.reactions,
   });
+
+  bool get hasReactions => reactions != null && reactions!.isNotEmpty;
+
+  Map<String, int> get reactionCounts {
+    if (!hasReactions) return {};
+    final counts = <String, int>{};
+    for (final emoji in reactions!.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  String? userReaction(String userId) => reactions?[userId];
 
   /// Shortened JSON keys to minimize bandwidth and Firestore storage overhead:
   /// 'i' -> id
@@ -57,6 +74,7 @@ class ChatMessage extends HiveObject {
   /// 'ri' -> replyToId
   /// 'ra' -> replyToAuthor
   /// 'rt' -> replyToText
+  /// 'rx' -> reactions (map of userId -> emoji)
   Map<String, dynamic> toMap() => {
         'i': id,
         'a': authorId,
@@ -68,6 +86,7 @@ class ChatMessage extends HiveObject {
         if (replyToId != null) 'ri': replyToId,
         if (replyToAuthor != null) 'ra': replyToAuthor,
         if (replyToText != null) 'rt': replyToText,
+        if (reactions != null && reactions!.isNotEmpty) 'rx': reactions,
       };
 
   /// For Firestore document write (excludes local sync flag 's')
@@ -80,6 +99,9 @@ class ChatMessage extends HiveObject {
         if (replyToId != null) 'ri': replyToId,
         if (replyToAuthor != null) 'ra': replyToAuthor,
         if (replyToText != null) 'rt': replyToText,
+        'rx': (reactions != null && reactions!.isNotEmpty)
+            ? reactions
+            : FieldValue.delete(),
       };
 
   factory ChatMessage.fromMap(Map<String, dynamic> map, {String? fallbackTourId}) {
@@ -94,6 +116,10 @@ class ChatMessage extends HiveObject {
       replyToId: map['ri'] as String?,
       replyToAuthor: map['ra'] as String?,
       replyToText: map['rt'] as String?,
+      reactions: (map['rx'] is Map)
+          ? (map['rx'] as Map)
+              .map((k, v) => MapEntry(k.toString(), v.toString()))
+          : null,
     );
   }
 
@@ -110,6 +136,10 @@ class ChatMessage extends HiveObject {
       replyToId: data['ri'] as String?,
       replyToAuthor: data['ra'] as String?,
       replyToText: data['rt'] as String?,
+      reactions: (data['rx'] is Map)
+          ? (data['rx'] as Map)
+              .map((k, v) => MapEntry(k.toString(), v.toString()))
+          : null,
     );
   }
 
@@ -124,6 +154,8 @@ class ChatMessage extends HiveObject {
     String? replyToId,
     String? replyToAuthor,
     String? replyToText,
+    Map<String, String>? reactions,
+    bool clearReactions = false,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -136,6 +168,7 @@ class ChatMessage extends HiveObject {
       replyToId: replyToId ?? this.replyToId,
       replyToAuthor: replyToAuthor ?? this.replyToAuthor,
       replyToText: replyToText ?? this.replyToText,
+      reactions: clearReactions ? null : (reactions ?? this.reactions),
     );
   }
 
@@ -152,6 +185,7 @@ class ChatMessage extends HiveObject {
       replyToId: null,
       replyToAuthor: null,
       replyToText: null,
+      reactions: null,
     );
   }
 }
@@ -178,13 +212,17 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       replyToId: fields[7] as String?,
       replyToAuthor: fields[8] as String?,
       replyToText: fields[9] as String?,
+      reactions: (fields[10] is Map)
+          ? (fields[10] as Map)
+              .map((k, v) => MapEntry(k.toString(), v.toString()))
+          : null,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -204,6 +242,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(8)
       ..write(obj.replyToAuthor)
       ..writeByte(9)
-      ..write(obj.replyToText);
+      ..write(obj.replyToText)
+      ..writeByte(10)
+      ..write(obj.reactions);
   }
 }
+

@@ -18,6 +18,10 @@ import '../widgets/image_crop_dialog.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/whats_new_dialog.dart';
+import '../../data/services/user_cache_service.dart';
+import '../../data/repositories/tour_repository.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -76,6 +80,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             username: username,
             activeTourId: user.activeTourId,
           );
+
+      ref.invalidate(userProfileProvider(user.uid));
+      ref.invalidate(currentUserProvider);
+      ref.invalidate(userBoxProvider(user.uid));
+      if (user.activeTourId != null && user.activeTourId!.isNotEmpty) {
+        ref.invalidate(tourMembersStreamProvider(user.activeTourId!));
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1085,6 +1096,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       data: (user) {
         if (user == null) return const Scaffold();
 
+        final toursStream = ref.watch(userToursStreamProvider(user.uid));
+        final activeCount =
+            toursStream.value?.where((t) => t.isActive).length ?? 0;
+
         if (!_initialized) {
           _nameCtrl.text = user.displayName;
           _usernameCtrl.text = user.username.isNotEmpty
@@ -1110,25 +1125,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 automaticallyImplyLeading: false,
                 toolbarHeight: 64,
                 titleSpacing: 20,
-                title: const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Profile',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      color: AppColors.primaryTeal,
-                    ),
+                title: const Text(
+                  'Profile',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: AppColors.primaryTeal,
+                    height: 1.1,
                   ),
                 ),
                 actions: [
-                  IconButton(
-                    icon: Icon(Icons.mark_chat_unread_outlined,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                    tooltip: 'Contact Us',
-                    onPressed: () => context.push('/profile/contact-us'),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        icon: Icon(Icons.mark_chat_unread_outlined,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                        tooltip: 'Contact Us',
+                        onPressed: () => context.push('/profile/contact-us'),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1631,6 +1649,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ).animate().fadeIn(delay: 350.ms),
                 ],
               ),
+            ),
+            bottomNavigationBar: HomeBottomNavigationBar(
+              currentIndex: 2,
+              activeToursCount: activeCount,
+              currentUser: user,
+              onHomeTap: () async {
+                ref.read(activeTourIdOverrideProvider.notifier).state =
+                    kNoActiveTourId;
+                await ActiveTourCacheService.clearActiveTourId();
+                if (context.mounted) {
+                  context.go('/home');
+                }
+              },
+              onToursTap: () => context.push('/tours'),
+              onProfileTap: () {},
             ),
           ),
         ),

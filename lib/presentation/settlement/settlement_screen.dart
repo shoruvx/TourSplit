@@ -13,13 +13,16 @@ import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/models/settlement_model.dart';
 import '../../data/models/tour_model.dart';
-import '../../data/models/expense_model.dart';
 import '../../data/services/balance_service.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
 import 'widgets/manual_settlement_dialog.dart';
 import 'widgets/receiver_payment_accounts_view.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class SettlementScreen extends ConsumerWidget {
-  const SettlementScreen({super.key});
+  final String? tourId;
+  const SettlementScreen({super.key, this.tourId});
 
   void _handleBack(BuildContext context) {
     if (context.canPop()) {
@@ -31,16 +34,46 @@ class SettlementScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).value;
-    if (user == null || user.activeTourId == null) {
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final effectiveTourId = tourId ??
+        activeTourId ??
+        user?.activeTourId ??
+        cachedTour?.id ??
+        ActiveTourCacheService.getActiveTourId();
+
+    if (effectiveTourId == null) {
+      if (userAsync.isLoading) {
+        return const Scaffold(
+            body: Center(child: CircularProgressIndicator()));
+      }
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
-    final tourId = user.activeTourId!;
 
-    final tourStream = ref.watch(tourStreamProvider(tourId));
-    final settlementsStream = ref.watch(tourSettlementsStreamProvider(tourId));
-    final expensesStream = ref.watch(tourExpensesStreamProvider(tourId));
-    final membersStream = ref.watch(tourMembersStreamProvider(tourId));
+    final currentUserId =
+        user?.uid ?? ref.watch(authStateProvider).value?.uid ?? '';
+    final tourStream = ref.watch(tourStreamProvider(effectiveTourId));
+    final settlementsStream =
+        ref.watch(tourSettlementsStreamProvider(effectiveTourId));
+    final expensesStream =
+        ref.watch(tourExpensesStreamProvider(effectiveTourId));
+    final membersStream = ref.watch(tourMembersStreamProvider(effectiveTourId));
+
+    final effectiveTour = tourStream.value ?? (cachedTour?.id == effectiveTourId ? cachedTour : null) ?? cachedTour;
+    if (effectiveTour == null && tourStream.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final tour = effectiveTour ?? tourStream.value;
+    if (tour == null) {
+      if (tourStream.isLoading) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return const Scaffold();
+    }
+    final isAdmin = tour.isAdmin(currentUserId);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PopScope(
       canPop: false,
@@ -48,31 +81,19 @@ class SettlementScreen extends ConsumerWidget {
         if (didPop) return;
         _handleBack(context);
       },
-      child: tourStream.when(
-        loading: () =>
-            const Scaffold(body: Center(child: CircularProgressIndicator())),
-        error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-        data: (tour) {
-          if (tour == null) return const Scaffold();
-          final isAdmin = tour.isAdmin(user.uid);
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-
-          return Scaffold(
+      child: Scaffold(
             appBar: AppBar(
               automaticallyImplyLeading: false,
               toolbarHeight: 64,
               titleSpacing: 20,
-              title: const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  'Settlements',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                    color: AppColors.primaryTeal,
-                  ),
+              title: const Text(
+                'Settlements',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: AppColors.primaryTeal,
                 ),
               ),
               actions: [
@@ -81,11 +102,18 @@ class SettlementScreen extends ConsumerWidget {
                       color: isDark ? Colors.white : const Color(0xFF0F172A)),
                   tooltip: 'Record Settlement',
                   onPressed: () {
-                    final approvedExp = expensesStream.maybeWhen(
+                    final cachedExp = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
+                    final queuedExp = ref.read(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
+                    final streamExp = expensesStream.maybeWhen(
                       data: (list) => list.where((e) => e.isApproved).toList(),
-                      orElse: () => <ExpenseModel>[],
+                      orElse: () => cachedExp,
                     );
-                    final mems = membersStream.value ?? [];
+                    final approvedExp = [
+                      ...queuedExp,
+                      ...streamExp.where((e) => !queuedExp.any((q) => q.id == e.id)),
+                    ];
+                    final cachedMems = ActiveTourCacheService.getCachedMembers(effectiveTourId);
+                    final mems = membersStream.value ?? (cachedMems.isNotEmpty ? cachedMems : <TourMemberModel>[]);
                     var bals = BalanceService.calculateBalances(mems, approvedExp);
                     final approvedSets = (settlementsStream.value ?? [])
                         .where((s) => s.isApproved)
@@ -98,23 +126,29 @@ class SettlementScreen extends ConsumerWidget {
                       tour: tour,
                       members: mems,
                       computedBalances: bals,
-                      currentUserId: user.uid,
+                      currentUserId: currentUserId,
                     );
                   },
                 ),
               ],
             ),
-            body: settlementsStream.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('$e')),
-              data: (settlements) {
-                final approvedExpenses = expensesStream.maybeWhen(
+            body: Builder(
+              builder: (context) {
+                final settlements = settlementsStream.value ?? <SettlementModel>[];
+                final cachedExpenses = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
+                final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
+                final streamExpenses = expensesStream.maybeWhen(
                   data: (list) => list.where((e) => e.isApproved).toList(),
-                  orElse: () => <ExpenseModel>[],
+                  orElse: () => cachedExpenses,
                 );
+                final approvedExpenses = [
+                  ...queuedExpenses,
+                  ...streamExpenses.where((e) => !queuedExpenses.any((q) => q.id == e.id)),
+                ];
+                final cachedMembers = ActiveTourCacheService.getCachedMembers(effectiveTourId);
                 final members = membersStream.maybeWhen(
                   data: (list) => list,
-                  orElse: () => <TourMemberModel>[],
+                  orElse: () => cachedMembers,
                 );
                 final approvedSettlements =
                     settlements.where((s) => s.isApproved).toList();
@@ -223,7 +257,7 @@ class SettlementScreen extends ConsumerWidget {
                                   tour: tour,
                                   members: members,
                                   computedBalances: balances,
-                                  currentUserId: user.uid,
+                                  currentUserId: currentUserId,
                                 ),
                                 child: const Text(
                                   'Record',
@@ -259,7 +293,7 @@ class SettlementScreen extends ConsumerWidget {
                       ...suggestedDebts.map((d) => _SuggestedDebtCard(
                             debt: d,
                             currency: tour.currencySymbol,
-                            currentUserId: user.uid,
+                            currentUserId: currentUserId,
                             onSettle: () => _showSettleConfirmationDialog(
                               context,
                               ref,
@@ -280,11 +314,11 @@ class SettlementScreen extends ConsumerWidget {
                       ...pending.map((s) => _SettlementCard(
                             settlement: s,
                             isAdmin: isAdmin,
-                            currentUserId: user.uid,
+                            currentUserId: currentUserId,
                             currency: tour.currencySymbol,
-                            onApprove: () => _resolve(context, ref, tourId, s,
+                            onApprove: () => _resolve(context, ref, tour.id, s,
                                 SettlementStatus.approved),
-                            onReject: () => _resolve(context, ref, tourId, s,
+                            onReject: () => _resolve(context, ref, tour.id, s,
                                 SettlementStatus.rejected),
                           ).animate().fadeIn()),
                       const SizedBox(height: 20),
@@ -299,7 +333,7 @@ class SettlementScreen extends ConsumerWidget {
                       ...resolved.map((s) => _SettlementCard(
                             settlement: s,
                             isAdmin: isAdmin,
-                            currentUserId: user.uid,
+                            currentUserId: currentUserId,
                             currency: tour.currencySymbol,
                           ).animate().fadeIn()),
                     ],
@@ -307,10 +341,26 @@ class SettlementScreen extends ConsumerWidget {
                 );
               },
             ),
-          );
-        },
-      ),
-    );
+            bottomNavigationBar: TourBottomNavigationBar(
+              tour: tour,
+              isAdmin: isAdmin,
+              currentUser: user,
+              membersCount: tour.memberIds.length,
+              currentIndex: -1,
+              onToursTap: () => context.push('/tours'),
+              onDashboardTap: () {
+                ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
+                ActiveTourCacheService.setActiveTourId(tour.id);
+                context.go('/home');
+              },
+              onMembersTap: () =>
+                  context.push('/tour/members?tourId=${tour.id}'),
+              onSettingsTap: isAdmin
+                  ? () => context.push('/tour/settings?tourId=${tour.id}')
+                  : null,
+            ),
+          ),
+        );
   }
 
   void _showSettleConfirmationDialog(

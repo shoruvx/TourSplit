@@ -16,6 +16,7 @@ class MeshPermissionHelper {
     // Only location is a runtime permission required by Nearby/BLE scanning.
     // Bluetooth and BluetoothAdmin are granted in the manifest at install time.
     if (sdkInt < 31) {
+      await Permission.notification.request();
       final locStatus = await Permission.locationWhenInUse.request();
       final ok = locStatus.isGranted || (await Permission.location.isGranted);
       if (!ok && locStatus.isPermanentlyDenied && context.mounted) {
@@ -26,8 +27,9 @@ class MeshPermissionHelper {
     }
 
     // On modern Android (Android 12+, API 31+):
-    // Runtime permissions for Bluetooth Scan/Connect/Advertise and Location are needed.
+    // Runtime permissions for Bluetooth Scan/Connect/Advertise, Location, and Notifications are needed.
     final permissions = <Permission>[
+      Permission.notification,
       Permission.locationWhenInUse,
       Permission.bluetoothScan,
       Permission.bluetoothAdvertise,
@@ -64,7 +66,7 @@ class MeshPermissionHelper {
       builder: (ctx) => AlertDialog(
         title: const Text('Permissions Required'),
         content: const Text(
-          'Offline P2P Mesh chat requires Bluetooth, Nearby Devices, and Location permissions to discover and connect with nearby tour members.\n\nPlease enable them in App Settings.',
+          'Offline P2P Mesh chat requires Bluetooth, Nearby Devices, Location, and Notification permissions to discover peers and deliver messages instantly.\n\nPlease enable them in App Settings.',
         ),
         actions: [
           TextButton(

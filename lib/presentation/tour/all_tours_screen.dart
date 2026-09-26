@@ -1,7 +1,9 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -9,7 +11,11 @@ import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/models/tour_model.dart';
+import '../../data/services/offline_tour_queue_service.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
 import 'widgets/tour_qr_dialog.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class AllToursScreen extends ConsumerStatefulWidget {
   const AllToursScreen({super.key});
@@ -20,6 +26,10 @@ class AllToursScreen extends ConsumerStatefulWidget {
 
 class _AllToursScreenState extends ConsumerState<AllToursScreen> {
   final Set<String> _dismissedTourIds = {};
+  bool _activeCategoryExpanded = true;
+  bool _completedCategoryExpanded = false;
+  final Set<String> _expandedTourIds = {};
+  bool _initialExpansionConfigured = false;
 
   Future<void> _confirmDeleteTour(TourModel tour, String userId) async {
     final isAdmin = tour.isAdmin(userId);
@@ -159,6 +169,11 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
           .read(tourRepositoryProvider)
           .deleteTour(tour.id, currentUserId: userId);
 
+      if (ref.read(activeTourIdProvider) == tour.id) {
+        ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+        await ActiveTourCacheService.clearCachedActiveTour();
+      }
+
       ref.invalidate(userToursStreamProvider(userId));
       ref.invalidate(tourStreamProvider(tour.id));
       ref.invalidate(currentUserProvider);
@@ -166,7 +181,11 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('"${tour.name}" deleted successfully.'),
+            content: Text(
+              tour.id.startsWith('local_')
+                  ? '"${tour.name}" deleted successfully.'
+                  : 'Tour deleted. Changes will sync when online.',
+            ),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -175,11 +194,19 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Could not delete from server: $e'),
+            content: Text('Could not delete tour: $e'),
             backgroundColor: AppColors.danger,
           ),
         );
       }
+    }
+  }
+
+  Future<void> _navigateBackToMain() async {
+    ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+    await ActiveTourCacheService.clearActiveTourId();
+    if (mounted) {
+      context.go('/home');
     }
   }
 
@@ -193,156 +220,276 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
     }
 
     final toursStream = ref.watch(userToursStreamProvider(user.uid));
+    final activeCount = toursStream.value?.where((t) => t.isActive).length ?? 0;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/home');
-        }
+        _navigateBackToMain();
       },
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
           toolbarHeight: 64,
           titleSpacing: 20,
-          title: const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              'Tours',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-                color: AppColors.primaryTeal,
-              ),
+          title: const Text(
+            'Tours',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              color: AppColors.primaryTeal,
+              height: 1.1,
             ),
           ),
           actions: [
-            IconButton(
-              icon: Icon(Icons.qr_code_scanner_rounded,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A)),
-              tooltip: 'Join Tour',
-              onPressed: () => context.push('/tour/join'),
-            ),
-            IconButton(
-              icon: Icon(Icons.add_rounded,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A)),
-              tooltip: 'Create Tour',
-              onPressed: () => context.push('/tour/create'),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.qr_code_scanner_rounded,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                      tooltip: 'Join Tour',
+                      onPressed: () => context.push('/tour/join'),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.add_rounded,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                      tooltip: 'Create Tour',
+                      onPressed: () => context.push('/tour/create'),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
         body: toursStream.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e')),
-          data: (tours) {
-            final validTours = tours
-                .where((t) =>
-                    !_dismissedTourIds.contains(t.id) &&
-                    !t.isDeleted &&
-                    t.status != TourStatus.deleted)
-                .toList();
-
-            if (validTours.isEmpty) {
-              return _buildEmptyToursView(context, isDark);
+          loading: () {
+            // While Firestore loads, show any local-only tours immediately
+            final localTours = _getLocalOnlyTours(user.uid);
+            if (localTours.isNotEmpty) {
+              return _buildToursList(context, localTours, user, isDark);
             }
-
-            final activeTours = validTours.where((t) => t.isActive).toList();
-            final pastTours = validTours.where((t) => !t.isActive).toList();
-
-            return ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                if (activeTours.isNotEmpty) ...[
-                  _SectionTitle(title: 'Active Tours (${activeTours.length})'),
-                  const SizedBox(height: 12),
-                  ...activeTours.map((t) => _TourCard(
-                        tour: t,
-                        isCurrentActive: t.id == user.activeTourId,
-                        isAdmin: t.isAdmin(user.uid),
-                        onDelete: () => _confirmDeleteTour(t, user.uid),
-                        onSelect: () async {
-                          if (t.isDeleted || t.status == TourStatus.deleted) {
-                            _confirmDeleteTour(t, user.uid);
-                            return;
-                          }
-                          try {
-                            await ref
-                                .read(tourRepositoryProvider)
-                                .switchActiveTour(user.uid, t.id);
-                            HapticFeedback.lightImpact();
-                            if (context.mounted) context.go('/home');
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text(
-                                      'Could not open tour. It may be corrupted or deleted.'),
-                                  action: SnackBarAction(
-                                    label: 'Delete',
-                                    textColor: Colors.redAccent,
-                                    onPressed: () => _confirmDeleteTour(
-                                        t, user.uid),
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      )),
-                  const SizedBox(height: 24),
-                ],
-                if (pastTours.isNotEmpty) ...[
-                  _SectionTitle(
-                      title: 'Completed Tours (${pastTours.length})'),
-                  const SizedBox(height: 12),
-                  ...pastTours.map((t) => _TourCard(
-                        tour: t,
-                        isCurrentActive: t.id == user.activeTourId,
-                        isAdmin: t.isAdmin(user.uid),
-                        onDelete: () => _confirmDeleteTour(t, user.uid),
-                        onSelect: () async {
-                          if (t.isDeleted || t.status == TourStatus.deleted) {
-                            _confirmDeleteTour(t, user.uid);
-                            return;
-                          }
-                          try {
-                            await ref
-                                .read(tourRepositoryProvider)
-                                .switchActiveTour(user.uid, t.id);
-                            HapticFeedback.lightImpact();
-                            if (context.mounted) context.go('/home');
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text(
-                                      'Could not open tour. It may be corrupted or deleted.'),
-                                  action: SnackBarAction(
-                                    label: 'Delete',
-                                    textColor: Colors.redAccent,
-                                    onPressed: () => _confirmDeleteTour(
-                                        t, user.uid),
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      )),
-                ],
-              ],
-            );
+            return const Center(child: CircularProgressIndicator());
           },
+          error: (e, _) {
+            final localTours = _getLocalOnlyTours(user.uid);
+            if (localTours.isNotEmpty) {
+              return _buildToursList(context, localTours, user, isDark);
+            }
+            return Center(child: Text('$e'));
+          },
+          data: (tours) {
+            // Merge Firestore tours with any locally-queued offline tours
+            final localTours = _getLocalOnlyTours(user.uid);
+            final merged = <String, TourModel>{};
+            for (final t in localTours) {
+              merged[t.id] = t;
+            }
+            for (final t in tours) {
+              merged[t.id] = t;
+            }
+            final allTours = merged.values.toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return _buildToursList(context, allTours, user, isDark);
+          },
+        ),
+        bottomNavigationBar: HomeBottomNavigationBar(
+          currentIndex: 1,
+          activeToursCount: activeCount,
+          currentUser: user,
+          onHomeTap: _navigateBackToMain,
+          onToursTap: () {},
+          onProfileTap: () => context.push('/profile'),
         ),
       ),
     );
   }
+
+  Future<void> _handleSelectTour(TourModel t, String userId) async {
+    if (t.isDeleted || t.status == TourStatus.deleted) {
+      _confirmDeleteTour(t, userId);
+      return;
+    }
+    try {
+      HapticFeedback.lightImpact();
+
+      // Immediately notify Riverpod and persist in cache
+      ref.read(activeTourIdOverrideProvider.notifier).state = t.id;
+      await ActiveTourCacheService.setActiveTourId(t.id);
+      await ActiveTourCacheService.cacheActiveTour(tour: t);
+
+      if (t.id.startsWith('local_')) {
+        if (mounted) context.go('/home');
+        return;
+      }
+      await ref.read(tourRepositoryProvider).switchActiveTour(userId, t.id, tour: t);
+      if (mounted) {
+        context.go('/home');
+      }
+    } catch (e) {
+      // In offline mode, switchActiveTour may throw from Firestore, but local cache & provider
+      // are already updated, so proceed to /home safely
+      if (mounted) {
+        context.go('/home');
+      }
+    }
+  }
+
+  /// Reads locally-queued tours from the Hive [local_tours] box.
+  List<TourModel> _getLocalOnlyTours(String userId) {
+    try {
+      if (!Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) return [];
+      final box = Hive.box(OfflineTourQueueService.localToursBox);
+      final tours = <TourModel>[];
+      for (final key in box.keys) {
+        if (key.toString().startsWith('local_')) {
+          final val = box.get(key);
+          if (val is Map) {
+            final m = Map<String, dynamic>.from(val);
+            final members = (m['members'] as List?)?.cast<String>() ?? [];
+            if (!members.contains(userId)) continue;
+            tours.add(TourModel(
+              id: m['id'] as String? ?? key.toString(),
+              name: m['name'] as String? ?? 'Offline Tour',
+              description: null,
+              currency: m['currency'] as String? ?? 'USD',
+              currencySymbol: m['currencySymbol'] as String? ?? '\$',
+              adminId: m['adminId'] as String? ?? userId,
+              inviteCode: m['inviteCode'] as String? ?? '',
+              status: TourStatus.active,
+              startDate: m['startDate'] != null
+                  ? DateTime.fromMillisecondsSinceEpoch(m['startDate'] as int)
+                  : DateTime.now(),
+              endDate: m['endDate'] != null
+                  ? DateTime.fromMillisecondsSinceEpoch(m['endDate'] as int)
+                  : DateTime.now().add(const Duration(days: 7)),
+              memberIds: members,
+              createdAt: m['createdAt'] != null
+                  ? DateTime.fromMillisecondsSinceEpoch(m['createdAt'] as int)
+                  : DateTime.now(),
+            ));
+          }
+        }
+      }
+      return tours;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Shared tours-list builder — used by loading, error, and data states.
+  Widget _buildToursList(
+      BuildContext context, List<TourModel> tours, dynamic user, bool isDark) {
+    final queuedDeleted = ref.read(offlineTourQueueProvider).getQueuedDeletedTourIds();
+    final validTours = tours
+        .where((t) =>
+            !_dismissedTourIds.contains(t.id) &&
+            !queuedDeleted.contains(t.id) &&
+            !t.isDeleted &&
+            t.status != TourStatus.deleted)
+        .toList();
+
+    if (validTours.isEmpty) {
+      return _buildEmptyToursView(context, isDark);
+    }
+
+    if (!_initialExpansionConfigured && validTours.isNotEmpty) {
+      _initialExpansionConfigured = true;
+      final latestActive = validTours.firstWhereOrNull((t) => t.isActive);
+      if (latestActive != null) {
+        _expandedTourIds.add(latestActive.id);
+      } else {
+        _expandedTourIds.add(validTours.first.id);
+      }
+    }
+
+    final activeTours = validTours.where((t) => t.isActive).toList();
+    final pastTours = validTours.where((t) => !t.isActive).toList();
+    final uid = user?.uid as String? ?? '';
+    final activeTourId = ref.watch(activeTourIdProvider) ?? (user?.activeTourId as String?);
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (activeTours.isNotEmpty) ...[
+          _CollapsibleSectionHeader(
+            title: 'Active Tours',
+            count: activeTours.length,
+            isExpanded: _activeCategoryExpanded,
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(() => _activeCategoryExpanded = !_activeCategoryExpanded);
+            },
+          ),
+          if (_activeCategoryExpanded) ...[
+            const SizedBox(height: 10),
+            ...activeTours.map((t) => _TourCard(
+                  tour: t,
+                  isCurrentActive: t.id == activeTourId,
+                  isAdmin: t.isAdmin(uid),
+                  isExpanded: _expandedTourIds.contains(t.id),
+                  onToggleExpand: () {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      if (_expandedTourIds.contains(t.id)) {
+                        _expandedTourIds.remove(t.id);
+                      } else {
+                        _expandedTourIds.add(t.id);
+                      }
+                    });
+                  },
+                  onDelete: () => _confirmDeleteTour(t, uid),
+                  onSelect: () => _handleSelectTour(t, uid),
+                )),
+          ],
+          const SizedBox(height: 20),
+        ],
+        if (pastTours.isNotEmpty) ...[
+          _CollapsibleSectionHeader(
+            title: 'Completed Tours',
+            count: pastTours.length,
+            isExpanded: _completedCategoryExpanded,
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(
+                  () => _completedCategoryExpanded = !_completedCategoryExpanded);
+            },
+          ),
+          if (_completedCategoryExpanded) ...[
+            const SizedBox(height: 10),
+            ...pastTours.map((t) => _TourCard(
+                  tour: t,
+                  isCurrentActive: t.id == activeTourId,
+                  isAdmin: t.isAdmin(uid),
+                  isExpanded: _expandedTourIds.contains(t.id),
+                  onToggleExpand: () {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      if (_expandedTourIds.contains(t.id)) {
+                        _expandedTourIds.remove(t.id);
+                      } else {
+                        _expandedTourIds.add(t.id);
+                      }
+                    });
+                  },
+                  onDelete: () => _confirmDeleteTour(t, uid),
+                  onSelect: () => _handleSelectTour(t, uid),
+                )),
+          ],
+        ],
+      ],
+    );
+  }
+
+
+
 
   Widget _buildEmptyToursView(BuildContext context, bool isDark) {
     return Center(
@@ -394,18 +541,73 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
+class _CollapsibleSectionHeader extends StatelessWidget {
   final String title;
-  const _SectionTitle({required this.title});
+  final int count;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  const _CollapsibleSectionHeader({
+    required this.title,
+    required this.count,
+    required this.isExpanded,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontFamily: 'Outfit',
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal
+                        .withValues(alpha: isDark ? 0.25 : 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryTeal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            AnimatedRotation(
+              turns: isExpanded ? 0.5 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 24,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -415,6 +617,8 @@ class _TourCard extends ConsumerWidget {
   final TourModel tour;
   final bool isCurrentActive;
   final bool isAdmin;
+  final bool isExpanded;
+  final VoidCallback onToggleExpand;
   final VoidCallback onSelect;
   final VoidCallback onDelete;
 
@@ -422,6 +626,8 @@ class _TourCard extends ConsumerWidget {
     required this.tour,
     required this.isCurrentActive,
     required this.isAdmin,
+    required this.isExpanded,
+    required this.onToggleExpand,
     required this.onSelect,
     required this.onDelete,
   });
@@ -432,8 +638,102 @@ class _TourCard extends ConsumerWidget {
     final currentUserId = ref.watch(currentUserProvider).value?.uid;
     final isTourActive = tour.isActive;
 
+    // Collapsed state: Super clean single line showing only tour name & status
+    if (!isExpanded) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(
+            color: isCurrentActive
+                ? AppColors.primaryTeal
+                : (isTourActive
+                    ? AppColors.primaryTeal
+                        .withValues(alpha: isDark ? 0.35 : 0.20)
+                    : (isDark ? AppColors.darkBorder : AppColors.lightBorder)),
+            width: isCurrentActive ? 1.6 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: InkWell(
+          onTap: onSelect,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isCurrentActive
+                        ? AppColors.positive
+                        : (isTourActive ? AppColors.primaryTeal : Colors.grey),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    tour.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15.5,
+                      fontWeight:
+                          isCurrentActive ? FontWeight.w700 : FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                if (isCurrentActive) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Current',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 4),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 22),
+                  tooltip: 'Expand Tour Details',
+                  onPressed: onToggleExpand,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    ref.watch(localExpensesRefreshProvider);
     final expensesAsync = ref.watch(tourExpensesStreamProvider(tour.id));
-    final expenses = expensesAsync.value ?? const [];
+    final expenses = expensesAsync.value ?? ref.read(expenseRepositoryProvider).getLocalExpenses(tour.id);
     final approvedExpenses = expenses.where((e) => e.isApproved).toList();
     final totalSpent = approvedExpenses.fold(0.0, (sum, e) => sum + e.amount);
     final expenseCount = expenses.length;
@@ -462,8 +762,10 @@ class _TourCard extends ConsumerWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryTeal
-                .withValues(alpha: isCurrentActive ? (isDark ? 0.22 : 0.14) : (isDark ? 0.12 : 0.05)),
+            color: AppColors.primaryTeal.withValues(
+                alpha: isCurrentActive
+                    ? (isDark ? 0.22 : 0.14)
+                    : (isDark ? 0.12 : 0.05)),
             blurRadius: isCurrentActive ? 12 : 8,
             offset: const Offset(0, 3),
           ),
@@ -591,6 +893,16 @@ class _TourCard extends ConsumerWidget {
                         tooltip: 'Delete Tour',
                         onPressed: onDelete,
                       ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                        icon: const Icon(Icons.keyboard_arrow_up_rounded,
+                            size: 22),
+                        tooltip: 'Collapse Tour Details',
+                        onPressed: onToggleExpand,
+                      ),
                     ],
                   ),
                 ],
@@ -605,79 +917,114 @@ class _TourCard extends ConsumerWidget {
                 isLoading:
                     expensesAsync.isLoading && expensesAsync.value == null,
               ),
-              if (isAdmin) ...[
-                const SizedBox(height: 7),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (isAdmin)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.35),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: const Text(
+                            'Admin',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () async {
+                            if (tour.isActive) {
+                              await ref
+                                  .read(tourRepositoryProvider)
+                                  .completeTour(tour.id);
+                            } else {
+                              await ref
+                                  .read(tourRepositoryProvider)
+                                  .reopenTour(tour.id);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  tour.isActive
+                                      ? Icons.check_circle_outline_rounded
+                                      : Icons.replay_rounded,
+                                  size: 13,
+                                  color: tour.isActive
+                                      ? AppColors.danger
+                                      : AppColors.primaryTeal,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  tour.isActive ? 'End Tour' : 'Reactivate',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11,
+                                    color: tour.isActive
+                                        ? AppColors.danger
+                                        : AppColors.primaryTeal,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  FilledButton.icon(
+                    onPressed: onSelect,
+                    icon: Icon(
+                      isCurrentActive
+                          ? Icons.check_circle_rounded
+                          : Icons.login_rounded,
+                      size: 14,
+                    ),
+                    label: Text(
+                      isCurrentActive ? 'Active (Open)' : 'Open Tour',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isCurrentActive
+                          ? AppColors.positive
+                          : AppColors.primaryTeal,
+                      visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(
-                          color: Colors.orange.withValues(alpha: 0.35),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: const Text(
-                        'Admin',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.orange,
-                        ),
+                          horizontal: 14, vertical: 6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    InkWell(
-                      onTap: () async {
-                        if (tour.isActive) {
-                          await ref
-                              .read(tourRepositoryProvider)
-                              .completeTour(tour.id);
-                        } else {
-                          await ref
-                              .read(tourRepositoryProvider)
-                              .reopenTour(tour.id);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 2),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              tour.isActive
-                                  ? Icons.check_circle_outline_rounded
-                                  : Icons.replay_rounded,
-                              size: 13,
-                              color: tour.isActive
-                                  ? AppColors.danger
-                                  : AppColors.primaryTeal,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              tour.isActive ? 'End Tour' : 'Reactivate',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 11,
-                                color: tour.isActive
-                                    ? AppColors.danger
-                                    : AppColors.primaryTeal,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ],
           ),
         ),

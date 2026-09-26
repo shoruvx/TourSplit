@@ -300,29 +300,29 @@ void main() {
       expect(repo.hasMessage(tourId, 'msg_205'), isTrue);
     });
 
-    test('7-day inactivity auto-pruning removes messages older than 7 days', () async {
+    test('3-day inactivity auto-pruning removes messages older than 3 days', () async {
       final repo = ChatRepository();
-      const tourId = 'tour_7day_prune';
+      const tourId = 'tour_3day_prune';
       final now = DateTime.now().millisecondsSinceEpoch;
-      final eightDaysAgo = now - (8 * 24 * 60 * 60 * 1000);
-      final twoDaysAgo = now - (2 * 24 * 60 * 60 * 1000);
+      final fourDaysAgo = now - (4 * 24 * 60 * 60 * 1000);
+      final oneDayAgo = now - (1 * 24 * 60 * 60 * 1000);
 
-      // Save an old message (8 days old)
+      // Save an old message (4 days old)
       final oldMsg = ChatMessage(
         id: 'msg_old',
         authorId: 'u1',
         text: 'Old message to be pruned',
-        createdAt: eightDaysAgo,
+        createdAt: fourDaysAgo,
         tourId: tourId,
       );
       await repo.saveMessage(oldMsg);
 
-      // Save a recent message (2 days old) which triggers pruning
+      // Save a recent message (1 day old) which triggers pruning
       final recentMsg = ChatMessage(
         id: 'msg_recent',
         authorId: 'u2',
         text: 'Recent active message',
-        createdAt: twoDaysAgo,
+        createdAt: oneDayAgo,
         tourId: tourId,
       );
       await repo.saveMessage(recentMsg);
@@ -433,4 +433,76 @@ void main() {
       expect(cached.photoUrl, equals('https://example.com/avatar.jpg'));
     });
   });
+
+  group('ChatMessage Reactions Tests', () {
+    test('ChatMessage handles reaction serialization and aggregation', () {
+      final msg = ChatMessage(
+        id: 'msg_rx_1',
+        authorId: 'u1',
+        text: 'Let us celebrate!',
+        createdAt: 1727100000000,
+        tourId: 't1',
+        reactions: {'u1': '❤️', 'u2': '❤️', 'u3': '👍'},
+      );
+
+      expect(msg.hasReactions, isTrue);
+      expect(msg.reactionCounts, equals({'❤️': 2, '👍': 1}));
+      expect(msg.userReaction('u1'), equals('❤️'));
+      expect(msg.userReaction('u3'), equals('👍'));
+      expect(msg.userReaction('u4'), isNull);
+
+      final map = msg.toMap();
+      expect(map['rx'], equals({'u1': '❤️', 'u2': '❤️', 'u3': '👍'}));
+
+      final restored = ChatMessage.fromMap(map);
+      expect(restored.reactions, equals({'u1': '❤️', 'u2': '❤️', 'u3': '👍'}));
+      expect(restored.reactionCounts['❤️'], equals(2));
+
+      final fsMap = msg.toFirestoreMap();
+      expect(fsMap['rx'], equals({'u1': '❤️', 'u2': '❤️', 'u3': '👍'}));
+    });
+
+    test('ChatRepository toggleReaction adds, switches, and removes reactions', () async {
+      final repo = ChatRepository();
+      const tourId = 'tour_rx_test';
+      const msgId = 'msg_rx_test_1';
+
+      await repo.saveMessage(ChatMessage(
+        id: msgId,
+        authorId: 'alice',
+        text: 'Ready to go?',
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+        tourId: tourId,
+      ));
+
+      // 1. Add reaction ❤️ from bob
+      final res1 = await repo.toggleReaction(
+        tourId: tourId,
+        messageId: msgId,
+        userId: 'bob',
+        emoji: '❤️',
+      );
+      expect(res1?.reactions?['bob'], equals('❤️'));
+      expect(res1?.syncedToServer, isFalse);
+
+      // 2. Switch reaction to 👍 from bob
+      final res2 = await repo.toggleReaction(
+        tourId: tourId,
+        messageId: msgId,
+        userId: 'bob',
+        emoji: '👍',
+      );
+      expect(res2?.reactions?['bob'], equals('👍'));
+
+      // 3. Remove reaction by tapping 👍 again
+      final res3 = await repo.toggleReaction(
+        tourId: tourId,
+        messageId: msgId,
+        userId: 'bob',
+        emoji: '👍',
+      );
+      expect(res3?.reactions, isNull);
+    });
+  });
 }
+

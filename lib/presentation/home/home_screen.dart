@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/user_cache_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/models/tour_model.dart';
@@ -16,6 +17,9 @@ import '../../data/models/settlement_model.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/services/app_update_service.dart';
 import '../../data/services/welcome_greeting_service.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
+import '../../data/services/offline_tour_queue_service.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/chat_sync_service.dart';
 import '../widgets/member_avatar.dart';
@@ -28,6 +32,18 @@ import '../widgets/whats_new_dialog.dart';
 import '../settlement/widgets/manual_settlement_dialog.dart';
 import '../settlement/widgets/receiver_payment_accounts_view.dart';
 import '../chat/widgets/messenger_chat_head.dart';
+import '../widgets/app_bottom_nav_bar.dart';
+
+/// Bump this to force _ActiveTourBody to re-read getCachedMembers() from Hive.
+/// Used after adding an offline member locally so the UI reflects the change immediately.
+class _LocalMembersRefreshNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void bump() => state++;
+}
+
+final localMembersRefreshProvider =
+    NotifierProvider<_LocalMembersRefreshNotifier, int>(_LocalMembersRefreshNotifier.new);
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -47,14 +63,64 @@ class HomeScreen extends ConsumerWidget {
     }
 
     final currentUser = ref.watch(currentUserProvider);
+    final authUser = ref.watch(authServiceProvider).currentUser;
+    final activeTourId = ref.watch(activeTourIdProvider);
 
     return currentUser.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
+      loading: () {
+        final effId = activeTourId;
+        if (effId != null && authUser != null) {
+          return _ActiveTourDashboard(
+            key: ValueKey(effId),
+            tourId: effId,
+            userId: authUser.uid,
+          );
+        }
+        // Offline + no cached tour: Firebase Auth has the user locally,
+        // so show the landing screen instead of spinning forever.
+        if (authUser != null) {
+          final name = (authUser.displayName ?? '').split(' ').first;
+          return _NoActiveTourScreen(
+            displayName: name.isNotEmpty ? name : 'Explorer',
+          );
+        }
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      },
+      error: (e, _) {
+        final effId = activeTourId;
+        if (effId != null && authUser != null) {
+          return _ActiveTourDashboard(
+            key: ValueKey(effId),
+            tourId: effId,
+            userId: authUser.uid,
+          );
+        }
+        if (authUser != null) {
+          final name = (authUser.displayName ?? '').split(' ').first;
+          return _NoActiveTourScreen(
+            displayName: name.isNotEmpty ? name : 'Explorer',
+          );
+        }
+        return Scaffold(body: Center(child: Text('Error: $e')));
+      },
       data: (user) {
         if (user == null) {
+          final effId = activeTourId;
+          if (effId != null && authUser != null) {
+            return _ActiveTourDashboard(
+              key: ValueKey(effId),
+              tourId: effId,
+              userId: authUser.uid,
+            );
+          }
+          if (authUser != null) {
+            final name = (authUser.displayName ?? '').split(' ').first;
+            return _NoActiveTourScreen(
+              displayName: name.isNotEmpty ? name : 'Explorer',
+            );
+          }
           return Scaffold(
             body: Center(
               child: Padding(
@@ -77,18 +143,21 @@ class HomeScreen extends ConsumerWidget {
           );
         }
 
-        if (user.activeTourId == null) {
+        final effectiveTourId = activeTourId;
+        if (effectiveTourId == null) {
           return _NoActiveTourScreen(displayName: user.firstName);
         }
 
         return _ActiveTourDashboard(
-          tourId: user.activeTourId!,
+          key: ValueKey(effectiveTourId),
+          tourId: effectiveTourId,
           userId: user.uid,
         );
       },
     );
   }
 }
+
 
 class _NoActiveTourScreen extends ConsumerStatefulWidget {
   final String displayName;
@@ -154,6 +223,11 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider).value;
+    final toursStream = currentUser != null
+        ? ref.watch(userToursStreamProvider(currentUser.uid))
+        : null;
+    final activeToursCount =
+        toursStream?.value?.where((t) => t.isActive).length ?? 0;
     final greetings = _getGreetings(widget.displayName);
     final currentGreeting = greetings[_greetingIndex % greetings.length];
 
@@ -194,53 +268,20 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
               ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'TourSplit',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                          color: AppColors.primaryTeal,
-                        ),
-                      ),
-                    ],
+                  const Text(
+                    'TourSplit',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: AppColors.primaryTeal,
+                      height: 1.1,
+                    ),
                   ),
-                  Row(
-                    children: [
-                      const ThemeSwitchToggle(),
-                      const SizedBox(width: 12),
-                      InkWell(
-                        onTap: () => context.push('/profile'),
-                        borderRadius: BorderRadius.circular(22),
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.primaryTeal
-                                  .withValues(alpha: 0.6),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: MemberAvatar(
-                            initials: currentUser?.initials.isNotEmpty == true
-                                ? currentUser!.initials
-                                : (widget.displayName.isNotEmpty
-                                    ? widget.displayName[0].toUpperCase()
-                                    : 'U'),
-                            photoUrl: currentUser?.photoUrl,
-                            userId: currentUser?.uid,
-                            radius: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  const ThemeSwitchToggle(height: 36, width: 62),
                 ],
               ),
               const Spacer(flex: 2),
@@ -387,6 +428,14 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: HomeBottomNavigationBar(
+        currentIndex: 0,
+        activeToursCount: activeToursCount,
+        currentUser: currentUser,
+        onHomeTap: () {},
+        onToursTap: () => context.push('/tours'),
+        onProfileTap: () => context.push('/profile'),
+      ),
     );
   }
 }
@@ -396,6 +445,7 @@ class _ActiveTourDashboard extends ConsumerStatefulWidget {
   final String userId;
 
   const _ActiveTourDashboard({
+    super.key,
     required this.tourId,
     required this.userId,
   });
@@ -661,90 +711,207 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         ref.watch(tourSettlementsStreamProvider(widget.tourId));
     final currentUser = ref.watch(currentUserProvider).value;
     final syncService = ref.watch(chatSyncServiceProvider);
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final effectiveTour = tourStream.value ??
+        (cachedTour?.id == widget.tourId ? cachedTour : null) ??
+        ref.read(tourRepositoryProvider).getLocalTour(widget.tourId);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      syncService.setActiveTour(widget.tourId);
+      syncService.setActiveTour(widget.tourId,
+          tourName: effectiveTour?.name);
     });
 
-    return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline_rounded,
-                    size: 48, color: AppColors.danger),
-                const SizedBox(height: 16),
-                Text('Could not load tour: $e',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () => ref
-                      .read(tourRepositoryProvider)
-                      .clearUserActiveTour(widget.userId),
-                  child: const Text('Return to Trips'),
-                ),
-              ],
+    if (effectiveTour == null) {
+      return tourStream.when(
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (e, _) => Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline_rounded,
+                      size: 48, color: AppColors.danger),
+                  const SizedBox(height: 16),
+                  Text('Could not load tour: $e',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => ref
+                        .read(tourRepositoryProvider)
+                        .clearUserActiveTour(widget.userId),
+                    child: const Text('Return to Trips'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-      data: (tour) {
-        if (tour == null || tour.isDeleted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
-          });
-          return _NoActiveTourScreen(
-            displayName:
-                ref.read(currentUserProvider).value?.firstName ?? 'User',
-            noticeMessage: 'The selected tour is no longer available.',
-          );
+        data: (_) => const Scaffold(),
+      );
+    }
+
+    final tour = effectiveTour;
+    if (tour.isDeleted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
+      });
+      return _NoActiveTourScreen(
+        displayName:
+            ref.read(currentUserProvider).value?.firstName ?? 'User',
+        noticeMessage: 'The selected tour is no longer available.',
+      );
+    }
+
+    final isMember = tour.memberIds.contains(widget.userId) || tour.isAdmin(widget.userId);
+    final isPastMember = tour.isPastMember(widget.userId) ||
+        (!isMember &&
+            membersStream.maybeWhen(
+              data: (members) =>
+                  members.any((m) => m.userId == widget.userId),
+              orElse: () => false,
+            ));
+    final isReadOnly = !isMember && isPastMember;
+
+    if (!isMember && !isPastMember) {
+      if (tourStream.value != null && !membersStream.isLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
+        });
+        return _NoActiveTourScreen(
+          displayName:
+              ref.read(currentUserProvider).value?.firstName ?? 'User',
+          noticeMessage: 'You are no longer a member of "${tour.name}".',
+        );
+      }
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final isAdmin = tour.isAdmin(widget.userId);
+    final joinRequestsStream =
+        ref.watch(tourPendingJoinRequestsProvider(widget.tourId));
+
+    // Watch the local refresh counter — bumped when an offline member is added
+    ref.watch(localMembersRefreshProvider);
+
+    final cachedMembers = ActiveTourCacheService.getCachedMembers(widget.tourId);
+
+    // Build the effective member list by merging the Firestore stream with the Hive cache.
+    // The stream is the authoritative source when online, but it won't include members that
+    // were added offline (queued in Hive). We always append cached-only members on top so
+    // offline-queued members appear immediately after being added.
+    final streamMembers = membersStream.maybeWhen(
+      data: (members) => members,
+      orElse: () => <TourMemberModel>[],
+    );
+    final List<TourMemberModel> rawMembers;
+    if (streamMembers.isNotEmpty) {
+      // Start with stream data; append any cached member not already in the stream
+      // (covers offline-queued members whose Firestore write is pending)
+      final extra = cachedMembers
+          .where((c) => !streamMembers.any((s) => s.userId == c.userId))
+          .toList();
+      rawMembers = [...streamMembers, ...extra];
+    } else {
+      // Fully offline: use Hive cache (includes offline-queued members)
+      rawMembers = cachedMembers;
+    }
+
+    final List<TourMemberModel> membersList;
+    if (rawMembers.isNotEmpty) {
+      membersList = rawMembers;
+    } else {
+      membersList = [];
+      final ids = tour.memberIds.isNotEmpty
+          ? tour.memberIds
+          : (widget.userId.isNotEmpty ? [widget.userId] : <String>[]);
+
+      // Build a lookup map of queued offline member names so we can resolve
+      // proper display names even when cache and stream are both empty
+      final queuedMemberNames = <String, String>{};
+      try {
+        final queueService = ref.read(offlineTourQueueProvider);
+        for (final qm in queueService.getQueuedMembersForTour(widget.tourId)) {
+          queuedMemberNames[qm.userId] = qm.displayName;
         }
+      } catch (_) {}
 
-        final isMember = tour.memberIds.contains(widget.userId);
-        final isPastMember = tour.isPastMember(widget.userId) ||
-            (!isMember &&
-                membersStream.maybeWhen(
-                  data: (members) =>
-                      members.any((m) => m.userId == widget.userId),
-                  orElse: () => false,
-                ));
-        final isReadOnly = !isMember && isPastMember;
-
-        if (!isMember && !isPastMember) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
-          });
-          return _NoActiveTourScreen(
-            displayName:
-                ref.read(currentUserProvider).value?.firstName ?? 'User',
-            noticeMessage: 'You are no longer a member of "${tour.name}".',
-          );
-        }
-
-        final isAdmin = tour.isAdmin(widget.userId);
-        final joinRequestsStream =
-            ref.watch(tourPendingJoinRequestsProvider(widget.tourId));
-
-        final approvedExpenses = expensesStream.maybeWhen(
-          data: (expenses) => expenses.where((e) => e.isApproved).toList(),
-          orElse: () => <ExpenseModel>[],
+      for (final uid in ids) {
+        final cached = UserCacheService.getUser(uid);
+        membersList.add(
+          TourMemberModel(
+            userId: uid,
+            displayName: cached?.displayName ??
+                queuedMemberNames[uid] ??
+                (uid == widget.userId
+                    ? (currentUser?.displayName ?? 'You')
+                    : (uid.startsWith('offline_') ? 'Offline Friend' : 'Member')),
+            username: cached?.username ?? '',
+            email: uid == widget.userId ? (currentUser?.email ?? '') : '',
+            photoUrl: cached?.photoUrl ??
+                (uid == widget.userId ? currentUser?.photoUrl : null),
+            role: tour.isAdmin(uid) ? 'admin' : 'member',
+            status: 'active',
+            joinedAt: tour.createdAt,
+            balance: 0.0,
+            isOffline: uid.startsWith('offline_'),
+          ),
         );
-
-        final membersList = membersStream.maybeWhen(
-          data: (members) => members,
-          orElse: () => <TourMemberModel>[],
+      }
+      if (membersList.isEmpty && widget.userId.isNotEmpty) {
+        membersList.add(
+          TourMemberModel(
+            userId: widget.userId,
+            displayName: currentUser?.displayName ?? 'You',
+            username: currentUser?.username ?? '',
+            email: currentUser?.email ?? '',
+            photoUrl: currentUser?.photoUrl,
+            role: 'admin',
+            status: 'active',
+            joinedAt: tour.createdAt,
+          ),
         );
+      }
+    }
 
-        final approvedSettlements = settlementsStream.maybeWhen(
-          data: (settlements) =>
-              settlements.where((s) => s.isApproved).toList(),
-          orElse: () => <SettlementModel>[],
-        );
+    ref.watch(localExpensesRefreshProvider);
+
+    final streamExpenses = expensesStream.value ?? ActiveTourCacheService.getCachedExpenses(widget.tourId);
+    final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: widget.tourId);
+    final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: widget.tourId);
+
+    final Map<String, ExpenseModel> allExpensesMap = {};
+    for (final e in queuedExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap[e.id] = e;
+      }
+    }
+    for (final e in streamExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap.putIfAbsent(e.id, () => e);
+      }
+    }
+    final allExpenses = allExpensesMap.values.toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    final approvedExpenses = allExpenses.where((e) => e.isApproved).toList();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ActiveTourCacheService.cacheActiveTour(
+        tour: tour,
+        members: membersList.isNotEmpty ? membersList : null,
+        expenses: approvedExpenses,
+      );
+    });
+
+    final approvedSettlements = settlementsStream.maybeWhen(
+      data: (settlements) =>
+          settlements.where((s) => s.isApproved).toList(),
+      orElse: () => ActiveTourCacheService.getCachedSettlements(widget.tourId),
+    );
 
         var computedBalances =
             BalanceService.calculateBalances(membersList, approvedExpenses);
@@ -776,10 +943,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         final totalSpent =
             approvedExpenses.fold(0.0, (sum, e) => sum + e.amount);
         final memberCount = membersList.length;
-        final expenseCount = expensesStream.maybeWhen(
-          data: (expenses) => expenses.length,
-          orElse: () => 0,
-        );
+        final expenseCount = allExpenses.length;
         final mySpending = approvedExpenses.fold(
           0.0,
           (sum, e) => sum + (e.splits[widget.userId] ?? 0.0),
@@ -790,9 +954,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           canPop: false,
           onPopInvokedWithResult: (didPop, _) async {
             if (didPop) return;
-            await ref
-                .read(tourRepositoryProvider)
-                .clearUserActiveTour(widget.userId);
+            ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+            await ActiveTourCacheService.clearActiveTourId();
+            if (context.mounted) {
+              context.go('/home');
+            }
           },
           child: Scaffold(
             body: Stack(
@@ -926,6 +1092,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       ),
                     ],
                     _ConsolidatedMetricsCard(
+                      tourId: tour.id,
                       currencySymbol: tour.currencySymbol,
                       totalSpent: totalSpent,
                       yourSpending: mySpending,
@@ -936,7 +1103,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     _MyBalanceCard(
                       balance: myNetBalance,
                       currencySymbol: tour.currencySymbol,
-                      onSettleUp: () => context.push('/settlement'),
+                      onSettleUp: () =>
+                          context.push('/settlement?tourId=${tour.id}'),
                     ).animate().fadeIn(delay: 120.ms),
                     if (tour.budget != null && tour.budget! > 0) ...[
                       const SizedBox(height: 12),
@@ -952,7 +1120,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         _SquareActionButton(
                           icon: Icons.description_outlined,
                           tooltip: 'Reports & PDF',
-                          onTap: () => context.push('/reports'),
+                          onTap: () =>
+                              context.push('/reports?tourId=${tour.id}'),
                         ),
                         const SizedBox(width: 8),
                         _SquareActionButton(
@@ -1002,7 +1171,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         else
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => context.push('/expense/add'),
+                              onPressed: () =>
+                                  context.push('/expense/add?tourId=${tour.id}'),
                               icon: const Icon(Icons.add_rounded,
                                   color: Colors.white, size: 20),
                               label: const Text(
@@ -1042,7 +1212,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         const SizedBox(height: 16),
                       ],
                       _buildExpensesTab(
-                          expensesStream, tour.currencySymbol, tour.startDate),
+                          allExpenses, tour.currencySymbol, tour.startDate,
+                          isLoading: expensesStream.isLoading && allExpenses.isEmpty),
                     ] else if (_selectedPillTab == 1) ...[
                       _buildBalancesTab(membersList, computedBalances,
                           tour.currencySymbol, approvedExpenses),
@@ -1064,28 +1235,33 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           ),
         ],
       ),
-      bottomNavigationBar: _TourBottomNavigationBar(
+      bottomNavigationBar: TourBottomNavigationBar(
         tour: tour,
         isAdmin: isAdmin,
         currentUser: currentUser,
         membersCount: membersList.length,
+        currentIndex: 1,
+        onToursTap: () => context.push('/tours'),
+        onDashboardTap: () {},
+        onMembersTap: () => context.push('/tour/members?tourId=${tour.id}'),
+        onSettingsTap: () => context.push('/tour/settings?tourId=${tour.id}'),
       ),
     ),
   );
-    },
-    );
   }
 
-  Widget _buildExpensesTab(AsyncValue expensesStream, String currencySymbol,
-      DateTime tourStartDate) {
-    return expensesStream.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('$e')),
-      data: (expenses) {
-        final list = expenses as List<ExpenseModel>;
-        if (list.isEmpty) {
-          return _EmptyExpensesCard();
-        }
+  Widget _buildExpensesTab(
+    List<ExpenseModel> list,
+    String currencySymbol,
+    DateTime tourStartDate, {
+    bool isLoading = false,
+  }) {
+    if (isLoading && list.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (list.isEmpty) {
+      return _EmptyExpensesCard(tourId: widget.tourId);
+    }
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1099,7 +1275,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 children: [
                   Text(
                     _showSpreadsheetView
-                        ? 'Daily Expenses'
+                        ? 'Expenses'
                         : 'All Expenses',
                     style: const TextStyle(
                       fontFamily: 'Outfit',
@@ -1168,8 +1344,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             ],
           ],
         );
-      },
-    );
   }
 
   List<({int dayNumber, DateTime date, List<ExpenseModel> expenses})>
@@ -1234,7 +1408,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 ),
               ),
               TextButton(
-                onPressed: () => context.push('/tour/members'),
+                onPressed: () =>
+                    context.push('/tour/members?tourId=${widget.tourId}'),
                 child: const Text('Manage'),
               ),
             ],
@@ -1266,6 +1441,21 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             final formattedPaid = totalPaid.toStringAsFixed(0);
             final formattedSpent = totalSpent.toStringAsFixed(0);
 
+            final liveProfile = !m.isOffline
+                ? ref.watch(userProfileProvider(m.userId)).value
+                : null;
+            final cached =
+                !m.isOffline ? ref.watch(userBoxProvider(m.userId)) : null;
+
+            final name = liveProfile?.displayName.isNotEmpty == true
+                ? liveProfile!.displayName
+                : (m.displayName.isNotEmpty
+                    ? m.displayName
+                    : (cached?.displayName ?? 'Member'));
+
+            final photo =
+                liveProfile?.photoUrl ?? m.photoUrl ?? cached?.photoUrl;
+
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1282,33 +1472,34 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 children: [
                   MemberAvatar(
                     initials: m.initials,
-                    photoUrl: m.photoUrl,
+                    photoUrl: photo,
                     radius: 20,
                     userId: m.userId,
-                    tourMember: m,
+                    tourMember: m.copyWith(
+                      displayName: name,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        if (m.userId == widget.userId) {
-                          context.push('/profile');
-                        } else {
-                          context.push('/member/${m.userId}', extra: m);
-                        }
-                      },
+                      onTap: m.userId == widget.userId
+                          ? () {
+                              HapticFeedback.lightImpact();
+                              context.push('/profile');
+                            }
+                          : null,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            m.displayName,
+                            name,
                             style: const TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w700,
                               fontSize: 14.5,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 3),
                           Text(
@@ -1479,7 +1670,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    onPressed: () => context.push('/settlement'),
+                    onPressed: () =>
+                        context.push('/settlement?tourId=${tour.id}'),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1926,6 +2118,7 @@ class _MyBalanceCard extends StatelessWidget {
 }
 
 class _ConsolidatedMetricsCard extends StatelessWidget {
+  final String? tourId;
   final String currencySymbol;
   final double totalSpent;
   final double yourSpending;
@@ -1933,6 +2126,7 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
   final int expenseCount;
 
   const _ConsolidatedMetricsCard({
+    this.tourId,
     required this.currencySymbol,
     required this.totalSpent,
     required this.yourSpending,
@@ -1984,7 +2178,7 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
           _MetricColumn(
             label: 'Members',
             color: isDark ? Colors.white : const Color(0xFF0F172A),
-            onTap: () => context.push('/tour/members'),
+            onTap: () => context.push('/tour/members${tourId != null ? '?tourId=$tourId' : ''}'),
             valueWidget: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
@@ -2299,72 +2493,118 @@ class _TourDashboardAppBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final currentUser = ref.watch(currentUserProvider).value;
 
     return SliverAppBar(
       pinned: true,
       elevation: 0,
       automaticallyImplyLeading: false,
-      titleSpacing: 20,
+      toolbarHeight: 64,
+      titleSpacing: 16,
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       title: InkWell(
         onTap: () => context.push('/tours'),
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      tour.name,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    tour.name,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                      height: 1.15,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
-                ],
-              ),
-              Text(
-                '${tour.status == TourStatus.active ? 'Active' : 'Completed'} · ${tour.currency} · ${DateFormat('MMM d').format(tour.startDate)}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                  fontWeight: FontWeight.normal,
                 ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${tour.status == TourStatus.active ? 'Active' : 'Completed'} · ${tour.currency} · ${DateFormat('MMM d').format(tour.startDate)}',
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
+                fontWeight: FontWeight.normal,
+                height: 1.1,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.qr_code_2_rounded),
-          tooltip: 'Invite & QR Code',
-          onPressed: () => TourQrDialog.show(
-            context,
-            tourName: tour.name,
-            inviteCode: tour.inviteCode,
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  tooltip: 'Invite & QR Code',
+                  onPressed: () => TourQrDialog.show(
+                    context,
+                    tourName: tour.name,
+                    inviteCode: tour.inviteCode,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: 'Profile',
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      context.push('/profile');
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      padding: const EdgeInsets.all(2.0),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primaryTeal,
+                          width: 2.0,
+                        ),
+                      ),
+                      child: MemberAvatar(
+                        initials: (currentUser != null &&
+                                currentUser.initials.isNotEmpty)
+                            ? currentUser.initials
+                            : 'U',
+                        photoUrl: currentUser?.photoUrl,
+                        userId: currentUser?.uid,
+                        radius: 15,
+                        enableTap: false,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        const ThemeSwitchToggle(),
-        const SizedBox(width: 8),
       ],
     );
   }
 }
 
 class _EmptyExpensesCard extends StatelessWidget {
+  final String? tourId;
+  const _EmptyExpensesCard({this.tourId});
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2405,7 +2645,9 @@ class _EmptyExpensesCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
-            onPressed: () => context.push('/expense/add'),
+            onPressed: () => context.push(tourId != null
+                ? '/expense/add?tourId=$tourId'
+                : '/expense/add'),
             icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
             label: const Text('Add Expense',
                 style: TextStyle(
@@ -2478,18 +2720,30 @@ class _PendingApprovalsSection extends ConsumerWidget {
                         IconButton(
                           icon: const Icon(Icons.check_circle_outline,
                               color: AppColors.positive),
-                          onPressed: () => ref
-                              .read(expenseRepositoryProvider)
-                              .updateExpenseStatus(
-                                  tourId, e.id, ExpenseStatus.approved),
+                          onPressed: () async {
+                            await ref
+                                .read(expenseRepositoryProvider)
+                                .updateExpenseStatus(
+                                    tourId, e.id, ExpenseStatus.approved);
+                            ref.invalidate(pendingExpensesStreamProvider(tourId));
+                            ref.invalidate(approvedExpensesStreamProvider(tourId));
+                            ref.invalidate(tourExpensesStreamProvider(tourId));
+                            ref.read(localExpensesRefreshProvider.notifier).bump();
+                          },
                         ),
                         IconButton(
                           icon: const Icon(Icons.cancel_outlined,
                               color: AppColors.negative),
-                          onPressed: () => ref
-                              .read(expenseRepositoryProvider)
-                              .updateExpenseStatus(
-                                  tourId, e.id, ExpenseStatus.rejected),
+                          onPressed: () async {
+                            await ref
+                                .read(expenseRepositoryProvider)
+                                .updateExpenseStatus(
+                                    tourId, e.id, ExpenseStatus.rejected);
+                            ref.invalidate(pendingExpensesStreamProvider(tourId));
+                            ref.invalidate(approvedExpensesStreamProvider(tourId));
+                            ref.invalidate(tourExpensesStreamProvider(tourId));
+                            ref.read(localExpensesRefreshProvider.notifier).bump();
+                          },
                         ),
                       ],
                     ),
@@ -2658,217 +2912,5 @@ class _ViewToggleButton extends StatelessWidget {
   }
 }
 
-/// Messenger-style bottom navigation bar bringing Members, Settings, and Profile down
-class _TourBottomNavigationBar extends StatelessWidget {
-  final TourModel tour;
-  final bool isAdmin;
-  final dynamic currentUser;
-  final int membersCount;
-
-  const _TourBottomNavigationBar({
-    required this.tour,
-    required this.isAdmin,
-    required this.currentUser,
-    required this.membersCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                : AppColors.lightBorder,
-            width: 0.8,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              // 1. Dashboard / Trips
-              _BottomNavItem(
-                icon: Icons.dashboard_rounded,
-                label: 'Dashboard',
-                isSelected: true,
-                onTap: () {},
-              ),
-
-              // 2. Members (like "People" in Messenger)
-              _BottomNavItem(
-                icon: Icons.people_alt_rounded,
-                label: 'Members',
-                badgeText: membersCount > 0 ? '$membersCount' : null,
-                onTap: () => context.push('/tour/members'),
-              ),
-
-              // 3. Settings (Tour settings if admin)
-              if (isAdmin)
-                _BottomNavItem(
-                  icon: Icons.settings_outlined,
-                  label: 'Settings',
-                  onTap: () => context.push('/tour/settings'),
-                ),
-
-              // 4. Profile / Menu (with avatar like Messenger)
-              _BottomProfileNavItem(
-                currentUser: currentUser,
-                onTap: () => context.push('/profile'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final String? badgeText;
-  final VoidCallback onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    this.isSelected = false,
-    this.badgeText,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final activeColor = AppColors.primaryTeal;
-    final inactiveColor = isDark ? Colors.white60 : Colors.black54;
-
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Badge(
-              isLabelVisible: badgeText != null,
-              label: badgeText != null
-                  ? Text(
-                      badgeText!,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    )
-                  : null,
-              backgroundColor: AppColors.primaryTeal,
-              child: Icon(
-                icon,
-                size: 24,
-                color: isSelected ? activeColor : inactiveColor,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? activeColor : inactiveColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BottomProfileNavItem extends StatelessWidget {
-  final dynamic currentUser;
-  final VoidCallback onTap;
-
-  const _BottomProfileNavItem({
-    required this.currentUser,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(1.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.6),
-                  width: 1.5,
-                ),
-              ),
-              child: MemberAvatar(
-                initials: currentUser?.initials?.isNotEmpty == true
-                    ? currentUser!.initials!
-                    : 'U',
-                photoUrl: currentUser?.photoUrl,
-                userId: currentUser?.uid,
-                radius: 11,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              'Profile',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 

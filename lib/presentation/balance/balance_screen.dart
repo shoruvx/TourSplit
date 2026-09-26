@@ -13,75 +13,124 @@ import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/models/settlement_model.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
+import '../../data/services/user_cache_service.dart';
 import '../widgets/member_avatar.dart';
 import '../settlement/widgets/manual_settlement_dialog.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class BalanceScreen extends ConsumerWidget {
-  const BalanceScreen({super.key});
+  final String? tourId;
+  const BalanceScreen({super.key, this.tourId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).value;
-    if (user == null || user.activeTourId == null) {
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final effectiveTourId = tourId ??
+        activeTourId ??
+        user?.activeTourId ??
+        cachedTour?.id ??
+        ActiveTourCacheService.getActiveTourId();
+
+    if (effectiveTourId == null) {
+      if (userAsync.isLoading) {
+        return const Scaffold(
+            body: Center(child: CircularProgressIndicator()));
+      }
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
-    final tourId = user.activeTourId!;
 
-    final tourStream = ref.watch(tourStreamProvider(tourId));
-    final membersStream = ref.watch(tourMembersStreamProvider(tourId));
-    final expensesStream = ref.watch(approvedExpensesStreamProvider(tourId));
-    final settlementsStream = ref.watch(tourSettlementsStreamProvider(tourId));
+    final currentUserId =
+        user?.uid ?? ref.watch(authStateProvider).value?.uid ?? '';
+    final tourStream = ref.watch(tourStreamProvider(effectiveTourId));
+    final membersStream = ref.watch(tourMembersStreamProvider(effectiveTourId));
+    final expensesStream =
+        ref.watch(approvedExpensesStreamProvider(effectiveTourId));
+    final settlementsStream =
+        ref.watch(tourSettlementsStreamProvider(effectiveTourId));
 
-    return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (tour) {
-        if (tour == null || tour.isDeleted) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Balances')),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('The tour is no longer available.'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => context.go('/home'),
-                    child: const Text('Go Home'),
-                  ),
-                ],
+    final effectiveTour = tourStream.value ?? (cachedTour?.id == effectiveTourId ? cachedTour : null) ?? cachedTour;
+    if (effectiveTour == null && tourStream.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final tour = effectiveTour ?? tourStream.value;
+    if (tour == null || tour.isDeleted) {
+      if (tourStream.isLoading) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return Scaffold(
+        appBar: AppBar(title: const Text('Balances')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('The tour is no longer available.'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go('/home'),
+                child: const Text('Go Home'),
               ),
-            ),
-          );
-        }
+            ],
+          ),
+        ),
+      );
+    }
 
-        return membersStream.when(
-          loading: () =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
-          error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-          data: (members) => expensesStream.when(
-            loading: () => const Scaffold(
-                body: Center(child: CircularProgressIndicator())),
-            error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-            data: (expenses) => settlementsStream.when(
-              loading: () => const Scaffold(
-                  body: Center(child: CircularProgressIndicator())),
-              error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-              data: (settlements) {
-                final approvedSettlements =
-                    settlements.where((s) => s.isApproved).toList();
+    final cachedMembers = ActiveTourCacheService.getCachedMembers(effectiveTourId);
+    final rawMembers = membersStream.value ?? cachedMembers;
+    final List<TourMemberModel> members;
+    if (rawMembers.isNotEmpty) {
+      members = rawMembers;
+    } else {
+      members = [];
+      final ids = tour.memberIds.isNotEmpty
+          ? tour.memberIds
+          : (currentUserId.isNotEmpty ? [currentUserId] : <String>[]);
+      for (final uid in ids) {
+        final cached = UserCacheService.getUser(uid);
+        members.add(
+          TourMemberModel(
+            userId: uid,
+            displayName: cached?.displayName ??
+                (uid == currentUserId ? (user?.displayName ?? 'You') : 'Member'),
+            username: cached?.username ?? '',
+            email: uid == currentUserId ? (user?.email ?? '') : '',
+            photoUrl: cached?.photoUrl ??
+                (uid == currentUserId ? user?.photoUrl : null),
+            role: tour.isAdmin(uid) ? 'admin' : 'member',
+            status: 'active',
+            joinedAt: tour.createdAt,
+            balance: 0.0,
+            isOffline: uid.startsWith('offline_'),
+          ),
+        );
+      }
+    }
 
-                var balances =
-                    BalanceService.calculateBalances(members, expenses);
-                balances = BalanceService.applySettlements(
-                    balances, approvedSettlements);
-                final debts = BalanceService.simplifyDebts(balances, members);
-                final totalPaidMap =
-                    BalanceService.calculateTotalPaid(members, expenses);
-                final totalSpentMap =
-                    BalanceService.calculateTotalSpent(members, expenses);
-                final isDark = Theme.of(context).brightness == Brightness.dark;
+    ref.watch(localExpensesRefreshProvider);
+    final cachedExpenses = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
+    final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
+    final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: effectiveTourId);
+    final streamExpenses = expensesStream.value ?? cachedExpenses;
+    final expenses = [
+      ...queuedExpenses,
+      ...streamExpenses.where((e) => !queuedExpenses.any((q) => q.id == e.id)),
+    ].where((e) => !deletedIds.contains(e.id)).toList();
+
+    final settlements = settlementsStream.value ??
+        ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+    final approvedSettlements = settlements.where((s) => s.isApproved).toList();
+
+    var balances = BalanceService.calculateBalances(members, expenses);
+    balances = BalanceService.applySettlements(balances, approvedSettlements);
+    final debts = BalanceService.simplifyDebts(balances, members);
+    final totalPaidMap = BalanceService.calculateTotalPaid(members, expenses);
+    final totalSpentMap = BalanceService.calculateTotalSpent(members, expenses);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
                 return PopScope(
                   canPop: false,
@@ -98,17 +147,14 @@ class BalanceScreen extends ConsumerWidget {
                       automaticallyImplyLeading: false,
                       toolbarHeight: 64,
                       titleSpacing: 20,
-                      title: const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Balances',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                            color: AppColors.primaryTeal,
-                          ),
+                      title: const Text(
+                        'Balances',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: AppColors.primaryTeal,
                         ),
                       ),
                       actions: [
@@ -122,7 +168,7 @@ class BalanceScreen extends ConsumerWidget {
                             tour: tour,
                             members: members,
                             computedBalances: balances,
-                            currentUserId: user.uid,
+                            currentUserId: currentUserId,
                           ),
                         ),
                       ],
@@ -180,7 +226,7 @@ class BalanceScreen extends ConsumerWidget {
                                 tour: tour,
                                 members: members,
                                 computedBalances: balances,
-                                currentUserId: user.uid,
+                                currentUserId: currentUserId,
                               ),
                               icon: const Icon(Icons.handshake_rounded,
                                   size: 15, color: Colors.white),
@@ -214,7 +260,7 @@ class BalanceScreen extends ConsumerWidget {
                           totalPaid: totalPaid,
                           totalSpent: totalSpent,
                           currency: tour.currencySymbol,
-                          currentUserId: user.uid,
+                          currentUserId: currentUserId,
                         ).animate().fadeIn(
                             delay:
                                 Duration(milliseconds: members.indexOf(m) * 60),
@@ -253,20 +299,33 @@ class BalanceScreen extends ConsumerWidget {
                         ...debts.map((d) => _DebtCard(
                               debt: d,
                               currency: tour.currencySymbol,
-                              currentUserId: user.uid,
+                              currentUserId: currentUserId,
                               onSettle: () => _requestSettlement(
-                                  context, ref, tourId, d, tour.currency),
+                                  context, ref, effectiveTourId, d, tour.currency),
                             ).animate().fadeIn()),
                     ],
                   ),
+                  bottomNavigationBar: TourBottomNavigationBar(
+                    tour: tour,
+                    isAdmin: tour.isAdmin(currentUserId),
+                    currentUser: user,
+                    membersCount: members.length,
+                    currentIndex: -1,
+                    onToursTap: () => context.push('/tours'),
+                    onDashboardTap: () {
+                      ref.read(activeTourIdOverrideProvider.notifier).state =
+                          tour.id;
+                      ActiveTourCacheService.setActiveTourId(tour.id);
+                      context.go('/home');
+                    },
+                    onMembersTap: () =>
+                        context.push('/tour/members?tourId=${tour.id}'),
+                    onSettingsTap: tour.isAdmin(currentUserId)
+                        ? () => context.push('/tour/settings?tourId=${tour.id}')
+                        : null,
+                  ),
                 ),
               );
-              },
-            ),
-          ),
-        );
-      },
-    );
   }
 
   void _requestSettlement(BuildContext context, WidgetRef ref, String tourId,
@@ -381,14 +440,12 @@ class _BalanceCard extends StatelessWidget {
             Expanded(
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (member.userId == currentUserId) {
-                    context.push('/profile');
-                  } else {
-                    context.push('/member/${member.userId}', extra: member);
-                  }
-                },
+                onTap: member.userId == currentUserId
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        context.push('/profile');
+                      }
+                    : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -504,14 +561,12 @@ class _DebtCard extends StatelessWidget {
                       Flexible(
                         child: InkWell(
                           borderRadius: BorderRadius.circular(4),
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            if (debt.fromUserId == currentUserId) {
-                              context.push('/profile');
-                            } else {
-                              context.push('/member/${debt.fromUserId}');
-                            }
-                          },
+                          onTap: debt.fromUserId == currentUserId
+                              ? () {
+                                  HapticFeedback.lightImpact();
+                                  context.push('/profile');
+                                }
+                              : null,
                           child: Text(
                             debt.fromUserName,
                             style: const TextStyle(
@@ -528,14 +583,12 @@ class _DebtCard extends StatelessWidget {
                       Flexible(
                         child: InkWell(
                           borderRadius: BorderRadius.circular(4),
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            if (debt.toUserId == currentUserId) {
-                              context.push('/profile');
-                            } else {
-                              context.push('/member/${debt.toUserId}');
-                            }
-                          },
+                          onTap: debt.toUserId == currentUserId
+                              ? () {
+                                  HapticFeedback.lightImpact();
+                                  context.push('/profile');
+                                }
+                              : null,
                           child: Text(
                             debt.toUserName,
                             style: const TextStyle(

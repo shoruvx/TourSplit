@@ -88,6 +88,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
       }
 
       if (tour.memberIds.contains(user.uid)) {
+        ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
         await tourRepo.switchActiveTour(user.uid, tour.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -105,6 +106,7 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         tourId: tour.id,
         user: user,
       );
+      ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
       await tourRepo.switchActiveTour(user.uid, tour.id);
 
       if (mounted) {

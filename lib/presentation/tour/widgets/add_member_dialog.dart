@@ -2,11 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/tour_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/tour_repository.dart';
+import '../../../data/services/offline_tour_queue_service.dart';
+import '../../home/home_screen.dart' show localMembersRefreshProvider;
 import '../../widgets/member_avatar.dart';
 
 class AddMemberDialog extends ConsumerStatefulWidget {
@@ -51,9 +54,27 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
 
   bool _isSubmitting = false;
   bool _isSearching = false;
+  bool _isOffline = false;
   String? _onlineError;
   UserModel? _foundUser;
   Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConnectivity();
+  }
+
+  Future<void> _checkConnectivity() async {
+    final result = await Connectivity().checkConnectivity();
+    if (mounted) {
+      setState(() {
+        _isOffline = result.every((r) => r == ConnectivityResult.none);
+        // Auto-switch to offline tab when offline
+        if (_isOffline) _selectedTab = 1;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -193,17 +214,36 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
     HapticFeedback.lightImpact();
 
     try {
-      await ref.read(tourRepositoryProvider).addOfflineMember(
-            tourId: widget.tourId,
-            name: name,
-          );
+      if (_isOffline || widget.tourId.startsWith('local_')) {
+        // ── Offline path: queue locally ───────────────────────────────
+        final queueService = ref.read(offlineTourQueueProvider);
+        await queueService.addOfflineMemberLocally(
+          tourId: widget.tourId,
+          name: name,
+        );
+        // Trigger a rebuild of providers and UI so the new member shows up immediately
+        ref.read(localMembersRefreshProvider.notifier).bump();
+        ref.invalidate(tourMembersStreamProvider(widget.tourId));
+        ref.invalidate(tourStreamProvider(widget.tourId));
+      } else {
+        // ── Online path: write to Firestore directly ─────────────────
+        await ref.read(tourRepositoryProvider).addOfflineMember(
+          tourId: widget.tourId,
+          name: name,
+        );
+        ref.invalidate(tourMembersStreamProvider(widget.tourId));
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Offline friend "$name" added to the tour!'),
-          backgroundColor: AppColors.positive,
+          content: Text(
+            _isOffline
+                ? 'Offline friend "$name" saved — will sync when connected'
+                : 'Offline friend "$name" added to the tour!',
+          ),
+          backgroundColor: _isOffline ? AppColors.warning : AppColors.positive,
         ),
       );
     } catch (e) {
@@ -289,34 +329,58 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() {
-                            _selectedTab = 0;
-                            _onlineError = null;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(9),
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: _selectedTab == 0
-                                ? AppColors.primaryTeal
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: Text(
-                            'Online Friend',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: _selectedTab == 0
-                                  ? Colors.white
-                                  : (isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.lightTextSecondary),
+                      child: Tooltip(
+                        message: _isOffline ? 'Not available offline' : '',
+                        child: InkWell(
+                          onTap: _isOffline
+                              ? null // Disabled when offline
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() {
+                                    _selectedTab = 0;
+                                    _onlineError = null;
+                                  });
+                                },
+                          borderRadius: BorderRadius.circular(9),
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: _selectedTab == 0 && !_isOffline
+                                  ? AppColors.primaryTeal
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Online Friend',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: _isOffline
+                                        ? (isDark
+                                            ? AppColors.darkTextSecondary.withValues(alpha: 0.4)
+                                            : AppColors.lightTextSecondary.withValues(alpha: 0.4))
+                                        : (_selectedTab == 0
+                                            ? Colors.white
+                                            : (isDark
+                                                ? AppColors.darkTextSecondary
+                                                : AppColors.lightTextSecondary)),
+                                  ),
+                                ),
+                                if (_isOffline) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.cloud_off_rounded,
+                                    size: 12,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary.withValues(alpha: 0.4)
+                                        : AppColors.lightTextSecondary.withValues(alpha: 0.4),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),

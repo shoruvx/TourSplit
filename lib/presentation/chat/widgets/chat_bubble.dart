@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
@@ -9,6 +10,9 @@ import '../../widgets/member_avatar.dart';
 class ChatBubble extends ConsumerWidget {
   final ChatMessage message;
   final bool isCurrentUser;
+  final String currentUserId;
+  final VoidCallback? onLongPress;
+  final void Function(String emoji)? onReact;
   final VoidCallback? onDelete;
   final VoidCallback? onReply;
 
@@ -16,6 +20,9 @@ class ChatBubble extends ConsumerWidget {
     super.key,
     required this.message,
     required this.isCurrentUser,
+    this.currentUserId = '',
+    this.onLongPress,
+    this.onReact,
     this.onDelete,
     this.onReply,
   });
@@ -64,35 +71,41 @@ class ChatBubble extends ConsumerWidget {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: GestureDetector(
-              onLongPress: onDelete,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.76,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isCurrentUser ? userBubbleColor : otherBubbleColor,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
-                    bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+            child: Column(
+              crossAxisAlignment: isCurrentUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onLongPress: onLongPress ?? onDelete,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.76,
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: isCurrentUser
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isCurrentUser ? userBubbleColor : otherBubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
+                        bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isCurrentUser
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                     // Author label for other members in group chat
                     if (!isCurrentUser) ...[
                       Text(
@@ -205,8 +218,89 @@ class ChatBubble extends ConsumerWidget {
                 ),
               ),
             ),
+                if (message.hasReactions)
+                  _buildReactionsPill(
+                    context,
+                    message.reactionCounts,
+                    message.userReaction(currentUserId),
+                    isDark,
+                  ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildReactionsPill(
+    BuildContext context,
+    Map<String, int> reactionCounts,
+    String? userReaction,
+    bool isDark,
+  ) {
+    if (reactionCounts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 3, left: 2, right: 2),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: reactionCounts.entries.map((entry) {
+          final emoji = entry.key;
+          final count = entry.value;
+          final isUserReaction = userReaction == emoji;
+
+          return InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onReact?.call(emoji);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isUserReaction
+                    ? AppColors.primaryTeal.withValues(alpha: isDark ? 0.35 : 0.2)
+                    : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isUserReaction
+                      ? AppColors.primaryTeal
+                      : (isDark ? Colors.white12 : Colors.black12),
+                  width: isUserReaction ? 1.2 : 0.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 13)),
+                  if (count > 1) ...[
+                    const SizedBox(width: 3),
+                    Text(
+                      '$count',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isUserReaction
+                            ? AppColors.primaryTeal
+                            : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

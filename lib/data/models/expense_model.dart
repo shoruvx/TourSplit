@@ -21,6 +21,7 @@ class ExpenseModel {
   final DateTime date;
   final ExpenseStatus status;
   final String addedByUserId;
+  final String addedByName;
   final DateTime createdAt;
 
   const ExpenseModel({
@@ -40,6 +41,7 @@ class ExpenseModel {
     required this.date,
     required this.status,
     required this.addedByUserId,
+    this.addedByName = '',
     required this.createdAt,
   });
 
@@ -66,9 +68,19 @@ class ExpenseModel {
   }
 
   factory ExpenseModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    return ExpenseModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+  }
+
+  factory ExpenseModel.fromMap(Map<String, dynamic> data, String id) {
+    DateTime parseDate(dynamic val) {
+      if (val is Timestamp) return val.toDate();
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      if (val is DateTime) return val;
+      return DateTime.now();
+    }
+
     return ExpenseModel(
-      id: doc.id,
+      id: id,
       tourId: data['tourId'] ?? '',
       title: data['title'] ?? '',
       amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
@@ -93,10 +105,14 @@ class ExpenseModel {
             )
           : null,
       description: data['description'],
-      date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      date: parseDate(data['date']),
       status: _parseStatus(data['status']),
-      addedByUserId: data['addedBy'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      addedByUserId: data['addedBy'] ?? data['addedByUserId'] ?? '',
+      addedByName: data['addedByName'] ??
+          (data['addedBy'] == (data['paidBy'] ?? data['paidByUserId'])
+              ? (data['paidByName'] ?? '')
+              : ''),
+      createdAt: parseDate(data['createdAt']),
     );
   }
 
@@ -139,28 +155,64 @@ class ExpenseModel {
         'status':
             status.name == 'pendingApproval' ? 'pending_approval' : status.name,
         'addedBy': addedByUserId,
+        'addedByName': addedByName,
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
-  ExpenseModel copyWith({ExpenseStatus? status}) {
+  ExpenseModel copyWith({
+    String? id,
+    String? tourId,
+    String? title,
+    double? amount,
+    String? currency,
+    String? category,
+    String? paidByUserId,
+    String? paidByName,
+    Map<String, double>? payers,
+    SplitType? splitType,
+    List<String>? splitAmong,
+    Map<String, double>? customSplits,
+    String? description,
+    DateTime? date,
+    ExpenseStatus? status,
+    String? addedByUserId,
+    String? addedByName,
+    DateTime? createdAt,
+  }) {
     return ExpenseModel(
-      id: id,
-      tourId: tourId,
-      title: title,
-      amount: amount,
-      currency: currency,
-      category: category,
-      paidByUserId: paidByUserId,
-      paidByName: paidByName,
-      payers: payers,
-      splitType: splitType,
-      splitAmong: splitAmong,
-      customSplits: customSplits,
-      description: description,
-      date: date,
+      id: id ?? this.id,
+      tourId: tourId ?? this.tourId,
+      title: title ?? this.title,
+      amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
+      category: category ?? this.category,
+      paidByUserId: paidByUserId ?? this.paidByUserId,
+      paidByName: paidByName ?? this.paidByName,
+      payers: payers ?? this.payers,
+      splitType: splitType ?? this.splitType,
+      splitAmong: splitAmong ?? this.splitAmong,
+      customSplits: customSplits ?? this.customSplits,
+      description: description ?? this.description,
+      date: date ?? this.date,
       status: status ?? this.status,
-      addedByUserId: addedByUserId,
-      createdAt: createdAt,
+      addedByUserId: addedByUserId ?? this.addedByUserId,
+      addedByName: addedByName ?? this.addedByName,
+      createdAt: createdAt ?? this.createdAt,
     );
+  }
+
+  String resolveAddedByName([String? cachedName]) {
+    if (cachedName != null && cachedName.trim().isNotEmpty) {
+      return cachedName.trim();
+    }
+    if (addedByName.trim().isNotEmpty) {
+      return addedByName.trim();
+    }
+    if (addedByUserId.isNotEmpty &&
+        addedByUserId == paidByUserId &&
+        paidByName.trim().isNotEmpty) {
+      return paidByName.trim();
+    }
+    return 'Unknown';
   }
 }

@@ -129,33 +129,46 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/tour/settings',
         name: 'tour-settings',
-        builder: (context, state) => const TourSettingsScreen(),
+        builder: (context, state) {
+          final tourId = state.uri.queryParameters['tourId'] ??
+              (state.extra as String?);
+          return TourSettingsScreen(tourId: tourId);
+        },
       ),
       GoRoute(
         path: '/tour/members',
         name: 'tour-members',
-        builder: (context, state) => const MemberManagementScreen(),
+        builder: (context, state) {
+          final tourId = state.uri.queryParameters['tourId'] ??
+              (state.extra as String?);
+          return MemberManagementScreen(tourId: tourId);
+        },
       ),
       GoRoute(
         path: '/tour/chat/:tourId',
         name: 'tour-chat',
         builder: (context, state) {
           final tourId = state.pathParameters['tourId']!;
-          final tourName = state.uri.queryParameters['name'] ?? 'Tour Chat';
+          final tourName = state.uri.queryParameters['name'] ?? 'Tour';
           return TourChatScreen(tourId: tourId, tourName: tourName);
         },
       ),
       GoRoute(
         path: '/expense/add',
         name: 'add-expense',
-        builder: (context, state) => const AddExpenseScreen(),
+        builder: (context, state) {
+          final tourId = state.uri.queryParameters['tourId'] ??
+              (state.extra as String?);
+          return AddExpenseScreen(tourId: tourId);
+        },
       ),
       GoRoute(
         path: '/expense/edit',
         name: 'edit-expense',
         builder: (context, state) {
           final expense = state.extra as ExpenseModel?;
-          return AddExpenseScreen(existingExpense: expense);
+          final tourId = state.uri.queryParameters['tourId'] ?? expense?.tourId;
+          return AddExpenseScreen(tourId: tourId, existingExpense: expense);
         },
       ),
       GoRoute(
@@ -168,17 +181,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/balance',
         name: 'balance',
-        builder: (context, state) => const BalanceScreen(),
+        builder: (context, state) {
+          final tourId = state.uri.queryParameters['tourId'] ??
+              (state.extra as String?);
+          return BalanceScreen(tourId: tourId);
+        },
       ),
       GoRoute(
         path: '/settlement',
         name: 'settlement',
-        builder: (context, state) => const SettlementScreen(),
+        builder: (context, state) {
+          final tourId = state.uri.queryParameters['tourId'] ??
+              (state.extra as String?);
+          return SettlementScreen(tourId: tourId);
+        },
       ),
       GoRoute(
         path: '/reports',
         name: 'reports',
-        builder: (context, state) => const ReportScreen(),
+        builder: (context, state) {
+          final tourId = state.uri.queryParameters['tourId'] ??
+              (state.extra as String?);
+          return ReportScreen(tourId: tourId);
+        },
       ),
       GoRoute(
         path: '/profile',

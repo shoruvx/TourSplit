@@ -15,59 +15,107 @@ import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/models/tour_model.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
+import '../../data/services/user_cache_service.dart';
 import '../expense/widgets/day_summary_table.dart';
 import '../widgets/gradient_button.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class ReportScreen extends ConsumerWidget {
-  const ReportScreen({super.key});
+  final String? tourId;
+  const ReportScreen({super.key, this.tourId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).value;
-    if (user == null || user.activeTourId == null) {
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final effectiveTourId = tourId ??
+        activeTourId ??
+        user?.activeTourId ??
+        cachedTour?.id ??
+        ActiveTourCacheService.getActiveTourId();
+
+    if (effectiveTourId == null) {
+      if (userAsync.isLoading) {
+        return const Scaffold(
+            body: Center(child: CircularProgressIndicator()));
+      }
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
-    final tourId = user.activeTourId!;
 
-    final tourStream = ref.watch(tourStreamProvider(tourId));
-    final membersStream = ref.watch(tourMembersStreamProvider(tourId));
-    final expensesStream = ref.watch(approvedExpensesStreamProvider(tourId));
-    final settlementsStream = ref.watch(tourSettlementsStreamProvider(tourId));
+    final currentUserId =
+        user?.uid ?? ref.watch(authStateProvider).value?.uid ?? '';
+    final tourStream = ref.watch(tourStreamProvider(effectiveTourId));
+    final membersStream = ref.watch(tourMembersStreamProvider(effectiveTourId));
+    final expensesStream =
+        ref.watch(approvedExpensesStreamProvider(effectiveTourId));
+    final settlementsStream =
+        ref.watch(tourSettlementsStreamProvider(effectiveTourId));
 
-    return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (tour) {
-        if (tour == null) return const Scaffold();
+    final effectiveTour = tourStream.value ?? (cachedTour?.id == effectiveTourId ? cachedTour : null) ?? cachedTour;
+    if (effectiveTour == null && tourStream.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final tour = effectiveTour ?? tourStream.value;
+    if (tour == null) {
+      if (tourStream.isLoading) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return const Scaffold();
+    }
 
-        return membersStream.when(
-          loading: () =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
-          error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-          data: (members) => expensesStream.when(
-            loading: () => const Scaffold(
-                body: Center(child: CircularProgressIndicator())),
-            error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-            data: (expenses) => settlementsStream.when(
-              loading: () => const Scaffold(
-                  body: Center(child: CircularProgressIndicator())),
-              error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-              data: (settlements) {
-                final approvedSettlements =
-                    settlements.where((s) => s.isApproved).toList();
-                var balances =
-                    BalanceService.calculateBalances(members, expenses);
-                balances = BalanceService.applySettlements(
-                    balances, approvedSettlements);
-                final debts = BalanceService.simplifyDebts(balances, members);
-                final totalPaidMap =
-                    BalanceService.calculateTotalPaid(members, expenses);
-                final totalSpentMap =
-                    BalanceService.calculateTotalSpent(members, expenses);
+    final cachedMembers = ActiveTourCacheService.getCachedMembers(effectiveTourId);
+    final rawMembers = membersStream.value ?? cachedMembers;
+    final List<TourMemberModel> members;
+    if (rawMembers.isNotEmpty) {
+      members = rawMembers;
+    } else {
+      members = [];
+      final ids = tour.memberIds.isNotEmpty
+          ? tour.memberIds
+          : (user?.uid.isNotEmpty == true ? [user!.uid] : <String>[]);
+      for (final uid in ids) {
+        final cached = UserCacheService.getUser(uid);
+        members.add(
+          TourMemberModel(
+            userId: uid,
+            displayName: cached?.displayName ??
+                (uid == user?.uid ? (user?.displayName ?? 'You') : 'Member'),
+            username: cached?.username ?? '',
+            email: uid == user?.uid ? (user?.email ?? '') : '',
+            photoUrl: cached?.photoUrl ??
+                (uid == user?.uid ? user?.photoUrl : null),
+            role: tour.isAdmin(uid) ? 'admin' : 'member',
+            status: 'active',
+            joinedAt: tour.createdAt,
+            balance: 0.0,
+            isOffline: uid.startsWith('offline_'),
+          ),
+        );
+      }
+    }
 
-                final totalSpent =
-                    expenses.fold(0.0, (sum, e) => sum + e.amount);
+    ref.watch(localExpensesRefreshProvider);
+    final cachedExpenses = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
+    final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
+    final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: effectiveTourId);
+    final streamExpenses = expensesStream.value ?? cachedExpenses;
+    final expenses = [
+      ...queuedExpenses,
+      ...streamExpenses.where((e) => !queuedExpenses.any((q) => q.id == e.id)),
+    ].where((e) => !deletedIds.contains(e.id)).toList();
+
+    final settlements = settlementsStream.value ??
+        ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+    final approvedSettlements = settlements.where((s) => s.isApproved).toList();
+    var balances = BalanceService.calculateBalances(members, expenses);
+    balances = BalanceService.applySettlements(balances, approvedSettlements);
+    final debts = BalanceService.simplifyDebts(balances, members);
+
+    final totalSpent = expenses.fold(0.0, (sum, e) => sum + e.amount);
 
                 return PopScope(
                   canPop: false,
@@ -81,17 +129,18 @@ class ReportScreen extends ConsumerWidget {
                   },
                   child: Scaffold(
                     appBar: AppBar(
-                      title: const Text('Tour Report'),
-                      leading: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                        tooltip: 'Back',
-                        onPressed: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.go('/home');
-                          }
-                        },
+                      automaticallyImplyLeading: false,
+                      toolbarHeight: 64,
+                      titleSpacing: 20,
+                      title: const Text(
+                        'Tour Report',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: AppColors.primaryTeal,
+                        ),
                       ),
                     ),
                   body: SingleChildScrollView(
@@ -148,7 +197,7 @@ class ReportScreen extends ConsumerWidget {
                         ).animate().fadeIn().scale(),
 
                         const SizedBox(height: 24),
-                        Text('Daily Expenses',
+                        Text('Expenses',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -163,61 +212,6 @@ class ReportScreen extends ConsumerWidget {
                             date: g.date,
                             expenses: g.expenses,
                             currencySymbol: tour.currencySymbol,
-                          );
-                        }),
-                        const SizedBox(height: 20),
-                        Text('Final Balances',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 12),
-                        ...members.map((m) {
-                          final b = balances[m.userId] ?? 0.0;
-                          final paid = totalPaidMap[m.userId] ?? 0.0;
-                          final spent = totalSpentMap[m.userId] ?? 0.0;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(m.displayName,
-                                        style: const TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontWeight: FontWeight.w600)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Paid: ${tour.currencySymbol}${paid.toStringAsFixed(0)} • Spent: ${tour.currencySymbol}${spent.toStringAsFixed(0)}',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 11,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? AppColors.darkTextSecondary
-                                            : AppColors.lightTextSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  b == 0
-                                      ? 'Settled'
-                                      : '${b > 0 ? '+' : ''}${tour.currencySymbol}${b.abs().toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    color: b > 0
-                                        ? AppColors.positive
-                                        : b < 0
-                                            ? AppColors.negative
-                                            : Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
                           );
                         }),
                         const SizedBox(height: 32),
@@ -239,14 +233,27 @@ class ReportScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  bottomNavigationBar: TourBottomNavigationBar(
+                    tour: tour,
+                    isAdmin: tour.isAdmin(currentUserId),
+                    currentUser: user,
+                    membersCount: tour.memberIds.length,
+                    currentIndex: -1,
+                    onToursTap: () => context.push('/tours'),
+                    onDashboardTap: () {
+                      ref.read(activeTourIdOverrideProvider.notifier).state =
+                          tour.id;
+                      ActiveTourCacheService.setActiveTourId(tour.id);
+                      context.go('/home');
+                    },
+                    onMembersTap: () =>
+                        context.push('/tour/members?tourId=${tour.id}'),
+                    onSettingsTap: tour.isAdmin(currentUserId)
+                        ? () => context.push('/tour/settings?tourId=${tour.id}')
+                        : null,
+                  ),
                 ),
               );
-              },
-            ),
-          ),
-        );
-      },
-    );
   }
 
   static List<({int dayNumber, DateTime date, List<ExpenseModel> expenses})>
@@ -287,11 +294,6 @@ class ReportScreen extends ConsumerWidget {
     double totalSpent,
   ) async {
     final pdf = pw.Document();
-    final memberList = members.cast<TourMemberModel>();
-    final totalPaidMap =
-        BalanceService.calculateTotalPaid(memberList, expenses);
-    final totalSpentMap =
-        BalanceService.calculateTotalSpent(memberList, expenses);
     final dayGroups = _groupExpensesByDay(expenses, tourStartDate);
     final pdfCurrency =
         (currencySymbol == '৳' || currencySymbol.contains('৳'))
@@ -339,28 +341,6 @@ class ReportScreen extends ConsumerWidget {
         ],
 
         pw.SizedBox(height: 16),
-        pw.Text('FINAL BALANCES',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-        pw.SizedBox(height: 6),
-        ...members.map((m) {
-          final b = balances[m.userId] ?? 0.0;
-          final paid = totalPaidMap[m.userId] ?? 0.0;
-          final spent = totalSpentMap[m.userId] ?? 0.0;
-          return pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 3),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(
-                    '${m.displayName} (Paid: $pdfCurrency ${paid.toStringAsFixed(2)}, Spent: $pdfCurrency ${spent.toStringAsFixed(2)})'),
-                pw.Text(b == 0
-                    ? 'Settled'
-                    : '${b > 0 ? '+' : ''}$pdfCurrency ${b.abs().toStringAsFixed(2)}'),
-              ],
-            ),
-          );
-        }),
-        pw.SizedBox(height: 16),
         pw.Text('WHO OWES WHOM',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
         pw.SizedBox(height: 6),
@@ -370,7 +350,7 @@ class ReportScreen extends ConsumerWidget {
           ...debts.map((d) => pw.Text(
               '${d.fromUserName} -> ${d.toUserName}: $pdfCurrency ${d.amount.toStringAsFixed(2)}')),
         pw.SizedBox(height: 20),
-        pw.Text('DAILY EXPENSES',
+        pw.Text('EXPENSES',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
         pw.SizedBox(height: 8),
         ...dayGroups.expand((g) {
@@ -428,7 +408,8 @@ class ReportScreen extends ConsumerWidget {
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('Category',
+                      child: pw.Text('Added by',
+                          textAlign: pw.TextAlign.center,
                           style: pw.TextStyle(
                               fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     ),
@@ -438,18 +419,32 @@ class ReportScreen extends ConsumerWidget {
                   final payer = e.isMultiPayer
                       ? 'Multi (${e.paidByName})'
                       : e.paidByName.split(' ').first.toLowerCase();
-                  final categoryText = e.isMultiPayer
-                      ? e.contributions.entries
-                          .map((entry) =>
-                              '${memberMap[entry.key] ?? entry.key}: $pdfCurrency ${entry.value.toStringAsFixed(0)}')
-                          .join(', ')
-                      : (e.category != 'Other' ? e.category : 'General');
+                  final adder = e
+                      .resolveAddedByName(memberMap[e.addedByUserId] ??
+                          UserCacheService.getUser(e.addedByUserId)?.displayName)
+                      .split(' ')
+                      .first
+                      .toLowerCase();
                   return pw.TableRow(
                     children: [
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(e.title,
-                            style: const pw.TextStyle(fontSize: 9)),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(e.title,
+                                style: const pw.TextStyle(fontSize: 9)),
+                            if (e.isMultiPayer)
+                              pw.Text(
+                                e.contributions.entries
+                                    .map((entry) =>
+                                        '${memberMap[entry.key] ?? entry.key}: $pdfCurrency ${entry.value.toStringAsFixed(0)}')
+                                    .join(', '),
+                                style: const pw.TextStyle(
+                                    fontSize: 7.5, color: PdfColors.grey700),
+                              ),
+                          ],
+                        ),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
@@ -466,7 +461,8 @@ class ReportScreen extends ConsumerWidget {
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(4),
-                        child: pw.Text(categoryText,
+                        child: pw.Text(adder,
+                            textAlign: pw.TextAlign.center,
                             style: const pw.TextStyle(fontSize: 9)),
                       ),
                     ],

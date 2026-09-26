@@ -65,8 +65,9 @@ class MeshNetworkService extends Notifier<MeshNetworkState> {
     required String tourId,
     required String userId,
     required String displayName,
+    bool forceRestart = false,
   }) async {
-    if (state.isMeshActive && _currentTourId == tourId) {
+    if (!forceRestart && state.isMeshActive && _currentTourId == tourId) {
       return true;
     }
 
@@ -80,7 +81,7 @@ class MeshNetworkService extends Notifier<MeshNetworkState> {
     _connectedEndpoints.clear();
     _connectingEndpoints.clear();
 
-    await Future.delayed(const Duration(milliseconds: 250));
+    await Future.delayed(const Duration(milliseconds: 150));
 
     _currentTourId = tourId;
     _currentUserId = userId;
@@ -127,7 +128,6 @@ class MeshNetworkService extends Notifier<MeshNetworkState> {
       return adSuccess || discSuccess;
     } catch (e) {
       debugPrint('[MESH] startMesh error: $e');
-      // On failure, immediately stop dangling state so future attempts don't require restarting app
       try {
         await _nearby.stopAdvertising();
         await _nearby.stopDiscovery();
@@ -180,6 +180,14 @@ class MeshNetworkService extends Notifier<MeshNetworkState> {
       return;
     }
 
+    // Deterministic tie-breaker: Avoid bidirectional connection requests in P2P_CLUSTER.
+    // If device A and device B request each other simultaneously, Nearby Connections crashes or deadlocks.
+    // The device with the lexicographically greater endpoint identifier initiates the connection.
+    if (myEndpointName.compareTo(endpointName) <= 0) {
+      debugPrint('[MESH] Passive peer for $endpointName (waiting for peer to initiate connection)');
+      return;
+    }
+
     _connectingEndpoints.add(endpointId);
     debugPrint('[MESH] Found peer from same tour ($endpointName), requesting connection...');
 
@@ -200,6 +208,10 @@ class MeshNetworkService extends Notifier<MeshNetworkState> {
   void _onEndpointLost(String? endpointId) {
     if (endpointId != null) {
       _connectingEndpoints.remove(endpointId);
+      _connectedEndpoints.remove(endpointId);
+      state = state.copyWith(
+        connectedPeersCount: _connectedEndpoints.length,
+      );
     }
   }
 

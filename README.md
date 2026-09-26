@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-1.4.2-teal.svg?style=for-the-badge)](https://github.com/shoruvx/TourSplit/releases)
+[![Version](https://img.shields.io/badge/version-1.5.1-teal.svg?style=for-the-badge)](https://github.com/shoruvx/TourSplit/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B.svg?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28.svg?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)](https://github.com/shoruvx/TourSplit/releases)
@@ -10,7 +10,7 @@
 
 **Split the costs, keep the memories.**
 
-A smart, real-time travel expense tracker and debt settlement app built for real trips with real people.
+A smart, real-time travel expense tracker, debt settlement, and hybrid collaboration application built for real trips with real people.
 
 [Download Latest APK](https://github.com/shoruvx/TourSplit/releases/latest) • [Privacy Policy](https://shoruvx.github.io/TourSplit/) • [Report Bug](https://github.com/shoruvx/TourSplit/issues)
 
@@ -20,9 +20,9 @@ A smart, real-time travel expense tracker and debt settlement app built for real
 
 ## Why TourSplit?
 
-Anyone who has traveled with a group knows the drill: multiple people pay for cabs, hotel bookings, groceries, and late-night snacks. By day three, you're stuck in a nightmare of napkins, notes apps, and spreadsheet formulas trying to figure out who owes who.
+Anyone who has traveled with a group knows the drill: multiple companions pay for cabs, hotel reservations, meals, and emergency snacks. By day three, everyone is stuck in a tangled web of paper receipts, notes, and spreadsheet formulas trying to figure out who owes who.
 
-**TourSplit takes care of all that instantly.** Log bills as they happen, do quick math right inside the amount box, add friends even if they don't have the app yet, and let TourSplit calculate the minimum number of payments to settle up at the end.
+**TourSplit eliminates the confusion entirely.** Record shared expenses as they occur, compute math formulas directly inside the amount field, collaborate with offline companions even when they do not have the app installed, and let TourSplit calculate the optimal, minimum number of transfers to settle up at the conclusion of your trip.
 
 ---
 
@@ -30,19 +30,19 @@ Anyone who has traveled with a group knows the drill: multiple people pay for ca
 
 <div align="center">
 
-### Modern Interface & Member Experience
+### Modern Interface & Navigation
 
-| Symmetrical Home | Tour Dashboard | Member Profile | What's New & Updates |
+| Symmetrical Home | Tour Dashboard | Collapsible Tours | Profile & Updates |
 |:---:|:---:|:---:|:---:|
-| <img src="docs/TourSplit_home_updated.png" width="220" alt="Home Screen"/> | <img src="docs/TourSplit_dashboard.png" width="220" alt="Dashboard Screen"/> | <img src="docs/TourSplit_member_profile.png" width="220" alt="Member Profile Screen"/> | <img src="docs/TourSplit_profile_new.png" width="220" alt="Profile & Updates"/> |
+| <img src="docs/TourSplit_home_updated.png" width="220" alt="Home Screen"/> | <img src="docs/TourSplit_dashboard.png" width="220" alt="Dashboard Screen"/> | <img src="docs/TourSplit_tours_list.png" width="220" alt="Collapsible Tours Hierarchy"/> | <img src="docs/TourSplit_profile_new.png" width="220" alt="Profile & Updates"/> |
 
 <br/>
 
-### Expense Splitting & Management
+### Expense Tracking & Collaboration
 
-| In-Line Math Split | Offline Companions | Link Online Account | Tour QR Invite |
+| Sheet Attribution | Cards Attribution | Members Management | Streamlined Settings |
 |:---:|:---:|:---:|:---:|
-| <img src="docs/TourSplit_math_preview.png" width="220" alt="Add Expense Math Evaluation"/> | <img src="docs/TourSplit_members_offline.png" width="220" alt="Members & Offline Friend"/> | <img src="docs/TourSplit_link_online_dialog.png" width="220" alt="Link Online Migration"/> | <img src="docs/TourSplit_qr_code.png" width="220" alt="Tour QR Code Invite"/> |
+| <img src="docs/TourSplit_sheet_table.png" width="220" alt="Sheet View with Added By Column"/> | <img src="docs/TourSplit_cards_view.png" width="220" alt="Cards View with Attribution"/> | <img src="docs/TourSplit_members.png" width="220" alt="Members Directory"/> | <img src="docs/TourSplit_tour_settings.png" width="220" alt="Tour Settings Screen"/> |
 
 </div>
 
@@ -50,60 +50,55 @@ Anyone who has traveled with a group knows the drill: multiple people pay for ca
 
 ## Features
 
-### Member Profile Exploration & Activity Hub
-- Tap any member's avatar or name anywhere it appears (daily expenses, balances, settlement lists, members manager) to open their dedicated **Member Profile Screen**.
-- View their exact out-of-pocket spending, individual expense share, and current net settlement balance for the active tour.
-- Inspect their preferred payout methods (bKash, Nagad, Rocket, Bank) and send them an email with one tap.
+### Unified Bottom Navigation
+- Consistent context-aware bottom navigation bar across Home, My Tours, Tour Dashboard, Members, and Tour Settings.
+- Eliminates top bar clutter and redundant back buttons while ensuring smooth, one-tap transitions throughout the application.
+
+### Expense Attribution Tracking
+- Automatically records the identity of the member who created each expense entry.
+- Displays an immutable "Added" column in the Sheet table and an author badge in Card views, detail sheets, and exported reports to prevent misunderstandings.
+- Author attribution is preserved permanently during edits, modifications, and offline syncing.
+
+### Online & Peer-to-Peer Bluetooth Mesh Chat
+- Real-time cloud messaging when online, with seamless automatic fallback to peer-to-peer Bluetooth mesh networking when traveling off-grid.
+- Long-press interactive reaction bar with aggregate reaction pills and tap-to-toggle counters.
+- Quoted message replies and member mentions with autocomplete.
+- Silent, resilient Bluetooth connection management with automated reconnection and persistent last-used mode tracking.
+
+### Full Offline Support & Sync Queue
+- Local storage caching powered by Hive allows complete app usability without an active internet connection.
+- Background offline queue automatically stages expenses, tours, and settlements created offline, syncing them immediately when connectivity is restored.
+- Zero data loss or duplicated transactions during transitions between offline and online states.
+
+### Collapsible Tours Hierarchy & Streamlined Settings
+- Clean tours view organized into collapsible sections, keeping only your current active tour expanded by default.
+- Minimalist tour settings focused strictly on essential configurations, removing unnecessary description fields for a clutter-free experience.
+- Safe tour exit options allowing members without recorded expenses to leave completely or preserve mathematical records for shared spending.
 
 ### In-Line Math Calculator
-No need to switch back and forth to your calculator app. When splitting a bill, type formulas directly into the amount box:
-- Enter expressions like `(500 * 2) + 350` or `1200 / 3 + 50`.
-- See a live glowing evaluation preview chip (`= ৳1350`).
-- Tap the preview chip or click anywhere to auto-convert the expression into the final sum.
-- Includes a dedicated quick arithmetic keypad (+, -, *, /, parentheses) right above your keyboard.
-
-### Offline Companions & Instant Online Migration
-Traveling with friends who don't have the app installed or have poor network reception?
-- **Add Offline Friends**: Add companions with just their name in two seconds—no account or device required.
-- **Track Normally**: Split bills, assign payers, and track balances for offline friends just like any member.
-- **Instant Auto-Settlement**: Settle balances with offline friends automatically without requiring approval from the offline member.
-- **Link When Ready**: When your friend installs TourSplit and joins the tour, tap **Link Online**. TourSplit migrates their entire transaction history, shared splits, and balance sheet to their real account with zero loss of data. Once online, standard approvals apply.
-
-### 3D Teal Aesthetic & Adaptive System Theme
-- Modern cards with sleek teal borders and soft 3D elevations.
-- Outlined primary teal buttons with clean white borders for maximum contrast and visual appeal.
-- Seamless dark and light modes with system default theme support.
-- Fully symmetrical layouts across home, tour dashboards, and member directories.
-
-### Contact Us & Suggestion Portal
-- Send feature requests, suggestions, and feedback directly to the development team.
-- Pre-filled device diagnostics and direct mail client integration.
-
-### What's New Interactive Guide
-- Discover newly released features, enhancements, and bug fixes right inside the app whenever a new version is installed.
+- Write math expressions directly into the expense amount field (e.g., `(500 * 2) + 350` or `1200 / 3 + 50`).
+- Instant glowing preview chip displays calculated totals in real-time.
+- Dedicated mathematical operator bar above the keyboard enables quick arithmetic without switching to external apps.
 
 ### Greedy Debt Simplification
-Instead of everyone transferring small amounts back and forth:
-- TourSplit runs a **two-pointer greedy debt reduction algorithm** to collapse multi-party debts into the absolute minimum number of payments.
-- Directly approve settlements, record payment channels (bKash, Nagad, Cash, Bank Transfer), and maintain an unalterable audit log.
+- Two-pointer greedy debt reduction algorithm collapses multi-party liabilities into the absolute minimum number of settlement payments.
+- Records settlement channels (bKash, Nagad, Cash, Bank Transfer) and maintains an unalterable audit log.
 
-### Collapsible Daily Expenses
-- Group spending by day with collapsible cards, category icons, payer badges, and approval states.
-- Day totals and itemized breakdowns keep everyone on the same page.
+### Offline Companions & Instant Online Migration
+- Add travel companions with just their name in seconds, even if they have not installed the app or lack internet access.
+- Seamlessly link offline companion profiles to registered user accounts once they join the tour, migrating all historical balances and shared splits with zero data loss.
 
 ### Customizable User Profile
-- Express yourself on group expenses with customizable profile photos.
-- Pick pictures from your phone gallery, take a fresh selfie with your camera, or choose from travel-themed avatars.
-- Updates broadcast instantly in real-time across all tour member screens.
+- Profile personalization with camera capture, gallery selection, interactive photo cropping, or pre-built travel avatars.
+- Updates sync across active tours and member lists instantly.
 
-### PDF Export & Reports
-- Export professional, itemized accounting reports with a single tap.
-- Download or print ready-to-share summaries of tour statistics, member contributions, and final balances.
+### PDF Export & Accounting Reports
+- Generate itemized accounting reports with a single tap.
+- Export ready-to-share summaries of tour statistics, member breakdowns, payer contributions, and final settlement balances.
 
-### Seamless Over-The-Air (OTA) Updates & Background Push Notifications
-- TourSplit connects directly with GitHub Releases to check for updates.
-- Download and install newer versions directly inside the app with a friendly progress banner.
-- High-priority background update notifications via Firebase Cloud Messaging ensure you never miss a new release even when the app is closed.
+### Over-The-Air (OTA) Updates & FCM Background Notifications
+- In-app version checking with GitHub Releases integration and one-click direct APK downloads.
+- High-priority background update notifications via Firebase Cloud Messaging deliver timely notices even when the application is closed.
 
 ---
 
@@ -113,38 +108,35 @@ Instead of everyone transferring small amounts back and forth:
 Download the latest Android release from the **[Releases Page](https://github.com/shoruvx/TourSplit/releases/latest)**.
 
 ### 2. Sign In
-Log in with your Google account or email.
+Log in with your Google account or registered email.
 
 ### 3. Create or Join a Tour
-- **Create Tour**: Give your trip a name, select dates, pick a cover theme, and start logging.
-- **Join Tour**: Scan the tour QR code or enter the 6-digit invite code (e.g., `RCQYDM`).
-- **Navigation Tip**: Tap the tour title at any time to browse all your trips, or tap Back to return to the clean home screen.
+- **Create Tour**: Specify a tour name, pick trip dates, select a cover theme, and start tracking expenses.
+- **Join Tour**: Scan a tour QR code or enter the 6-character tour invite code.
 
 ---
 
 ## Developer Setup
 
-If you want to contribute, build from source, or customize TourSplit for your own trips:
-
 ### Prerequisites
 - [Flutter SDK](https://flutter.dev) (v3.3.0 or higher)
 - Android SDK (API 34+)
-- A Firebase project with Authentication (Google Sign-In) and Cloud Firestore enabled
+- Firebase Project with Authentication, Cloud Firestore, Firebase Storage, and Cloud Messaging configured
 
 ### Getting Started
 
 ```bash
-# 1. Clone the repo
+# 1. Clone the repository
 git clone https://github.com/shoruvx/TourSplit.git
 cd TourSplit
 
-# 2. Fetch packages
+# 2. Fetch dependencies
 flutter pub get
 
-# 3. Add your Firebase config
-# Place your `google-services.json` inside android/app/
+# 3. Add Firebase configuration
+# Place your google-services.json inside android/app/
 
-# 4. Launch on an Android device or emulator
+# 4. Launch on connected device
 flutter run
 ```
 
@@ -161,24 +153,27 @@ flutter build apk --release
 
 ```
 TourSplit/
-├── android/                  # Native Android configuration & signing keystores
-├── docs/                     # Live app screenshots & GitHub Pages assets
+├── android/                  # Native Android configuration & keystores
+├── docs/                     # Live device screenshots & assets
 ├── lib/
-│   ├── core/                 # Theme tokens, route declarations, constants
-│   ├── data/                 # Firestore repositories, data models & services
-│   │   ├── models/           # TourModel, ExpenseModel, SettlementModel, UserModel
-│   │   ├── repositories/     # Tour, Expense, Settlement, User repositories
-│   │   └── services/         # AppUpdateService, AuthService, BalanceService
-│   ├── presentation/         # Riverpod-powered UI screens & components
-│   │   ├── auth/             # Login, Registration, Password Reset
-│   │   ├── expense/          # Add/Edit Expense, Math amount input, Daily expense views
-│   │   ├── home/             # 3-Card Home, Tour Dashboard, Settlements
-│   │   ├── profile/          # Profile screen, Avatar bottom sheet, Contact Us
-│   │   ├── reports/          # PDF export & printable expense summaries
-│   │   ├── tour/             # Create, Join (Code/QR), Settings, Member linking
-│   │   └── widgets/          # Shared components, badges, dialogs
-│   └── main.dart             # App entry point, Firebase & Hive initialization
-├── pubspec.yaml              # App configuration & dependencies
+│   ├── core/                 # Design tokens, themes, routing, utilities
+│   ├── data/                 # Data layer: models, repositories & services
+│   │   ├── models/           # TourModel, ExpenseModel, SettlementModel, UserModel, ChatMessage
+│   │   ├── repositories/     # Tour, Expense, Settlement, User, Chat repositories
+│   │   └── services/         # Offline queues, Sync, Auth, FCM, App updates
+│   ├── presentation/         # Riverpod-powered presentation layer
+│   │   ├── auth/             # Login, registration, password reset
+│   │   ├── balance/          # Net balance summaries and breakdown
+│   │   ├── chat/             # Tour chat, Bluetooth mesh, message reactions
+│   │   ├── expense/          # Add/edit expense, Math input, Sheet & Card views
+│   │   ├── home/             # Symmetrical home, recent tours
+│   │   ├── profile/          # User profile, photo cropping, developer contact
+│   │   ├── reports/          # PDF export & itemized accounting summaries
+│   │   ├── settlement/       # Greedy settlement engine & payment verification
+│   │   ├── tour/             # Tour dashboard, settings, members, joining
+│   │   └── widgets/          # Shared design components, badges, bottom navigation
+│   └── main.dart             # Application entry point, Hive & Firebase initialization
+├── pubspec.yaml              # Package manifest and dependencies
 └── README.md                 # Project documentation
 ```
 
@@ -186,7 +181,7 @@ TourSplit/
 
 ## License
 
-TourSplit is open source under the [MIT License](LICENSE). Feel free to use, modify, and distribute it.
+TourSplit is open source under the [MIT License](LICENSE).
 
 <div align="center">
 

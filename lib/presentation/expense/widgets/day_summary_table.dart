@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/expense_model.dart';
+import '../../../data/services/user_cache_service.dart';
 
 class DaySummaryTable extends StatefulWidget {
   final int dayNumber;
@@ -179,7 +180,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                         ),
                       ),
                       Expanded(
-                        flex: 4,
+                        flex: 3,
                         child: Text(
                           'Cost',
                           textAlign: TextAlign.right,
@@ -193,7 +194,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         flex: 3,
                         child: Text(
@@ -209,11 +210,12 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 4),
                       Expanded(
                         flex: 3,
                         child: Text(
-                          'Category',
-                          textAlign: TextAlign.left,
+                          'Added',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 11,
@@ -237,13 +239,21 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                           : Colors.white.withValues(alpha: 0.03))
                       : (isEven ? Colors.white : const Color(0xFFF8FAFC));
 
-                  final payerName = exp.paidByName.split(' ').first;
+                  final cachedPayer = UserCacheService.getUser(exp.paidByUserId);
+                  final effectivePaidByName = (!exp.isMultiPayer &&
+                          cachedPayer?.displayName != null &&
+                          cachedPayer!.displayName.isNotEmpty)
+                      ? cachedPayer.displayName
+                      : exp.paidByName;
+                  final payerName = effectivePaidByName.split(' ').first;
                   final payerDisplay = exp.isMultiPayer
                       ? 'multi-payer'
                       : payerName.toLowerCase();
-                  final categoryDisplay = exp.isMultiPayer
-                      ? exp.paidByName
-                      : (exp.category != 'Other' ? exp.category : 'General');
+
+                  final cachedAdder = UserCacheService.getUser(exp.addedByUserId);
+                  final effectiveAdderName = exp.resolveAddedByName(cachedAdder?.displayName);
+                  final adderName = effectiveAdderName.split(' ').first;
+                  final adderDisplay = adderName.toLowerCase();
 
                   return InkWell(
                     onTap: widget.onExpenseTap != null
@@ -300,12 +310,12 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                             ),
                           ),
                           Expanded(
-                            flex: 4,
+                            flex: 3,
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 7, vertical: 3),
+                                    horizontal: 6, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: isDark
                                       ? const Color(0xFF0F2E28)
@@ -325,7 +335,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                                   softWrap: false,
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
-                                    fontSize: 12,
+                                    fontSize: 11.5,
                                     fontWeight: FontWeight.w800,
                                     color: isDark
                                         ? const Color(0xFF34D399)
@@ -335,30 +345,28 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Expanded(
                             flex: 3,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(4),
-                              onTap: exp.isMultiPayer
-                                  ? null
-                                  : () {
+                              onTap: (!exp.isMultiPayer &&
+                                      exp.paidByUserId ==
+                                          FirebaseAuth
+                                              .instance.currentUser?.uid)
+                                  ? () {
                                       HapticFeedback.lightImpact();
-                                      final currentUid = FirebaseAuth
-                                          .instance.currentUser?.uid;
-                                      if (exp.paidByUserId == currentUid) {
-                                        context.push('/profile');
-                                      } else {
-                                        context.push(
-                                            '/member/${exp.paidByUserId}');
-                                      }
-                                    },
+                                      context.push('/profile');
+                                    }
+                                  : null,
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
                                     payerDisplay,
                                     textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
                                       fontSize: 11.5,
@@ -368,12 +376,6 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                                               ? const Color(0xFFCBD5E1)
                                               : const Color(0xFF334155)),
                                       fontWeight: FontWeight.w700,
-                                      decoration: !exp.isMultiPayer
-                                          ? TextDecoration.underline
-                                          : null,
-                                      decorationColor: isDark
-                                          ? Colors.white24
-                                          : Colors.black26,
                                     ),
                                   ),
                                   if (exp.isMultiPayer)
@@ -392,20 +394,36 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 4),
                           Expanded(
                             flex: 3,
-                            child: Text(
-                              categoryDisplay,
-                              textAlign: TextAlign.left,
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 11,
-                                color: isDark
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF64748B),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: (exp.addedByUserId ==
+                                      FirebaseAuth.instance.currentUser?.uid)
+                                  ? () {
+                                      HapticFeedback.lightImpact();
+                                      context.push('/profile');
+                                    }
+                                  : null,
+                              child: Text(
+                                adderDisplay,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 11.5,
+                                  color: exp.addedByUserId ==
+                                          FirebaseAuth
+                                              .instance.currentUser?.uid
+                                      ? AppColors.primaryTeal
+                                      : (isDark
+                                          ? const Color(0xFFCBD5E1)
+                                          : const Color(0xFF334155)),
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

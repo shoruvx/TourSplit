@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/models/tour_model.dart';
 import '../../data/repositories/tour_repository.dart';
+import '../../data/services/offline_tour_queue_service.dart';
+import '../../data/services/active_tour_cache_service.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import 'widgets/tour_created_dialog.dart';
@@ -62,6 +66,11 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
     if (picked != null) setState(() => _endDate = picked);
   }
 
+  Future<bool> _isOffline() async {
+    final result = await Connectivity().checkConnectivity();
+    return result.every((r) => r == ConnectivityResult.none);
+  }
+
   Future<void> _createTour() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -70,6 +79,74 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
       final user = ref.read(currentUserProvider).value;
       if (user == null) return;
 
+      final offline = await _isOffline();
+
+      if (offline) {
+        // ── Offline path: save locally ────────────────────────────────────
+        final queueService = ref.read(offlineTourQueueProvider);
+        final tour = await queueService.createTourLocally(
+          name: _nameCtrl.text.trim(),
+          currency: _selectedCurrency,
+          currencySymbol: _selectedCurrencySymbol,
+          adminId: user.uid,
+          startDate: _startDate,
+          endDate: _endDate,
+          adminName: user.displayName,
+          adminEmail: user.email,
+        );
+
+        final adminMember = TourMemberModel(
+          userId: user.uid,
+          displayName: user.displayName.isNotEmpty ? user.displayName : 'Admin',
+          email: user.email,
+          role: 'admin',
+          status: 'active',
+          joinedAt: DateTime.now(),
+        );
+
+        // Cache locally so the rest of the app can read it
+        await ActiveTourCacheService.setActiveTourId(tour.id);
+        await ActiveTourCacheService.cacheActiveTour(
+          tour: tour,
+          members: [adminMember],
+        );
+        ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.cloud_off_rounded, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tour saved offline — will sync when connected',
+                      style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.warning,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          await TourCreatedDialog.show(
+            context,
+            tourName: tour.name,
+            inviteCode: tour.inviteCode,
+            onDone: () {
+              Navigator.of(context).pop();
+              context.go('/home');
+            },
+          );
+          if (mounted) context.go('/home');
+        }
+        return;
+      }
+
+      // ── Online path ────────────────────────────────────────────────────
       final tourRepo = ref.read(tourRepositoryProvider);
       final tour = await tourRepo.createTour(
         name: _nameCtrl.text.trim(),
@@ -84,6 +161,8 @@ class _CreateTourScreenState extends ConsumerState<CreateTourScreen> {
       );
 
       await tourRepo.addAdminAsMember(tourId: tour.id, admin: user);
+      await tourRepo.switchActiveTour(user.uid, tour.id, tour: tour);
+      ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
 
       if (mounted) {
         setState(() => _isLoading = false);

@@ -53,9 +53,50 @@ class MainActivity : FlutterActivity() {
                         result.error("FILE_NOT_FOUND", "APK file not found on device", null)
                     }
                 }
+                "clearDownloadedApks" -> {
+                    try {
+                        val dir = File(context.filesDir, "ota_update")
+                        var deletedCount = 0
+                        var freedBytes = 0L
+                        if (dir.exists() && dir.isDirectory) {
+                            // Keep APKs downloaded within the last 2 hours so pending installs are safe
+                            val keepRecentMillis = 2 * 60 * 60 * 1000L
+                            val threshold = System.currentTimeMillis() - keepRecentMillis
+                            dir.listFiles()?.forEach { file ->
+                                if (file.lastModified() < threshold) {
+                                    freedBytes += file.length()
+                                    if (file.delete()) {
+                                        deletedCount++
+                                    }
+                                }
+                            }
+                        }
+                        result.success(mapOf(
+                            "deletedCount" to deletedCount,
+                            "freedBytes" to freedBytes
+                        ))
+                    } catch (e: Exception) {
+                        result.error("CLEANUP_ERROR", e.localizedMessage, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
+
+        // Proactively purge old leftover APKs on app launch (files older than 24 hours) to reclaim storage safely
+        Thread {
+            try {
+                val dir = File(context.filesDir, "ota_update")
+                if (dir.exists() && dir.isDirectory) {
+                    val oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000L)
+                    dir.listFiles()?.forEach { file ->
+                        if (file.lastModified() < oneDayAgo) {
+                            file.delete()
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }.start()
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BLUETOOTH_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

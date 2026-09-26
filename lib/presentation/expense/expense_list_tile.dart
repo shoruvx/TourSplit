@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/services/user_cache_service.dart';
 
 class ExpenseListTile extends StatelessWidget {
   final ExpenseModel expense;
@@ -112,42 +113,72 @@ class ExpenseListTile extends StatelessWidget {
                           ),
                         ),
                         const Text(' · ', style: TextStyle(color: Colors.grey)),
-                      ] else if (expense.category.isNotEmpty &&
-                          expense.category != 'General') ...[
-                        Text(
-                          expense.category,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        const Text(' · ', style: TextStyle(color: Colors.grey)),
                       ],
                       Flexible(
                         child: InkWell(
                           borderRadius: BorderRadius.circular(4),
-                          onTap: expense.isMultiPayer
-                              ? null
-                              : () {
+                          onTap: (!expense.isMultiPayer &&
+                                  expense.paidByUserId ==
+                                      FirebaseAuth.instance.currentUser?.uid)
+                              ? () {
                                   HapticFeedback.lightImpact();
-                                  final currentUid =
-                                      FirebaseAuth.instance.currentUser?.uid;
-                                  if (expense.paidByUserId == currentUid) {
-                                    context.push('/profile');
-                                  } else {
-                                    context.push(
-                                        '/member/${expense.paidByUserId}');
-                                  }
-                                },
-                          child: Text(
-                            'Paid by ${expense.isMultiPayer ? expense.paidByName : expense.paidByName.split(' ').first}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: !expense.isMultiPayer
-                                  ? AppColors.primaryTeal
-                                  : null,
-                              fontWeight: !expense.isMultiPayer
-                                  ? FontWeight.w600
-                                  : null,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                                  context.push('/profile');
+                                }
+                              : null,
+                          child: Builder(builder: (context) {
+                            final cachedName = UserCacheService.getUser(expense.paidByUserId)?.displayName;
+                            final effectivePaidByName = (!expense.isMultiPayer && cachedName != null && cachedName.isNotEmpty)
+                                ? cachedName
+                                : expense.paidByName;
+                            final displayName = expense.isMultiPayer ? effectivePaidByName : effectivePaidByName.split(' ').first;
+                            return Text(
+                              'Paid by $displayName',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: !expense.isMultiPayer
+                                    ? AppColors.primaryTeal
+                                    : null,
+                                fontWeight: !expense.isMultiPayer
+                                    ? FontWeight.w600
+                                    : null,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          }),
+                        ),
+                      ),
+                      const Text(' · ', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      Flexible(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: (expense.addedByUserId ==
+                                  FirebaseAuth.instance.currentUser?.uid)
+                              ? () {
+                                  HapticFeedback.lightImpact();
+                                  context.push('/profile');
+                                }
+                              : null,
+                          child: Builder(builder: (context) {
+                            final cachedAdder = UserCacheService.getUser(expense.addedByUserId);
+                            final effectiveAdderName = expense.resolveAddedByName(cachedAdder?.displayName);
+                            final adderDisplay = effectiveAdderName.split(' ').first;
+                            return Text(
+                              'Added by $adderDisplay',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                                color: expense.addedByUserId ==
+                                        FirebaseAuth.instance.currentUser?.uid
+                                    ? AppColors.primaryTeal
+                                    : (isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary),
+                                fontWeight: expense.addedByUserId ==
+                                        FirebaseAuth.instance.currentUser?.uid
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          }),
                         ),
                       ),
                     ],

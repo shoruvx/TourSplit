@@ -8,7 +8,11 @@ import '../../core/theme/app_theme.dart';
 class FirstTimeGuideDialog extends StatefulWidget {
   const FirstTimeGuideDialog({super.key});
 
+  static bool _hasCheckedThisSession = false;
+
   static Future<void> checkAndShow(BuildContext context) async {
+    if (_hasCheckedThisSession) return;
+    _hasCheckedThisSession = true;
     try {
       final box = await Hive.openBox('app_preferences');
       final hasSeen =

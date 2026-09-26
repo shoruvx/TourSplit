@@ -572,11 +572,7 @@ class _ReplaceOfflineMemberDialogState
             ),
           ),
           subtitle: Text(
-            m.isOffline
-                ? 'Offline companion'
-                : (m.email.contains('@')
-                    ? '@${m.email.split('@').first}'
-                    : m.email),
+            m.isOffline ? 'Offline companion' : m.displayHandle,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

@@ -8,11 +8,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/tour_model.dart';
 import '../models/user_model.dart';
+import '../services/user_cache_service.dart';
+import '../services/active_tour_cache_service.dart';
+import '../services/offline_tour_queue_service.dart';
+import '../services/auth_service.dart' show currentUserProvider;
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../core/constants/app_constants.dart';
 
 class TourRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore? _customDb;
+  final FirebaseAuth? _customAuth;
+
+  TourRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+      : _customDb = firestore,
+        _customAuth = auth;
+
+  FirebaseFirestore get _db => _customDb ?? FirebaseFirestore.instance;
+  FirebaseAuth get _auth => _customAuth ?? FirebaseAuth.instance;
 
   CollectionReference get _tours =>
       _db.collection(AppConstants.toursCollection);
@@ -106,21 +119,28 @@ class TourRepository {
 
     batch.update(_tours.doc(tourId), {
       'members': FieldValue.arrayUnion([user.uid]),
+      'pastMembers': FieldValue.arrayRemove([user.uid]),
     });
 
     final memberRef = _tours
         .doc(tourId)
         .collection(AppConstants.membersSubcollection)
         .doc(user.uid);
-    batch.set(memberRef, {
-      'userId': user.uid,
-      'displayName': user.displayName,
-      'email': user.email,
-      'photoUrl': user.photoUrl,
-      'role': 'member',
-      'joinedAt': FieldValue.serverTimestamp(),
-      'balance': 0.0,
-    });
+    batch.set(
+      memberRef,
+      {
+        'userId': user.uid,
+        'displayName': user.displayName,
+        'username': user.username,
+        'email': user.email,
+        'photoUrl': user.photoUrl,
+        'role': 'member',
+        'status': 'active',
+        'joinedAt': FieldValue.serverTimestamp(),
+        'balance': 0.0,
+      },
+      SetOptions(merge: true),
+    );
 
     // Only update activeTourId if the joining user is the currently authenticated user
     if (_auth.currentUser?.uid == user.uid) {
@@ -140,21 +160,28 @@ class TourRepository {
 
     batch.update(_tours.doc(tourId), {
       'members': FieldValue.arrayUnion([user.uid]),
+      'pastMembers': FieldValue.arrayRemove([user.uid]),
     });
 
     final memberRef = _tours
         .doc(tourId)
         .collection(AppConstants.membersSubcollection)
         .doc(user.uid);
-    batch.set(memberRef, {
-      'userId': user.uid,
-      'displayName': user.displayName,
-      'email': user.email,
-      'photoUrl': user.photoUrl,
-      'role': 'member',
-      'joinedAt': FieldValue.serverTimestamp(),
-      'balance': 0.0,
-    });
+    batch.set(
+      memberRef,
+      {
+        'userId': user.uid,
+        'displayName': user.displayName,
+        'username': user.username,
+        'email': user.email,
+        'photoUrl': user.photoUrl,
+        'role': 'member',
+        'status': 'active',
+        'joinedAt': FieldValue.serverTimestamp(),
+        'balance': 0.0,
+      },
+      SetOptions(merge: true),
+    );
 
     if (_auth.currentUser?.uid == user.uid) {
       final userRef = _db.collection(AppConstants.usersCollection).doc(user.uid);
@@ -197,25 +224,181 @@ class TourRepository {
     });
   }
 
-  Stream<TourModel?> watchTour(String tourId) {
-    return _tours.doc(tourId).snapshots().map(
-          (doc) => doc.exists ? TourModel.fromFirestore(doc) : null,
-        );
+  TourModel? getLocalTour(String tourId) {
+    try {
+      if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+        final box = Hive.box(OfflineTourQueueService.localToursBox);
+        final val = box.get(tourId);
+        if (val is Map) {
+          final m = Map<String, dynamic>.from(val);
+          final members = (m['members'] as List?)?.cast<String>() ?? [];
+          return TourModel(
+            id: m['id'] as String? ?? tourId,
+            name: m['name'] as String? ?? 'Offline Tour',
+            description: m['description'] as String?,
+            currency: m['currency'] as String? ?? 'USD',
+            currencySymbol: m['currencySymbol'] as String? ?? '\$',
+            adminId: m['adminId'] as String? ?? '',
+            inviteCode: m['inviteCode'] as String? ?? '',
+            status: TourStatus.active,
+            startDate: m['startDate'] != null
+                ? DateTime.fromMillisecondsSinceEpoch(m['startDate'] as int)
+                : DateTime.now(),
+            endDate: m['endDate'] != null
+                ? DateTime.fromMillisecondsSinceEpoch(m['endDate'] as int)
+                : DateTime.now().add(const Duration(days: 7)),
+            memberIds: members,
+            createdAt: m['createdAt'] != null
+                ? DateTime.fromMillisecondsSinceEpoch(m['createdAt'] as int)
+                : DateTime.now(),
+          );
+        }
+      }
+      final cached = ActiveTourCacheService.getCachedActiveTour();
+      if (cached != null && cached.id == tourId) return cached;
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
-  Stream<List<TourMemberModel>> watchMembers(String tourId) {
-    return _tours
-        .doc(tourId)
-        .collection(AppConstants.membersSubcollection)
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => TourMemberModel.fromFirestore(d))
-            .where((m) =>
+  Stream<TourModel?> watchTour(String tourId) async* {
+    if (tourId.startsWith('local_')) {
+      yield getLocalTour(tourId);
+      if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+        final box = Hive.box(OfflineTourQueueService.localToursBox);
+        await for (final _ in box.watch(key: tourId)) {
+          yield getLocalTour(tourId);
+        }
+      }
+      return;
+    }
+    final cached = ActiveTourCacheService.getCachedActiveTour();
+    if (cached != null && cached.id == tourId) {
+      yield cached;
+    }
+    try {
+      yield* _tours.doc(tourId).snapshots().map(
+            (doc) => doc.exists ? TourModel.fromFirestore(doc) : null,
+          );
+    } catch (e) {
+      debugPrint('[TOUR_REPO] watchTour error: $e');
+      if (cached != null && cached.id == tourId) yield cached;
+    }
+  }
+
+  Stream<List<TourMemberModel>> watchMembers(String tourId) async* {
+    if (tourId.startsWith('local_')) {
+      yield getLocalTourMembers(tourId);
+      if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+        final box = Hive.box(OfflineTourQueueService.localToursBox);
+        await for (final _ in box.watch()) {
+          yield getLocalTourMembers(tourId);
+        }
+      }
+      return;
+    }
+
+    final cached = ActiveTourCacheService.getCachedMembers(tourId);
+    if (cached.isNotEmpty) {
+      yield cached;
+    }
+
+    try {
+      yield* _tours
+          .doc(tourId)
+          .collection(AppConstants.membersSubcollection)
+          .snapshots()
+          .map((snap) {
+            final firestoreMembers = snap.docs.map((d) {
+              final m = TourMemberModel.fromFirestore(d);
+              if (!m.isOffline) {
+                UserCacheService.cacheTourMember(m);
+              }
+              return m;
+            }).where((m) =>
                 m.role != 'pending' &&
                 m.role != 'rejected' &&
                 m.role != 'deleted' &&
-                m.status != 'deleted')
-            .toList());
+                m.status != 'deleted').toList();
+
+            // Merge any offline-queued members from cache
+            final currentCached = ActiveTourCacheService.getCachedMembers(tourId);
+            for (final c in currentCached) {
+              if (!firestoreMembers.any((m) => m.userId == c.userId)) {
+                firestoreMembers.add(c);
+              }
+            }
+            return firestoreMembers;
+          });
+    } catch (e) {
+      debugPrint('[TOUR_REPO] watchMembers error: $e, using cached members');
+      if (cached.isNotEmpty) yield cached;
+    }
+  }
+
+  List<TourMemberModel> getLocalTourMembers(String tourId) {
+    final members = <TourMemberModel>[];
+    try {
+      if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+        final box = Hive.box(OfflineTourQueueService.localToursBox);
+        for (final k in box.keys) {
+          if (k.toString().startsWith('member_${tourId}_')) {
+            final val = box.get(k);
+            if (val is Map) {
+              final m = Map<String, dynamic>.from(val);
+              members.add(TourMemberModel(
+                userId: m['userId'] as String? ?? '',
+                displayName: m['displayName'] as String? ?? 'Member',
+                email: m['email'] as String? ?? '',
+                photoUrl: m['photoUrl'] as String?,
+                role: m['role'] as String? ?? 'member',
+                status: m['status'] as String? ?? 'active',
+                joinedAt: DateTime.fromMillisecondsSinceEpoch(m['joinedAt'] as int? ?? 0),
+                balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
+                isOffline: m['isOffline'] == true,
+              ));
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Merge any cached members that aren't in localToursBox yet
+    final cached = ActiveTourCacheService.getCachedMembers(tourId);
+    for (final cm in cached) {
+      if (!members.any((m) => m.userId == cm.userId)) {
+        members.add(cm);
+      }
+    }
+
+    // Merge any offline-queued members
+    try {
+      final queued = OfflineTourQueueService().getQueuedMembersForTour(tourId);
+      for (final qm in queued) {
+        if (!members.any((m) => m.userId == qm.userId)) {
+          members.add(qm);
+        }
+      }
+    } catch (_) {}
+
+    if (members.isEmpty) {
+      final tour = getLocalTour(tourId);
+      if (tour != null && tour.adminId.isNotEmpty) {
+        final cachedUser = UserCacheService.getUser(tour.adminId);
+        members.add(TourMemberModel(
+          userId: tour.adminId,
+          displayName: cachedUser?.displayName ?? 'Admin',
+          email: '',
+          role: 'admin',
+          status: 'active',
+          joinedAt: tour.createdAt,
+          balance: 0.0,
+          isOffline: false,
+        ));
+      }
+    }
+    return members;
   }
 
   Future<void> updateTour(String tourId, Map<String, dynamic> data) async {
@@ -237,80 +420,171 @@ class TourRepository {
   }
 
   Future<void> deleteTour(String tourId, {String? currentUserId}) async {
-    final tour = await getTour(tourId);
-    final isAdmin =
-        currentUserId != null && tour != null && tour.isAdmin(currentUserId);
-
-    // If current user is not admin or is already a past member, only remove for themselves
-    if (!isAdmin && currentUserId != null && currentUserId.isNotEmpty) {
-      await removeTourForUser(tourId, currentUserId);
+    if (tourId.startsWith('local_')) {
+      await _deleteLocalTourInternal(tourId);
       return;
     }
 
-    // 1. Remove current user from members array and clear activeTourId immediately
-    if (currentUserId != null && currentUserId.isNotEmpty) {
+    final isOffline = await _isNetworkOffline();
+    if (isOffline) {
+      await _queueTourDeletionInternal(tourId, currentUserId);
+      return;
+    }
+
+    try {
+      final tour = await getTour(tourId).timeout(const Duration(seconds: 4));
+      final isAdmin =
+          currentUserId != null && tour != null && tour.isAdmin(currentUserId);
+
+      // If current user is not admin or is already a past member, only remove for themselves
+      if (!isAdmin && currentUserId != null && currentUserId.isNotEmpty) {
+        await removeTourForUser(tourId, currentUserId);
+        return;
+      }
+
+      // 1. Remove current user from members array and clear activeTourId immediately
+      if (currentUserId != null && currentUserId.isNotEmpty) {
+        try {
+          await _tours.doc(tourId).update({
+            'members': FieldValue.arrayRemove([currentUserId]),
+          }).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+        try {
+          await _users.doc(currentUserId).update({'activeTourId': null}).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      }
+
+      // 2. Soft-mark as deleted and clear remaining members list so all listeners drop it instantly
       try {
         await _tours.doc(tourId).update({
-          'members': FieldValue.arrayRemove([currentUserId]),
-        });
+          'isDeleted': true,
+          'status': 'deleted',
+          'members': [],
+        }).timeout(const Duration(seconds: 4));
       } catch (_) {}
-      try {
-        await _users.doc(currentUserId).update({'activeTourId': null});
-      } catch (_) {}
-    }
 
-    // 2. Soft-mark as deleted and clear remaining members list so all listeners drop it instantly
-    try {
-      await _tours.doc(tourId).update({
-        'isDeleted': true,
-        'status': 'deleted',
-        'members': [],
-      });
-    } catch (_) {}
+      // 3. Collect member IDs from subcollection to clear their activeTourId
+      final membersSnap = await _tours
+          .doc(tourId)
+          .collection(AppConstants.membersSubcollection)
+          .get()
+          .timeout(const Duration(seconds: 4));
+      final memberIds = membersSnap.docs.map((d) => d.id).toSet();
+      if (currentUserId != null) memberIds.add(currentUserId);
 
-    // 3. Collect member IDs from subcollection to clear their activeTourId
-    final membersSnap = await _tours
-        .doc(tourId)
-        .collection(AppConstants.membersSubcollection)
-        .get();
-    final memberIds = membersSnap.docs.map((d) => d.id).toSet();
-    if (currentUserId != null) memberIds.add(currentUserId);
+      final subcollections = [
+        AppConstants.membersSubcollection,
+        AppConstants.expensesSubcollection,
+        AppConstants.settlementsSubcollection,
+        AppConstants.categoriesSubcollection,
+        'join_requests',
+        'chats',
+      ];
 
-    final subcollections = [
-      AppConstants.membersSubcollection,
-      AppConstants.expensesSubcollection,
-      AppConstants.settlementsSubcollection,
-      AppConstants.categoriesSubcollection,
-      'join_requests',
-      'chats',
-    ];
-
-    for (final sub in subcollections) {
-      try {
-        final snap = await _tours.doc(tourId).collection(sub).get();
-        const batchLimit = 499;
-        for (int i = 0; i < snap.docs.length; i += batchLimit) {
-          final batch = _db.batch();
-          final chunk = snap.docs.skip(i).take(batchLimit);
-          for (final doc in chunk) {
-            batch.delete(doc.reference);
+      for (final sub in subcollections) {
+        try {
+          final snap = await _tours.doc(tourId).collection(sub).get().timeout(const Duration(seconds: 4));
+          const batchLimit = 499;
+          for (int i = 0; i < snap.docs.length; i += batchLimit) {
+            final batch = _db.batch();
+            final chunk = snap.docs.skip(i).take(batchLimit);
+            for (final doc in chunk) {
+              batch.delete(doc.reference);
+            }
+            await batch.commit().timeout(const Duration(seconds: 4));
           }
-          await batch.commit();
+        } catch (_) {}
+      }
+
+      try {
+        await _tours.doc(tourId).delete().timeout(const Duration(seconds: 4));
+      } catch (_) {}
+
+      for (final uid in memberIds) {
+        try {
+          await _db
+              .collection(AppConstants.usersCollection)
+              .doc(uid)
+              .update({'activeTourId': null}).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      }
+
+      if (ActiveTourCacheService.getActiveTourId() == tourId) {
+        await ActiveTourCacheService.clearCachedActiveTour();
+      }
+    } catch (e) {
+      // Offline fallback: queue deletion for sync and clear locally
+      await _queueTourDeletionInternal(tourId, currentUserId);
+    }
+  }
+
+  Future<bool> _isNetworkOffline() async {
+    try {
+      final results = await Connectivity().checkConnectivity();
+      return results.every((r) => r == ConnectivityResult.none);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _deleteLocalTourInternal(String localTourId) async {
+    try {
+      if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+        final box = Hive.box(OfflineTourQueueService.localToursBox);
+        await box.delete(localTourId);
+        final memberKeys = box.keys
+            .where((k) => k.toString().startsWith('member_${localTourId}_'))
+            .toList();
+        for (final k in memberKeys) {
+          await box.delete(k);
+        }
+      }
+      if (Hive.isBoxOpen(OfflineTourQueueService.boxName)) {
+        final qBox = Hive.box(OfflineTourQueueService.boxName);
+        await qBox.delete('create_$localTourId');
+        final queueKeys = qBox.keys
+            .where((k) => k.toString().startsWith('addMember_${localTourId}_'))
+            .toList();
+        for (final k in queueKeys) {
+          await qBox.delete(k);
+        }
+      }
+      try {
+        if (Hive.isBoxOpen('offline_expenses_queue')) {
+          final expBox = Hive.box('offline_expenses_queue');
+          final expKeys = expBox.keys.where((k) {
+            final val = expBox.get(k);
+            return val is Map && val['tourId'] == localTourId;
+          }).toList();
+          for (final k in expKeys) {
+            await expBox.delete(k);
+          }
         }
       } catch (_) {}
+      if (ActiveTourCacheService.getActiveTourId() == localTourId) {
+        await ActiveTourCacheService.clearCachedActiveTour();
+      }
+    } catch (e) {
+      debugPrint('[TOUR_REPO] Error deleting local tour: $e');
     }
+  }
 
+  Future<void> _queueTourDeletionInternal(String tourId, String? currentUserId) async {
     try {
-      await _tours.doc(tourId).delete();
-    } catch (_) {}
-
-    for (final uid in memberIds) {
-      try {
-        await _db
-            .collection(AppConstants.usersCollection)
-            .doc(uid)
-            .update({'activeTourId': null});
-      } catch (_) {}
+      if (Hive.isBoxOpen(OfflineTourQueueService.boxName)) {
+        final qBox = Hive.box(OfflineTourQueueService.boxName);
+        await qBox.put('delete_$tourId', {
+          'type': 'deleteTour',
+          'tourId': tourId,
+          'currentUserId': currentUserId,
+          'queuedAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+      if (ActiveTourCacheService.getActiveTourId() == tourId) {
+        await ActiveTourCacheService.clearCachedActiveTour();
+      }
+    } catch (e) {
+      debugPrint('[TOUR_REPO] Error queuing tour deletion: $e');
     }
   }
 
@@ -684,36 +958,173 @@ class TourRepository {
     }
   }
 
+  /// Leaves a tour. If the user has zero financial activity (no contributions/payments,
+  /// no expense split shares, and no settlements), they are purged completely from the tour.
+  /// If they have financial history, their record is preserved as a past member with status 'left'
+  /// so calculations and settlements remain intact. Returns true if preserved as past member.
+  Future<bool> leaveTourWithAudit(String tourId, String userId) async {
+    if (tourId.startsWith('local_')) {
+      await removeTourForUser(tourId, userId);
+      return false;
+    }
+    // 1. Fetch expenses for tour
+    final expensesSnap = await _tours
+        .doc(tourId)
+        .collection(AppConstants.expensesSubcollection)
+        .get();
+
+    bool hasActivity = false;
+    for (final doc in expensesSnap.docs) {
+      final data = doc.data();
+      final paidBy = data['paidBy'] ?? data['paidByUserId'];
+      if (paidBy == userId) {
+        hasActivity = true;
+        break;
+      }
+      final payers = data['payers'];
+      if (payers is Map && (payers[userId] as num? ?? 0) > 0) {
+        hasActivity = true;
+        break;
+      }
+      final splitAmong = data['splitAmong'];
+      if (splitAmong is List && splitAmong.contains(userId)) {
+        hasActivity = true;
+        break;
+      }
+      final customSplits = data['customSplits'];
+      if (customSplits is Map && (customSplits[userId] as num? ?? 0) > 0) {
+        hasActivity = true;
+        break;
+      }
+    }
+
+    if (!hasActivity) {
+      // 2. Fetch settlements
+      final settlementsSnap = await _tours
+          .doc(tourId)
+          .collection(AppConstants.settlementsSubcollection)
+          .get();
+      for (final doc in settlementsSnap.docs) {
+        final data = doc.data();
+        if (data['fromUserId'] == userId || data['toUserId'] == userId) {
+          hasActivity = true;
+          break;
+        }
+      }
+    }
+
+    final batch = _db.batch();
+
+    if (!hasActivity) {
+      // Complete purge: remove from members & pastMembers, delete member document
+      batch.update(_tours.doc(tourId), {
+        'members': FieldValue.arrayRemove([userId]),
+        'pastMembers': FieldValue.arrayRemove([userId]),
+      });
+      batch.delete(
+        _tours
+            .doc(tourId)
+            .collection(AppConstants.membersSubcollection)
+            .doc(userId),
+      );
+    } else {
+      // Retain math: move to pastMembers, set status left
+      batch.update(_tours.doc(tourId), {
+        'members': FieldValue.arrayRemove([userId]),
+        'pastMembers': FieldValue.arrayUnion([userId]),
+      });
+      batch.set(
+        _tours
+            .doc(tourId)
+            .collection(AppConstants.membersSubcollection)
+            .doc(userId),
+        {
+          'status': 'left',
+          'role': 'past_member',
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    await batch.commit();
+
+    if (!userId.startsWith('offline_')) {
+      try {
+        await _db.collection(AppConstants.usersCollection).doc(userId).update({
+          'activeTourId': null,
+        });
+      } catch (_) {}
+    }
+
+    return hasActivity;
+  }
+
   Future<void> leaveTour(String tourId, String userId) async {
-    await removeMember(tourId, userId, isKick: false);
+    await leaveTourWithAudit(tourId, userId);
   }
 
   Future<void> removeTourForUser(String tourId, String userId) async {
-    final batch = _db.batch();
-    batch.update(_tours.doc(tourId), {
-      'members': FieldValue.arrayRemove([userId]),
-      'pastMembers': FieldValue.arrayRemove([userId]),
-    });
+    if (tourId.startsWith('local_')) {
+      try {
+        if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+          final box = Hive.box(OfflineTourQueueService.localToursBox);
+          final val = box.get(tourId);
+          if (val is Map) {
+            final m = Map<String, dynamic>.from(val);
+            final members = (m['members'] as List?)?.cast<String>() ?? [];
+            members.remove(userId);
+            if (members.isEmpty) {
+              await _deleteLocalTourInternal(tourId);
+            } else {
+              m['members'] = members;
+              await box.put(tourId, m);
+            }
+          }
+        }
+        if (ActiveTourCacheService.getActiveTourId() == tourId) {
+          await ActiveTourCacheService.clearCachedActiveTour();
+        }
+      } catch (_) {}
+      return;
+    }
+
     try {
-      await _db.collection(AppConstants.usersCollection).doc(userId).update({
-        'activeTourId': null,
+      final batch = _db.batch();
+      batch.update(_tours.doc(tourId), {
+        'members': FieldValue.arrayRemove([userId]),
+        'pastMembers': FieldValue.arrayRemove([userId]),
       });
-    } catch (_) {}
-    await batch.commit();
+      try {
+        await _db.collection(AppConstants.usersCollection).doc(userId).update({
+          'activeTourId': null,
+        });
+      } catch (_) {}
+      await batch.commit();
+    } catch (e) {
+      await _queueTourDeletionInternal(tourId, userId);
+    }
   }
 
   Future<void> clearUserActiveTour(String userId) async {
     try {
+      await ActiveTourCacheService.clearCachedActiveTour();
       await _db.collection(AppConstants.usersCollection).doc(userId).update({
         'activeTourId': null,
       });
     } catch (_) {}
   }
 
-  Future<void> switchActiveTour(String userId, String tourId) async {
-    await _db.collection(AppConstants.usersCollection).doc(userId).update({
+  Future<void> switchActiveTour(String userId, String tourId, {TourModel? tour}) async {
+    await ActiveTourCacheService.setActiveTourId(tourId);
+    if (tour != null) {
+      await ActiveTourCacheService.cacheActiveTour(tour: tour);
+    }
+    // Update Firestore in background without blocking the UI
+    unawaited(_db.collection(AppConstants.usersCollection).doc(userId).update({
       'activeTourId': tourId,
-    });
+    }).catchError((e) {
+      debugPrint('[TOUR_REPO] switchActiveTour Firestore update error: $e');
+    }));
   }
 
   Future<void> requestToJoinTour({
@@ -783,6 +1194,9 @@ class TourRepository {
   }
 
   Stream<List<JoinRequestModel>> watchTourJoinRequests(String tourId) {
+    if (tourId.startsWith('local_')) {
+      return Stream.value(<JoinRequestModel>[]);
+    }
     return _tours
         .doc(tourId)
         .collection(AppConstants.membersSubcollection)
@@ -889,12 +1303,79 @@ class TourRepository {
     late StreamController<List<TourModel>> controller;
     StreamSubscription? subActive;
     StreamSubscription? subPast;
+    StreamSubscription? subLocal;
     List<TourModel> activeList = [];
     List<TourModel> pastList = [];
 
     void emitCombined() {
       if (controller.isClosed) return;
+      final queuedDeleted = <String>{};
+      try {
+        if (Hive.isBoxOpen(OfflineTourQueueService.boxName)) {
+          final qBox = Hive.box(OfflineTourQueueService.boxName);
+          for (final k in qBox.keys) {
+            final val = qBox.get(k);
+            if (val is Map && val['type'] == 'deleteTour') {
+              final id = val['tourId'] as String?;
+              if (id != null) queuedDeleted.add(id);
+            }
+          }
+        }
+      } catch (_) {}
+
       final map = <String, TourModel>{};
+
+      // 1. Include local tours from Hive
+      try {
+        if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+          final box = Hive.box(OfflineTourQueueService.localToursBox);
+          for (final key in box.keys) {
+            if (key.toString().startsWith('local_')) {
+              final val = box.get(key);
+              if (val is Map) {
+                final m = Map<String, dynamic>.from(val);
+                final members = (m['members'] as List?)?.cast<String>() ?? [];
+                if (members.contains(userId) ||
+                    (m['adminId'] as String? ?? '') == userId) {
+                  final t = TourModel(
+                    id: m['id'] as String? ?? key.toString(),
+                    name: m['name'] as String? ?? 'Offline Tour',
+                    description: null,
+                    currency: m['currency'] as String? ?? 'BDT',
+                    currencySymbol: m['currencySymbol'] as String? ?? '৳',
+                    adminId: m['adminId'] as String? ?? userId,
+                    inviteCode: m['inviteCode'] as String? ?? '',
+                    status: TourStatus.active,
+                    startDate: m['startDate'] != null
+                        ? DateTime.fromMillisecondsSinceEpoch(
+                            m['startDate'] as int)
+                        : DateTime.now(),
+                    endDate: m['endDate'] != null
+                        ? DateTime.fromMillisecondsSinceEpoch(
+                            m['endDate'] as int)
+                        : DateTime.now().add(const Duration(days: 7)),
+                    memberIds: members,
+                    createdAt: m['createdAt'] != null
+                        ? DateTime.fromMillisecondsSinceEpoch(
+                            m['createdAt'] as int)
+                        : DateTime.now(),
+                  );
+                  map[t.id] = t;
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Include cached active tour if it belongs to this user
+      final cachedActive = ActiveTourCacheService.getCachedActiveTour();
+      if (cachedActive != null &&
+          (cachedActive.memberIds.contains(userId) ||
+              cachedActive.adminId == userId)) {
+        map.putIfAbsent(cachedActive.id, () => cachedActive);
+      }
+
       for (final t in activeList) {
         map[t.id] = t;
       }
@@ -902,7 +1383,10 @@ class TourRepository {
         map.putIfAbsent(t.id, () => t);
       }
       final list = map.values
-          .where((t) => !t.isDeleted && t.status != TourStatus.deleted)
+          .where((t) =>
+              !queuedDeleted.contains(t.id) &&
+              !t.isDeleted &&
+              t.status != TourStatus.deleted)
           .toList();
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       controller.add(list);
@@ -910,6 +1394,16 @@ class TourRepository {
 
     controller = StreamController<List<TourModel>>(
       onListen: () {
+        // Immediate emit for instant offline / cached responsiveness
+        emitCombined();
+
+        try {
+          if (Hive.isBoxOpen(OfflineTourQueueService.localToursBox)) {
+            final box = Hive.box(OfflineTourQueueService.localToursBox);
+            subLocal = box.watch().listen((_) => emitCombined());
+          }
+        } catch (_) {}
+
         subActive = _tours
             .where('members', arrayContains: userId)
             .snapshots()
@@ -919,8 +1413,10 @@ class TourRepository {
               .map((d) => TourModel.fromFirestore(d))
               .toList();
           emitCombined();
-        }, onError: (e) {
-          if (!controller.isClosed) controller.addError(e);
+        }, onError: (_) {
+          if (!controller.isClosed) {
+            emitCombined();
+          }
         });
 
         subPast = _tours
@@ -939,6 +1435,7 @@ class TourRepository {
       onCancel: () {
         subActive?.cancel();
         subPast?.cancel();
+        subLocal?.cancel();
       },
     );
 
@@ -955,8 +1452,15 @@ class TourRepository {
   }
 
   Future<TourModel?> getTour(String tourId) async {
-    final doc = await _tours.doc(tourId).get();
-    return doc.exists ? TourModel.fromFirestore(doc) : null;
+    if (tourId.startsWith('local_')) {
+      return getLocalTour(tourId);
+    }
+    try {
+      final doc = await _tours.doc(tourId).get();
+      return doc.exists ? TourModel.fromFirestore(doc) : null;
+    } catch (_) {
+      return getLocalTour(tourId);
+    }
   }
 
   String _generateInviteCode() {
@@ -971,6 +1475,59 @@ class TourRepository {
 
 final tourRepositoryProvider =
     Provider<TourRepository>((_) => TourRepository());
+
+class ActiveTourIdOverrideNotifier extends Notifier<String?> {
+  @override
+  String? build() => ActiveTourCacheService.getActiveTourId();
+
+  @override
+  set state(String? val) => super.state = val;
+  void setTourId(String? id) => state = id;
+}
+
+final activeTourIdOverrideProvider =
+    NotifierProvider<ActiveTourIdOverrideNotifier, String?>(
+        ActiveTourIdOverrideNotifier.new);
+
+const String kNoActiveTourId = '__none__';
+
+final activeTourIdProvider = Provider<String?>((ref) {
+  final queuedDeleted = <String>{};
+  try {
+    if (Hive.isBoxOpen(OfflineTourQueueService.boxName)) {
+      final qBox = Hive.box(OfflineTourQueueService.boxName);
+      for (final k in qBox.keys) {
+        final val = qBox.get(k);
+        if (val is Map && val['type'] == 'deleteTour') {
+          final id = val['tourId'] as String?;
+          if (id != null) queuedDeleted.add(id);
+        }
+      }
+    }
+  } catch (_) {}
+
+  final overrideId = ref.watch(activeTourIdOverrideProvider);
+  if (overrideId == kNoActiveTourId) {
+    return null;
+  }
+  if (overrideId != null &&
+      overrideId.isNotEmpty &&
+      !queuedDeleted.contains(overrideId)) {
+    return overrideId;
+  }
+  final localId = ActiveTourCacheService.getActiveTourId();
+  if (localId != null &&
+      localId.isNotEmpty &&
+      !queuedDeleted.contains(localId)) {
+    return localId;
+  }
+  final user = ref.watch(currentUserProvider).value;
+  if (user?.activeTourId != null &&
+      !queuedDeleted.contains(user!.activeTourId)) {
+    return user.activeTourId;
+  }
+  return null;
+});
 
 final tourStreamProvider =
     StreamProvider.family<TourModel?, String>((ref, tourId) {
@@ -991,3 +1548,4 @@ final userToursStreamProvider =
     StreamProvider.family<List<TourModel>, String>((ref, userId) {
   return ref.watch(tourRepositoryProvider).watchUserTours(userId);
 });
+

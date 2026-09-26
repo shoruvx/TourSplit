@@ -12,6 +12,7 @@ import 'core/theme/app_theme.dart';
 import 'data/models/chat_message.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/app_update_service.dart';
+import 'data/services/storage_optimization_service.dart';
 import 'data/services/welcome_greeting_service.dart';
 import 'presentation/widgets/app_update_listener.dart';
 
@@ -30,9 +31,11 @@ Future<void> main() async {
   );
   debugPrint('[APP] Firebase initialized');
 
-  // Phase 1: Enable Firestore offline persistence to reduce network reads
-  FirebaseFirestore.instance.settings =
-      const Settings(persistenceEnabled: true);
+  // Phase 1: Enable Firestore offline persistence with bounded cache (10MB) for low-memory devices
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: 10485760, // 10MB cache cap
+  );
 
   await Hive.initFlutter();
   Hive.registerAdapter(ChatMessageAdapter());
@@ -40,6 +43,10 @@ Future<void> main() async {
     await Hive.openBox('app_preferences');
     await Hive.openBox<ChatMessage>('chat_box');
     await Hive.openBox<Map>('user_box');
+    await Hive.openBox('active_tour_cache');
+    await Hive.openBox('offline_expenses_queue');
+    await Hive.openBox('offline_tours_queue');
+    await Hive.openBox('local_tours');
     await WelcomeGreetingService.advanceSessionGreeting();
   } catch (e) {
     debugPrint('[APP] Error opening Hive boxes: $e');
@@ -57,6 +64,11 @@ Future<void> main() async {
 
   NotificationService.initialize().catchError((e) {
     debugPrint('[APP] NotificationService init failed: $e');
+  });
+
+  // Reclaim ROM storage: purge old OTA APKs and stale temp files
+  StorageOptimizationService.runStartupStorageOptimization().catchError((e) {
+    debugPrint('[STORAGE] Startup optimization error: $e');
   });
 
   // Automatically check for latest GitHub release and sync to Firestore in background

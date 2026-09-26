@@ -51,6 +51,10 @@ class TourModel {
 
   factory TourModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    return TourModel.fromMap(data, doc.id);
+  }
+
+  factory TourModel.fromMap(Map<String, dynamic> data, String id) {
     final creatorAdminId = data['adminId'] ?? '';
     final rawAdminIds = data['adminIds'] != null
         ? List<String>.from(data['adminIds'])
@@ -69,8 +73,15 @@ class TourModel {
       tourStatus = TourStatus.active;
     }
 
+    DateTime parseDate(dynamic val, [DateTime? fallback]) {
+      if (val is Timestamp) return val.toDate();
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      if (val is DateTime) return val;
+      return fallback ?? DateTime.now();
+    }
+
     return TourModel(
-      id: doc.id,
+      id: id,
       name: data['name'] ?? '',
       description: data['description'],
       currency: data['currency'] ?? 'BDT',
@@ -78,9 +89,9 @@ class TourModel {
       adminId: creatorAdminId,
       inviteCode: data['inviteCode'] ?? '',
       status: tourStatus,
-      startDate: (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      endDate: (data['endDate'] as Timestamp?)?.toDate(),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startDate: parseDate(data['startDate']),
+      endDate: data['endDate'] != null ? parseDate(data['endDate'], null) : null,
+      createdAt: parseDate(data['createdAt']),
       memberIds: List<String>.from(data['members'] ?? []),
       pastMemberIds: List<String>.from(data['pastMembers'] ?? []),
       adminIds: rawAdminIds,
@@ -142,6 +153,7 @@ class TourModel {
 class TourMemberModel {
   final String userId;
   final String displayName;
+  final String username;
   final String email;
   final String? photoUrl;
   final String role;
@@ -153,6 +165,7 @@ class TourMemberModel {
   const TourMemberModel({
     required this.userId,
     required this.displayName,
+    this.username = '',
     required this.email,
     this.photoUrl,
     required this.role,
@@ -178,6 +191,13 @@ class TourMemberModel {
     return clean[0].toUpperCase();
   }
 
+  String get displayHandle {
+    if (isOffline) return 'Offline Friend';
+    if (username.isNotEmpty) return '@$username';
+    if (email.contains('@')) return '@${email.split('@').first}';
+    return email.isNotEmpty ? '@$email' : '';
+  }
+
   factory TourMemberModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final isOffline =
@@ -185,6 +205,7 @@ class TourMemberModel {
     return TourMemberModel(
       userId: doc.id,
       displayName: data['displayName'] ?? '',
+      username: data['username'] as String? ?? '',
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'],
       role: data['role'] ?? 'member',
@@ -198,6 +219,7 @@ class TourMemberModel {
   Map<String, dynamic> toFirestore() => {
         'userId': userId,
         'displayName': displayName,
+        'username': username,
         'email': email,
         'photoUrl': photoUrl,
         'role': role,
@@ -212,11 +234,13 @@ class TourMemberModel {
     String? role,
     String? status,
     String? displayName,
+    String? username,
     bool? isOffline,
   }) {
     return TourMemberModel(
       userId: userId,
       displayName: displayName ?? this.displayName,
+      username: username ?? this.username,
       email: email,
       photoUrl: photoUrl,
       role: role ?? this.role,

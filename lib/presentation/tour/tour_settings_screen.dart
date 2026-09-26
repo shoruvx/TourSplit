@@ -5,13 +5,16 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/active_tour_cache_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class TourSettingsScreen extends ConsumerStatefulWidget {
-  const TourSettingsScreen({super.key});
+  final String? tourId;
+  const TourSettingsScreen({super.key, this.tourId});
 
   @override
   ConsumerState<TourSettingsScreen> createState() => _TourSettingsScreenState();
@@ -19,14 +22,12 @@ class TourSettingsScreen extends ConsumerStatefulWidget {
 
 class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
   final _nameCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
   bool _isLoading = false;
   bool _initialized = false;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _descCtrl.dispose();
     super.dispose();
   }
 
@@ -35,7 +36,6 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     try {
       await ref.read(tourRepositoryProvider).updateTour(tourId, {
         'name': _nameCtrl.text.trim(),
-        'description': _descCtrl.text.trim(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -166,6 +166,11 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
           .read(tourRepositoryProvider)
           .deleteTour(tourId, currentUserId: currentUserId);
 
+      if (ref.read(activeTourIdProvider) == tourId) {
+        ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+        await ActiveTourCacheService.clearCachedActiveTour();
+      }
+
       if (currentUserId != null) {
         ref.invalidate(userToursStreamProvider(currentUserId));
       }
@@ -174,8 +179,12 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tour deleted permanently.'),
+        SnackBar(
+          content: Text(
+            tourId.startsWith('local_')
+                ? 'Tour deleted permanently.'
+                : 'Tour deleted. Changes will sync when online.',
+          ),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -202,7 +211,10 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
           ],
         ),
         content: Text(
-          'Are you sure you want to leave "$tourName"?\n\nYou will still be able to view all expenses and settlements recorded up to now in read-only mode from your tour list.',
+          'Are you sure you want to leave "$tourName"?\n\n'
+          '• If you have 0 contribution and spending, you will be completely removed from everywhere in the tour.\n'
+          '• If you have recorded expenses or splits, your history will stay intact for tour math and you will be listed as a left member.\n\n'
+          'You can rejoin anytime using the tour invite code.',
         ),
         actions: [
           TextButton(
@@ -223,20 +235,28 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     setState(() => _isLoading = true);
     try {
       final currentUserId = ref.read(currentUserProvider).value?.uid;
+      bool preservedAsPast = false;
       if (currentUserId != null) {
-        await ref
+        preservedAsPast = await ref
             .read(tourRepositoryProvider)
-            .leaveTour(tourId, currentUserId);
+            .leaveTourWithAudit(tourId, currentUserId);
         ref.invalidate(userToursStreamProvider(currentUserId));
+      }
+      if (ref.read(activeTourIdProvider) == tourId) {
+        ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+        await ActiveTourCacheService.clearCachedActiveTour();
       }
       ref.invalidate(tourStreamProvider(tourId));
       ref.invalidate(currentUserProvider);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-              'You have left the tour. It is saved in read-only mode in your tour list.'),
+            preservedAsPast
+                ? 'You have left the tour. Financial records remain intact.'
+                : 'You have been completely removed from the tour.',
+          ),
           backgroundColor: AppColors.accent,
         ),
       );
@@ -312,13 +332,27 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider).value;
-    if (user == null || user.activeTourId == null) {
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final effectiveTourId = widget.tourId ??
+        activeTourId ??
+        user?.activeTourId ??
+        cachedTour?.id ??
+        ActiveTourCacheService.getActiveTourId();
+
+    if (effectiveTourId == null) {
+      if (userAsync.isLoading) {
+        return const Scaffold(
+            body: Center(child: CircularProgressIndicator()));
+      }
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
-    final tourId = user.activeTourId!;
 
-    final tourStream = ref.watch(tourStreamProvider(tourId));
+    final currentUserId =
+        user?.uid ?? ref.watch(authStateProvider).value?.uid ?? '';
+    final tourStream = ref.watch(tourStreamProvider(effectiveTourId));
 
     return tourStream.when(
       loading: () =>
@@ -327,12 +361,13 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       data: (tour) {
         if (tour == null) return const Scaffold();
 
-        final isAdmin = tour.creatorId == user.uid;
-        final isPastMember = tour.isPastMember(user.uid);
+        final isAdmin = currentUserId.isNotEmpty &&
+            (tour.creatorId == currentUserId || tour.isAdmin(currentUserId));
+        final isPastMember =
+            currentUserId.isNotEmpty && tour.isPastMember(currentUserId);
 
         if (!_initialized) {
           _nameCtrl.text = tour.name;
-          _descCtrl.text = tour.description ?? '';
           _initialized = true;
         }
 
@@ -350,17 +385,18 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
             isLoading: _isLoading,
             child: Scaffold(
               appBar: AppBar(
-                title: const Text('Tour Settings'),
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                  tooltip: 'Back',
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/home');
-                    }
-                  },
+                automaticallyImplyLeading: false,
+                toolbarHeight: 64,
+                titleSpacing: 20,
+                title: const Text(
+                  'Tour Settings',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: AppColors.primaryTeal,
+                  ),
                 ),
               ),
             body: SingleChildScrollView(
@@ -402,18 +438,10 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                     textCapitalization: TextCapitalization.words,
                     enabled: !isPastMember && isAdmin,
                   ).animate().fadeIn(delay: 100.ms),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _descCtrl,
-                    label: 'Description',
-                    prefixIcon: Icons.description_outlined,
-                    maxLines: 3,
-                    enabled: !isPastMember && isAdmin,
-                  ).animate().fadeIn(delay: 150.ms),
                   if (!isPastMember && isAdmin) ...[
                     const SizedBox(height: 24),
                     GradientButton(
-                      onPressed: () => _saveChanges(tourId),
+                      onPressed: () => _saveChanges(tour.id),
                       label: 'Save Changes',
                       icon: Icons.save_rounded,
                     ).animate().fadeIn(delay: 200.ms),
@@ -429,7 +457,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                   if (isPastMember)
                     OutlinedButton.icon(
                       onPressed: () =>
-                          _removeTourFromList(tourId, tour.name),
+                          _removeTourFromList(tour.id, tour.name),
                       icon: const Icon(Icons.delete_outline_rounded,
                           color: AppColors.danger),
                       label: const Text('Remove from My Tours',
@@ -440,7 +468,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                     ).animate().fadeIn(delay: 250.ms)
                   else if (!isAdmin) ...[
                     OutlinedButton.icon(
-                      onPressed: () => _leaveTour(tourId, tour.name),
+                      onPressed: () => _leaveTour(tour.id, tour.name),
                       icon: const Icon(Icons.logout_rounded,
                           color: AppColors.danger),
                       label: const Text('Leave Tour',
@@ -452,7 +480,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: () =>
-                          _removeTourFromList(tourId, tour.name),
+                          _removeTourFromList(tour.id, tour.name),
                       icon: const Icon(Icons.delete_outline_rounded,
                           color: AppColors.danger),
                       label: const Text('Remove from My Tours',
@@ -467,7 +495,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                         onPressed: () async {
                           await ref
                               .read(tourRepositoryProvider)
-                              .reopenTour(tourId);
+                              .reopenTour(tour.id);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -487,7 +515,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       ).animate().fadeIn(delay: 250.ms)
                     else
                       OutlinedButton.icon(
-                        onPressed: () => _endTour(tourId),
+                        onPressed: () => _endTour(tour.id),
                         icon: const Icon(Icons.flag_rounded,
                             color: AppColors.danger),
                         label: const Text('End Tour',
@@ -498,7 +526,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       ).animate().fadeIn(delay: 250.ms),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
-                      onPressed: () => _deleteTour(tourId, tour.name),
+                      onPressed: () => _deleteTour(tour.id, tour.name),
                       icon: const Icon(Icons.delete_forever_rounded,
                           color: AppColors.danger),
                       label: const Text('Delete Tour Permanently',
@@ -510,6 +538,22 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                   ],
                 ],
               ),
+            ),
+            bottomNavigationBar: TourBottomNavigationBar(
+              tour: tour,
+              isAdmin: isAdmin,
+              currentUser: user,
+              membersCount: tour.memberIds.length,
+              currentIndex: 3,
+              onToursTap: () => context.push('/tours'),
+              onDashboardTap: () {
+                ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
+                ActiveTourCacheService.setActiveTourId(tour.id);
+                context.go('/home');
+              },
+              onMembersTap: () =>
+                  context.pushReplacement('/tour/members?tourId=${tour.id}'),
+              onSettingsTap: () {},
             ),
           ),
         ),

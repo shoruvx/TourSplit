@@ -64,11 +64,7 @@ ICON_EMOJI_MAP = {
 }
 
 def get_emoji_for_icon(icon_name: str) -> str:
-    cleaned = icon_name.lower().replace('_rounded', '').replace('_outlined', '').replace('_sharp', '')
-    for key, emoji in ICON_EMOJI_MAP.items():
-        if key in cleaned:
-            return emoji
-    return '✨'
+    return ''
 
 def extract_features_from_whats_new_dialog(repo_root: str) -> list:
     dialog_path = os.path.join(repo_root, 'lib', 'presentation', 'widgets', 'whats_new_dialog.dart')
@@ -93,10 +89,9 @@ def extract_features_from_whats_new_dialog(repo_root: str) -> list:
         icon_name, title, desc = match.groups()
         clean_title = ' '.join(title.split())
         clean_desc = ' '.join(desc.split())
-        emoji = get_emoji_for_icon(icon_name)
         features.append({
             'icon': icon_name,
-            'emoji': emoji,
+            'emoji': '',
             'title': clean_title,
             'description': clean_desc
         })
@@ -125,19 +120,19 @@ def extract_features_from_changelog(repo_root: str, version: str) -> list:
             stripped = line.strip()
             if not stripped:
                 continue
-            # Parse bullet: - <emoji> **<title>**: <desc>
+            # Parse bullet: - <emoji> **<title>**: <desc> or - **<title>**: <desc>
             m = re.match(r'^[*-]\s*(?:([^\s*]+)\s+)?\*\*(.*?)\*\*:\s*(.*)', stripped)
             if m:
                 emoji, title, desc = m.groups()
                 features.append({
-                    'emoji': emoji or '✨',
+                    'emoji': emoji.strip() if emoji and not emoji.startswith('*') else '',
                     'title': title.strip(),
                     'description': desc.strip()
                 })
             elif stripped.startswith(('- ', '* ')):
                 bullet_text = stripped[2:].strip()
                 features.append({
-                    'emoji': '✨',
+                    'emoji': '',
                     'title': bullet_text.split(':')[0].strip('* '),
                     'description': bullet_text
                 })
@@ -207,12 +202,15 @@ def build_release_notes(repo_root: str, version: str, explicit_notes: str = None
     if features:
         bullet_lines = []
         for feat in features:
-            emoji = feat.get('emoji', '✨')
+            emoji = feat.get('emoji', '').strip()
             title = feat.get('title', '').strip()
             desc = feat.get('description', '').strip()
-            bullet_lines.append(f"- {emoji} **{title}**: {desc}")
+            if emoji:
+                bullet_lines.append(f"- {emoji} **{title}**: {desc}")
+            else:
+                bullet_lines.append(f"- **{title}**: {desc}")
         
-        body = f"### What's New in TourSplit v{clean_ver} ✨\n\n" + "\n".join(bullet_lines)
+        body = f"### What's New in TourSplit v{clean_ver}\n\n" + "\n".join(bullet_lines)
         
         # Build attractive release title: e.g. TourSplit v1.4.1 - Feature 1, Feature 2 & Feature 3
         top_titles = [f['title'] for f in features[:3]]
@@ -241,10 +239,10 @@ def build_release_notes(repo_root: str, version: str, explicit_notes: str = None
     
     # Fallback
     default_body = (
-        f"### What's New in TourSplit v{clean_ver} ✨\n\n"
-        f"- ⚡ **Performance & Stability**: Enhanced transaction reliability and smoother offline calculations.\n"
-        f"- 🐞 **Bug Fixes**: Resolved minor interface glitches and improved dialog responsiveness.\n"
-        f"- 🎨 **Visual Refinements**: Polished layouts and responsive feedback for trip settlements."
+        f"### What's New in TourSplit v{clean_ver}\n\n"
+        f"- **Performance & Stability**: Enhanced transaction reliability and smoother offline calculations.\n"
+        f"- **Bug Fixes**: Resolved minor interface glitches and improved dialog responsiveness.\n"
+        f"- **Visual Refinements**: Polished layouts and responsive feedback for trip settlements."
     )
     return {
         'title': f"TourSplit v{clean_ver} - Performance & Stability Update",

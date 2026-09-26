@@ -38,7 +38,7 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if isLoggedIn();
         allow create, update: if isLoggedIn();
-        allow delete: if isTourAdmin(tourId);
+        allow delete: if isTourAdmin(tourId) || isOwner(memberId);
       }
 
       match /expenses/{expenseId} {

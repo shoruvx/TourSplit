@@ -46,9 +46,15 @@ class ChatRepository {
     // Phase 3.1: If isDeleted is true, nullify text field to store strictly as a Tombstone
     final ChatMessage toSave;
     if (msg.isDeleted) {
-      toSave = msg.copyWith(text: null, isDeleted: true);
+      toSave = msg.copyWith(text: null, isDeleted: true, reactions: null);
     } else {
-      toSave = msg;
+      if (existing != null && !existing.syncedToServer && existing.reactions != null) {
+        final mergedReactions = Map<String, String>.from(msg.reactions ?? {});
+        mergedReactions.addAll(existing.reactions!);
+        toSave = msg.copyWith(reactions: mergedReactions, syncedToServer: false);
+      } else {
+        toSave = msg;
+      }
     }
 
     await _box.put(key, toSave);
@@ -57,9 +63,41 @@ class ChatRepository {
     await _pruneLocalTourMessages(msg.tourId);
   }
 
+  /// Toggle a reaction on a message by a user.
+  /// If the user already reacted with this emoji, the reaction is removed.
+  /// If the user reacted with a different emoji, it is updated.
+  /// Sets syncedToServer = false so ChatSyncService can push to Firestore.
+  Future<ChatMessage?> toggleReaction({
+    required String tourId,
+    required String messageId,
+    required String userId,
+    required String emoji,
+  }) async {
+    if (!Hive.isBoxOpen(boxName)) return null;
+    final key = _key(tourId, messageId);
+    final msg = _box.get(key);
+    if (msg == null || msg.isDeleted) return null;
+
+    final currentReactions = Map<String, String>.from(msg.reactions ?? {});
+    if (currentReactions[userId] == emoji) {
+      currentReactions.remove(userId);
+    } else {
+      currentReactions[userId] = emoji;
+    }
+
+    final updated = msg.copyWith(
+      reactions: currentReactions.isEmpty ? null : currentReactions,
+      clearReactions: currentReactions.isEmpty,
+      syncedToServer: false,
+    );
+
+    await _box.put(key, updated);
+    return updated;
+  }
+
   Future<void> _pruneLocalTourMessages(String tourId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+    final threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000);
 
     final tourEntries = _box
         .toMap()
@@ -67,10 +105,10 @@ class ChatRepository {
         .where((e) => e.value.tourId == tourId)
         .toList();
 
-    // 1. Delete messages older than 7 days of inactivity to save device space
+    // 1. Delete messages older than 3 days of inactivity to save device space
     for (final entry in tourEntries) {
       if (entry.value.createdAt > 1000000000000 &&
-          entry.value.createdAt < sevenDaysAgo) {
+          entry.value.createdAt < threeDaysAgo) {
         await _box.delete(entry.key);
       }
     }

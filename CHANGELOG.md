@@ -2,6 +2,16 @@
 
 All notable changes to TourSplit are documented in this file. Releases follow a detailed yet minimalistic format highlighting core capabilities, bug fixes, and user experience enhancements.
 
+## [v1.5.1] - 2026-09-26
+
+- **Unified Bottom Navigation**: Seamless context-aware navigation bar across Home, My Tours, Profile, and all tour screens, eliminating top-bar clutter and duplicate back buttons.
+- **Expense Attribution Tracking**: Automatic immutable recording of who created each expense across Sheet, Cards, reports, and detail views to prevent misunderstandings.
+- **Online & Offline Tour Chat**: Coordinate in real-time over cloud sync, or chat completely offline via peer-to-peer Bluetooth mesh networking with auto-reconnection.
+- **Interactive Chat Reactions**: Long-press any message to react, view aggregate reaction pills, and tap to toggle counts without distracting clutter.
+- **Offline Reliability & Sync**: Complete offline usability with background queueing, automatic sync upon reconnection, and streamlined tour settings.
+- **Collapsible Tours Hierarchy**: Organize your tours screen with collapsible categories and cards, keeping only your latest tour expanded by default.
+- **Smart Tour Exit & Rejoining**: Members can leave tours anytime with complete removal for zero activity or math preservation for expenses, and rejoin easily with invite codes.
+
 ---
 
 ## [v1.5.0] - 2026-09-23

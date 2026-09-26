@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/user_cache_service.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
@@ -183,7 +184,7 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
     final currentUser = ref.watch(currentUserProvider).value;
     final isCurrentSelf = currentUser?.uid == widget.userId;
 
-    final activeTourId = currentUser?.activeTourId;
+    final activeTourId = ref.watch(activeTourIdProvider) ?? currentUser?.activeTourId;
 
     // Load user doc if online
     final isOffline = widget.member?.isOffline == true ||
@@ -214,24 +215,50 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
         widget.member;
 
     final onlineUser = userProfileAsync.value;
+    final cachedUser =
+        !isOffline ? ref.watch(userBoxProvider(widget.userId)) : null;
 
-    final displayName = currentTourMember?.displayName.isNotEmpty == true
-        ? currentTourMember!.displayName
-        : (onlineUser?.displayName.isNotEmpty == true
-            ? onlineUser!.displayName
-            : (onlineUser?.email.isNotEmpty == true
-                ? onlineUser!.email.split('@').first
-                : 'Member'));
+    final resolvedUsername =
+        (isCurrentSelf && currentUser?.username.isNotEmpty == true)
+            ? currentUser!.username
+            : (onlineUser?.username.isNotEmpty == true
+                ? onlineUser!.username
+                : (currentTourMember?.username.isNotEmpty == true
+                    ? currentTourMember!.username
+                    : (cachedUser?.username.isNotEmpty == true
+                        ? cachedUser!.username
+                        : '')));
+
+    final displayName =
+        (isCurrentSelf && currentUser?.displayName.isNotEmpty == true)
+            ? currentUser!.displayName
+            : (currentTourMember?.displayName.isNotEmpty == true
+                ? currentTourMember!.displayName
+                : (onlineUser?.displayName.isNotEmpty == true
+                    ? onlineUser!.displayName
+                    : (cachedUser?.displayName.isNotEmpty == true
+                        ? cachedUser!.displayName
+                        : (onlineUser?.email.isNotEmpty == true
+                            ? onlineUser!.email.split('@').first
+                            : 'Member'))));
 
     final email = currentTourMember?.email.isNotEmpty == true
         ? currentTourMember!.email
-        : (onlineUser?.email ?? '');
+        : (onlineUser?.email.isNotEmpty == true
+            ? onlineUser!.email
+            : (isCurrentSelf ? (currentUser?.email ?? '') : ''));
 
-    final usernameHandle = (onlineUser?.username.isNotEmpty == true)
-        ? onlineUser!.username
+    final usernameHandle = resolvedUsername.isNotEmpty
+        ? resolvedUsername
         : (email.contains('@') ? email.split('@').first : '');
 
-    final photoUrl = currentTourMember?.photoUrl ?? onlineUser?.photoUrl;
+    final photoUrl = (isCurrentSelf &&
+            currentUser?.photoUrl != null &&
+            currentUser!.photoUrl!.isNotEmpty)
+        ? currentUser.photoUrl
+        : (currentTourMember?.photoUrl ??
+            onlineUser?.photoUrl ??
+            cachedUser?.photoUrl);
 
     final initials = currentTourMember?.initials ??
         (onlineUser?.initials.isNotEmpty == true
@@ -293,13 +320,21 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
           },
         ),
         actions: [
-          if (isCurrentSelf)
+          if (isCurrentSelf) ...[
             IconButton(
               icon: Icon(Icons.edit_rounded,
                   color: isDark ? Colors.white : const Color(0xFF0F172A)),
               tooltip: 'Edit My Profile',
               onPressed: () => context.push('/profile'),
-            )
+            ),
+            if (tour != null && !isCreator && currentTourMember != null && !currentTourMember.isLeft)
+              IconButton(
+                icon: const Icon(Icons.logout_rounded, color: AppColors.danger),
+                tooltip: 'Leave Tour',
+                onPressed: () => _confirmLeaveTour(
+                    context, tour.id, tour.name, currentUser!.uid),
+              ),
+          ]
           else if (isCurrentAdmin && !isCurrentSelf && !isCreator && currentTourMember != null)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
@@ -1175,6 +1210,86 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmLeaveTour(
+    BuildContext context,
+    String tourId,
+    String tourName,
+    String userId,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Leave Tour?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to leave "$tourName"?\n\n'
+          '• If you have 0 contribution and spending, you will be completely removed from everywhere in the tour.\n'
+          '• If you have recorded expenses or splits, your history will stay intact for tour math and you will be listed as a left member.\n\n'
+          'You can rejoin anytime using the tour invite code.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Leave Tour'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    try {
+      final preservedAsPast = await ref
+          .read(tourRepositoryProvider)
+          .leaveTourWithAudit(tourId, userId);
+
+      ref.invalidate(userToursStreamProvider(userId));
+      ref.invalidate(tourStreamProvider(tourId));
+      ref.invalidate(currentUserProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              preservedAsPast
+                  ? 'You left the tour. Financial records remain intact.'
+                  : 'You have been completely removed from the tour.',
+            ),
+            backgroundColor: AppColors.accent,
+          ),
+        );
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/all-tours');
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to leave tour: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
   }
 
   void _confirmRemoveMember(

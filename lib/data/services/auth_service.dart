@@ -10,24 +10,21 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/user_model.dart';
 import '../../core/constants/app_constants.dart';
+import 'user_cache_service.dart';
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
 });
 
 final userProfileProvider =
-    FutureProvider.family<UserModel?, String>((ref, uid) async {
-  if (uid.isEmpty) return null;
-  try {
-    final doc = await FirebaseFirestore.instance
-        .collection(AppConstants.usersCollection)
-        .doc(uid)
-        .get();
-    if (!doc.exists) return null;
-    return UserModel.fromFirestore(doc);
-  } catch (_) {
-    return null;
-  }
+    StreamProvider.family<UserModel?, String>((ref, uid) {
+  if (uid.isEmpty) return Stream.value(null);
+  return FirebaseFirestore.instance
+      .collection(AppConstants.usersCollection)
+      .doc(uid)
+      .snapshots()
+      .map((doc) => doc.exists ? UserModel.fromFirestore(doc) : null)
+      .handleError((_) => null);
 });
 
 final currentUserProvider = StreamProvider<UserModel?>((ref) {
@@ -323,23 +320,62 @@ class AuthService {
     await _firestore
         .collection(AppConstants.usersCollection)
         .doc(uid)
-        .update(updateData);
+        .set(updateData, SetOptions(merge: true));
 
-    // 3. Update member document in active tour if present
-    if (activeTourId != null && activeTourId.isNotEmpty) {
-      try {
-        final memberUpdate = <String, dynamic>{'displayName': cleanName};
-        if (cleanUsername.isNotEmpty) {
-          memberUpdate['username'] = cleanUsername;
-        }
-        await _firestore
-            .collection(AppConstants.toursCollection)
-            .doc(activeTourId)
-            .collection(AppConstants.membersSubcollection)
-            .doc(uid)
-            .update(memberUpdate);
-      } catch (_) {}
+    // 3. Update member document across ALL joined and past tours so changes reflect everywhere
+    final memberUpdate = <String, dynamic>{'displayName': cleanName};
+    if (cleanUsername.isNotEmpty) {
+      memberUpdate['username'] = cleanUsername;
     }
+
+    try {
+      final activeToursSnap = await _firestore
+          .collection(AppConstants.toursCollection)
+          .where('members', arrayContains: uid)
+          .get();
+
+      final batch = _firestore.batch();
+      for (final doc in activeToursSnap.docs) {
+        final memberRef = doc.reference
+            .collection(AppConstants.membersSubcollection)
+            .doc(uid);
+        batch.set(memberRef, memberUpdate, SetOptions(merge: true));
+      }
+
+      final pastToursSnap = await _firestore
+          .collection(AppConstants.toursCollection)
+          .where('pastMembers', arrayContains: uid)
+          .get();
+
+      for (final doc in pastToursSnap.docs) {
+        final memberRef = doc.reference
+            .collection(AppConstants.membersSubcollection)
+            .doc(uid);
+        batch.set(memberRef, memberUpdate, SetOptions(merge: true));
+      }
+
+      await batch.commit();
+    } catch (e) {
+      debugPrint('[AUTH] Note on tour member batch update: $e');
+      if (activeTourId != null && activeTourId.isNotEmpty) {
+        try {
+          await _firestore
+              .collection(AppConstants.toursCollection)
+              .doc(activeTourId)
+              .collection(AppConstants.membersSubcollection)
+              .doc(uid)
+              .set(memberUpdate, SetOptions(merge: true));
+        } catch (_) {}
+      }
+    }
+
+    // 4. Update local Hive UserCacheService
+    await UserCacheService.cacheUser(
+      uid: uid,
+      displayName: cleanName,
+      photoUrl: user?.photoURL,
+      username: cleanUsername,
+    );
 
     final authUser = _auth.currentUser;
     if (authUser?.email != null) {

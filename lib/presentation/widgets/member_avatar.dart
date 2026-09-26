@@ -9,17 +9,26 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/services/auth_service.dart';
 
-ImageProvider? _resolveImageProvider(String? photoUrl) {
+ImageProvider? _resolveImageProvider(String? photoUrl, {int? targetDimension}) {
   if (photoUrl == null || photoUrl.isEmpty) return null;
+  final int dim = targetDimension ?? 120;
   if (photoUrl.startsWith('data:image')) {
     try {
       final base64Part = photoUrl.split(',').last;
-      return MemoryImage(base64Decode(base64Part));
+      return ResizeImage.resizeIfNeeded(
+        dim,
+        dim,
+        MemoryImage(base64Decode(base64Part)),
+      );
     } catch (_) {
       return null;
     }
   }
-  return CachedNetworkImageProvider(photoUrl);
+  return CachedNetworkImageProvider(
+    photoUrl,
+    maxHeight: dim,
+    maxWidth: dim,
+  );
 }
 
 class MemberAvatar extends ConsumerWidget {
@@ -45,12 +54,10 @@ class MemberAvatar extends ConsumerWidget {
   });
 
   void _handleDefaultTap(BuildContext context, String targetUid) {
-    HapticFeedback.lightImpact();
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
     if (targetUid == currentUid) {
+      HapticFeedback.lightImpact();
       context.push('/profile');
-    } else {
-      context.push('/member/$targetUid', extra: tourMember);
     }
   }
 
@@ -77,7 +84,10 @@ class MemberAvatar extends ConsumerWidget {
       }
     }
 
-    final imageProvider = _resolveImageProvider(effectivePhotoUrl);
+    final imageProvider = _resolveImageProvider(
+      effectivePhotoUrl,
+      targetDimension: (radius * 2.5).toInt().clamp(60, 240),
+    );
     final Widget avatarCore;
     if (imageProvider != null) {
       avatarCore = CircleAvatar(
@@ -103,7 +113,10 @@ class MemberAvatar extends ConsumerWidget {
       );
     }
 
-    final isClickable = enableTap && (onTap != null || targetUid != null);
+    final isClickable = enableTap &&
+        (onTap != null ||
+            (targetUid != null &&
+                targetUid == FirebaseAuth.instance.currentUser?.uid));
 
     if (isClickable) {
       return Material(

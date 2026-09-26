@@ -7,37 +7,64 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/user_cache_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/models/tour_model.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_tour_queue_service.dart';
+import '../home/home_screen.dart' show localMembersRefreshProvider;
 import '../widgets/member_avatar.dart';
 import 'widgets/tour_qr_dialog.dart';
 import 'widgets/replace_offline_member_dialog.dart';
 import 'widgets/add_member_dialog.dart';
+import '../widgets/app_bottom_nav_bar.dart';
 
 class MemberManagementScreen extends ConsumerWidget {
-  const MemberManagementScreen({super.key});
+  final String? tourId;
+  const MemberManagementScreen({super.key, this.tourId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).value;
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+    final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final effectiveTourId = tourId ??
+        activeTourId ??
+        user?.activeTourId ??
+        cachedTour?.id ??
+        ActiveTourCacheService.getActiveTourId();
 
-    if (user == null || user.activeTourId == null) {
+    if (effectiveTourId == null) {
+      if (userAsync.isLoading) {
+        return const Scaffold(
+            body: Center(child: CircularProgressIndicator()));
+      }
       return const Scaffold(body: Center(child: Text('No active tour')));
     }
 
-    final tourId = user.activeTourId!;
-    final tourStream = ref.watch(tourStreamProvider(tourId));
-    final membersStream = ref.watch(tourMembersStreamProvider(tourId));
+    final currentUserId =
+        user?.uid ?? ref.watch(authStateProvider).value?.uid ?? '';
+    final tourStream = ref.watch(tourStreamProvider(effectiveTourId));
+    final membersStream = ref.watch(tourMembersStreamProvider(effectiveTourId));
     final joinRequestsStream =
-        ref.watch(tourPendingJoinRequestsProvider(tourId));
+        ref.watch(tourPendingJoinRequestsProvider(effectiveTourId));
 
-    return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (tour) {
-        if (tour == null) return const Scaffold();
-        if (!tour.memberIds.contains(user.uid)) {
+    final effectiveTour = tourStream.value ?? (cachedTour?.id == effectiveTourId ? cachedTour : null) ?? cachedTour;
+    if (effectiveTour == null && tourStream.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final tour = effectiveTour ?? tourStream.value;
+    if (tour == null) {
+      return tourStream.when(
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
+        data: (_) => const Scaffold(),
+      );
+    }
+    if (currentUserId.isNotEmpty &&
+        !tour.memberIds.contains(currentUserId)) {
           return Scaffold(
             appBar: AppBar(
               title: const Text('Members'),
@@ -52,7 +79,10 @@ class MemberManagementScreen extends ConsumerWidget {
                 child: Text('You are no longer a member of this tour.')),
           );
         }
-        final isAdmin = tour.isAdmin(user.uid);
+        final isAdmin = tour.isAdmin(currentUserId);
+        final inviterName = user?.displayName.isNotEmpty == true
+            ? user!.displayName
+            : 'A friend';
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return PopScope(
@@ -70,17 +100,14 @@ class MemberManagementScreen extends ConsumerWidget {
               automaticallyImplyLeading: false,
               toolbarHeight: 64,
               titleSpacing: 20,
-              title: const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  'Members',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                    color: AppColors.primaryTeal,
-                  ),
+              title: const Text(
+                'Members',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: AppColors.primaryTeal,
                 ),
               ),
               actions: [
@@ -93,11 +120,18 @@ class MemberManagementScreen extends ConsumerWidget {
                       AddMemberDialog.show(
                         context,
                         tourId: tour.id,
-                        inviterName: user.displayName,
+                        inviterName: inviterName,
                         currentMembers: members,
                       );
                     },
                     tooltip: 'Add Member',
+                  ),
+                if (currentUserId != tour.adminId && currentUserId.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.logout_rounded, color: AppColors.danger),
+                    onPressed: () => _showLeaveTourDialog(
+                        context, ref, tour.id, tour.name, currentUserId),
+                    tooltip: 'Leave Tour',
                   ),
               ],
             ),
@@ -119,7 +153,7 @@ class MemberManagementScreen extends ConsumerWidget {
                         AddMemberDialog.show(
                           context,
                           tourId: tour.id,
-                          inviterName: user.displayName,
+                          inviterName: inviterName,
                           currentMembers: members,
                         );
                       },
@@ -158,20 +192,70 @@ class MemberManagementScreen extends ConsumerWidget {
                   },
                 ),
               Expanded(
-                child: membersStream.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('$e')),
-                  data: (members) {
-                    if (members.isEmpty) {
+                child: Builder(
+                  builder: (context) {
+                    // Watch refresh counter — bumped when an offline member is added via dialog
+                    ref.watch(localMembersRefreshProvider);
+
+                    final cachedMembers = ActiveTourCacheService.getCachedMembers(tour.id);
+
+                    // Merge stream + cache so offline-queued members always appear.
+                    // Stream is authoritative base; cached extras (offline-queued) are appended.
+                    final streamMembers = membersStream.maybeWhen(
+                      data: (m) => m,
+                      orElse: () => <TourMemberModel>[],
+                    );
+                    final List<TourMemberModel> effectiveMembers;
+                    if (streamMembers.isNotEmpty) {
+                      final extra = cachedMembers
+                          .where((c) => !streamMembers.any((s) => s.userId == c.userId))
+                          .toList();
+                      effectiveMembers = [...streamMembers, ...extra];
+                    } else if (cachedMembers.isNotEmpty) {
+                      effectiveMembers = cachedMembers;
+                    } else {
+                      // Deep fallback: resolve from offline queue names
+                      final queuedNames = <String, String>{};
+                      try {
+                        for (final qm in ref.read(offlineTourQueueProvider).getQueuedMembersForTour(tour.id)) {
+                          queuedNames[qm.userId] = qm.displayName;
+                        }
+                      } catch (_) {}
+
+                      effectiveMembers = tour.memberIds.map((uid) {
+                        final cached = UserCacheService.getUser(uid);
+                        return TourMemberModel(
+                          userId: uid,
+                          displayName: cached?.displayName ??
+                              queuedNames[uid] ??
+                              (uid == currentUserId
+                                  ? (user?.displayName ?? 'You')
+                                  : (uid.startsWith('offline_') ? 'Offline Friend' : 'Member')),
+                          username: cached?.username ?? '',
+                          email: uid == currentUserId ? (user?.email ?? '') : '',
+                          photoUrl: cached?.photoUrl ??
+                              (uid == currentUserId ? user?.photoUrl : null),
+                          role: tour.isAdmin(uid) ? 'admin' : 'member',
+                          status: 'active',
+                          joinedAt: tour.createdAt,
+                          balance: 0.0,
+                          isOffline: uid.startsWith('offline_'),
+                        );
+                      }).toList();
+                    }
+
+                    if (effectiveMembers.isEmpty && membersStream.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (effectiveMembers.isEmpty) {
                       return const Center(child: Text('No members yet'));
                     }
+
                     return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      itemCount: members.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      itemCount: effectiveMembers.length,
                       itemBuilder: (context, i) {
-                        final member = members[i];
+                        final member = effectiveMembers[i];
                         final isCreator = member.userId == tour.adminId;
                         final isMemberAdmin = tour.isAdmin(member.userId);
 
@@ -180,7 +264,7 @@ class MemberManagementScreen extends ConsumerWidget {
                           isCreator: isCreator,
                           isMemberAdmin: isMemberAdmin,
                           isAdmin: isAdmin,
-                          currentUserId: user.uid,
+                          currentUserId: currentUserId,
                           currencySymbol: tour.currencySymbol,
                           onToggleAdmin: isAdmin && !isCreator && !member.isOffline
                               ? () => _toggleAdminRole(
@@ -188,17 +272,23 @@ class MemberManagementScreen extends ConsumerWidget {
                               : null,
                           onReplaceWithOnline: isAdmin && member.isOffline
                               ? () => _showReplaceOfflineMemberDialog(
-                                  context, ref, tourId, member, members)
+                                  context, ref, effectiveTourId, member, effectiveMembers)
                               : null,
                           onRename: isAdmin && member.isOffline
                               ? () => _showRenameOfflineMemberDialog(
-                                  context, ref, tourId, member)
+                                  context, ref, effectiveTourId, member)
                               : null,
                           onRemove: isAdmin &&
                                   !isCreator &&
-                                  member.userId != user.uid
+                                  member.userId != currentUserId
                               ? () =>
-                                  _removeMember(context, ref, tourId, member)
+                                  _removeMember(context, ref, effectiveTourId, member)
+                              : null,
+                          onLeave: (currentUserId != tour.adminId &&
+                                  member.userId == currentUserId &&
+                                  !member.isLeft)
+                              ? () => _showLeaveTourDialog(
+                                  context, ref, tour.id, tour.name, currentUserId)
                               : null,
                         ).animate().fadeIn(
                             delay: Duration(milliseconds: i * 60),
@@ -210,10 +300,26 @@ class MemberManagementScreen extends ConsumerWidget {
               ),
             ],
           ),
+          bottomNavigationBar: TourBottomNavigationBar(
+            tour: tour,
+            isAdmin: isAdmin,
+            currentUser: user,
+            membersCount: membersStream.value?.length ?? tour.memberIds.length,
+            currentIndex: 2,
+            onToursTap: () => context.push('/tours'),
+            onDashboardTap: () {
+              ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
+              ActiveTourCacheService.setActiveTourId(tour.id);
+              context.go('/home');
+            },
+            onMembersTap: () {},
+            onSettingsTap: isAdmin
+                ? () => context.pushReplacement(
+                    '/tour/settings?tourId=${tour.id}')
+                : null,
+          ),
         ),
       );
-      },
-    );
   }
 
   void _toggleAdminRole(BuildContext context, WidgetRef ref, String tourId,
@@ -427,6 +533,87 @@ class MemberManagementScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _showLeaveTourDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String tourId,
+    String tourName,
+    String userId,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Leave Tour?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to leave "$tourName"?\n\n'
+          '• If you have 0 contribution and spending, you will be completely removed from everywhere in the tour.\n'
+          '• If you have recorded expenses or splits, your history will stay intact for tour math and you will be listed as a left member.\n\n'
+          'You can rejoin anytime using the tour invite code.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Leave Tour'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    try {
+      final preservedAsPast = await ref
+          .read(tourRepositoryProvider)
+          .leaveTourWithAudit(tourId, userId);
+
+      ref.invalidate(userToursStreamProvider(userId));
+      ref.invalidate(tourStreamProvider(tourId));
+      ref.invalidate(currentUserProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              preservedAsPast
+                  ? 'You left the tour. Financial records remain intact.'
+                  : 'You have been completely removed from the tour.',
+            ),
+            backgroundColor: AppColors.accent,
+          ),
+        );
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to leave tour: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _showReplaceOfflineMemberDialog(
     BuildContext context,
     WidgetRef ref,
@@ -495,14 +682,27 @@ class _PendingRequestsCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          ...requests.map((r) => Padding(
+          ...requests.map((r) {
+            final reqProfile = ref.watch(userProfileProvider(r.userId)).value;
+            final reqCached = ref.watch(userBoxProvider(r.userId));
+            final reqUsername = (reqProfile?.username.isNotEmpty == true)
+                ? reqProfile!.username
+                : (reqCached?.username.isNotEmpty == true
+                    ? reqCached!.username
+                    : '');
+            final reqHandle = reqUsername.isNotEmpty
+                ? '@$reqUsername'
+                : (r.email.contains('@')
+                    ? '@${r.email.split('@').first}'
+                    : (r.email.isNotEmpty ? '@${r.email}' : ''));
+            return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
                     MemberAvatar(
                       initials:
                           r.displayName.isNotEmpty ? r.displayName[0] : '?',
-                      photoUrl: r.photoUrl,
+                      photoUrl: reqProfile?.photoUrl ?? r.photoUrl,
                       userId: r.userId,
                       radius: 18,
                     ),
@@ -512,14 +712,14 @@ class _PendingRequestsCard extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            r.displayName,
+                            reqProfile?.displayName.isNotEmpty == true
+                                ? reqProfile!.displayName
+                                : r.displayName,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           Text(
-                            r.email.contains('@')
-                                ? '@${r.email.split('@').first}'
-                                : r.email,
+                            reqHandle,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -549,7 +749,8 @@ class _PendingRequestsCard extends ConsumerWidget {
                     ),
                   ],
                 ),
-              )),
+              );
+            }),
         ],
       ),
     );
@@ -643,7 +844,7 @@ class _InviteCodeBanner extends StatelessWidget {
   }
 }
 
-class _MemberCard extends StatelessWidget {
+class _MemberCard extends ConsumerWidget {
   final TourMemberModel member;
   final bool isCreator;
   final bool isMemberAdmin;
@@ -654,6 +855,7 @@ class _MemberCard extends StatelessWidget {
   final VoidCallback? onReplaceWithOnline;
   final VoidCallback? onRename;
   final VoidCallback? onRemove;
+  final VoidCallback? onLeave;
 
   const _MemberCard({
     required this.member,
@@ -666,13 +868,48 @@ class _MemberCard extends StatelessWidget {
     this.onReplaceWithOnline,
     this.onRename,
     this.onRemove,
+    this.onLeave,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isCurrentUser = member.userId == currentUserId;
+
+    // Resolve live profile info
+    final liveProfile = !member.isOffline
+        ? ref.watch(userProfileProvider(member.userId)).value
+        : null;
+    final cachedUser =
+        !member.isOffline ? ref.watch(userBoxProvider(member.userId)) : null;
+
+    final resolvedUsername = (liveProfile?.username.isNotEmpty == true)
+        ? liveProfile!.username
+        : (member.username.isNotEmpty
+            ? member.username
+            : (cachedUser?.username.isNotEmpty == true
+                ? cachedUser!.username
+                : ''));
+
+    final resolvedDisplayName = (liveProfile?.displayName.isNotEmpty == true)
+        ? liveProfile!.displayName
+        : (member.displayName.isNotEmpty
+            ? member.displayName
+            : (cachedUser?.displayName.isNotEmpty == true
+                ? cachedUser!.displayName
+                : 'Member'));
+
+    final resolvedPhotoUrl =
+        liveProfile?.photoUrl ?? member.photoUrl ?? cachedUser?.photoUrl;
+
+    final displayHandle = member.isOffline
+        ? 'Offline Friend · Visible to all members'
+        : (resolvedUsername.isNotEmpty
+            ? '@$resolvedUsername'
+            : (member.email.contains('@')
+                ? '@${member.email.split('@').first}'
+                : (member.email.isNotEmpty ? '@${member.email}' : '')));
 
     final isSettled = member.balance.abs() < 0.01;
     Color balanceColor = isSettled
@@ -691,10 +928,13 @@ class _MemberCard extends StatelessWidget {
           children: [
             MemberAvatar(
               initials: member.initials,
-              photoUrl: member.photoUrl,
+              photoUrl: resolvedPhotoUrl,
               radius: 22,
               userId: member.userId,
-              tourMember: member,
+              tourMember: member.copyWith(
+                displayName: resolvedDisplayName,
+                username: resolvedUsername,
+              ),
               backgroundColor: member.isOffline
                   ? Colors.blueGrey.withValues(alpha: 0.2)
                   : null,
@@ -703,59 +943,65 @@ class _MemberCard extends StatelessWidget {
             Expanded(
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (member.userId == currentUserId) {
-                    context.push('/profile');
-                  } else {
-                    context.push('/member/${member.userId}', extra: member);
-                  }
-                },
+                onTap: member.userId == currentUserId
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        context.push('/profile');
+                      }
+                    : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    // Name on its own line — prevents badge chips from squeezing
+                    // the Flexible Text to zero width.
+                    Text(
+                      resolvedDisplayName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 3),
+                    // Badges wrap to new lines if needed — never crowd the name.
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Flexible(
-                          child: Text(
-                            member.displayName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
+                        if (member.isOffline)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: Colors.blueGrey.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color:
+                                      Colors.blueGrey.withValues(alpha: 0.35)),
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      if (member.isOffline) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1.5),
-                          decoration: BoxDecoration(
-                            color: Colors.blueGrey.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                                color: Colors.blueGrey.withValues(alpha: 0.35)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.cloud_off_rounded,
-                                  size: 10, color: Colors.blueGrey),
-                              SizedBox(width: 3),
-                              Text(
-                                'Offline',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.blueGrey,
-                                  fontWeight: FontWeight.w700,
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.cloud_off_rounded,
+                                    size: 10, color: Colors.blueGrey),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Offline',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blueGrey,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        if (isAdmin && onReplaceWithOnline != null) ...[
-                          const SizedBox(width: 6),
+                        if (isAdmin &&
+                            onReplaceWithOnline != null &&
+                            member.isOffline)
                           InkWell(
                             onTap: onReplaceWithOnline,
                             borderRadius: BorderRadius.circular(6),
@@ -763,10 +1009,12 @@ class _MemberCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 1.5),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                                color: AppColors.primaryTeal
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                    color: AppColors.primaryTeal.withValues(alpha: 0.4)),
+                                    color: AppColors.primaryTeal
+                                        .withValues(alpha: 0.4)),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -786,93 +1034,80 @@ class _MemberCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                        ],
-                      ],
-                      if (isCurrentUser) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color:
-                                AppColors.primaryTeal.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'You',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.primaryTeal,
-                              fontWeight: FontWeight.w700,
+                        if (isCurrentUser)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color:
+                                  AppColors.primaryTeal.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'You',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.primaryTeal,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                      if (isCreator) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Creator',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.amber,
-                              fontWeight: FontWeight.w700,
+                        if (isCreator)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Creator',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.amber,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        else if (isMemberAdmin)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Admin',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.teal,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                      ] else if (isMemberAdmin) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.teal.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Admin',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.teal,
-                              fontWeight: FontWeight.w700,
+                        if (member.isLeft)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              member.status == 'removed' ? 'Removed' : 'Left',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
                       ],
-                      if (member.isLeft) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            member.status == 'removed' ? 'Removed' : 'Left',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.redAccent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
                   const SizedBox(height: 2),
                   Text(
-                    member.isOffline
-                        ? 'Offline Friend · Visible to all members'
-                        : (member.email.contains('@')
-                            ? '@${member.email.split('@').first}'
-                            : member.email),
+                    displayHandle,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isDark
                           ? AppColors.darkTextSecondary
@@ -916,6 +1151,13 @@ class _MemberCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (isCurrentUser && !isCreator && !member.isLeft && onLeave != null) ...[
+              IconButton(
+                icon: const Icon(Icons.logout_rounded, size: 20, color: AppColors.danger),
+                tooltip: 'Leave Tour',
+                onPressed: onLeave,
+              ),
+            ],
             if (isAdmin && !isCreator && !isCurrentUser) ...[
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded, size: 20),

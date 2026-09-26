@@ -11,6 +11,9 @@ import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/services/active_tour_cache_service.dart';
+import '../../data/services/offline_expense_queue_service.dart';
+import '../../data/services/user_cache_service.dart';
 
 class ExpenseDetailScreen extends ConsumerWidget {
   final String expenseId;
@@ -18,12 +21,14 @@ class ExpenseDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authUser = ref.watch(authStateProvider).value;
     final user = ref.watch(currentUserProvider).value;
-    if (user == null || user.activeTourId == null) {
+    final activeTourId = ref.watch(activeTourIdProvider);
+    final tourId = activeTourId ?? user?.activeTourId ?? ActiveTourCacheService.getActiveTourId();
+    final currentUid = user?.uid ?? authUser?.uid;
+    if (tourId == null || currentUid == null) {
       return const Scaffold(body: Center(child: Text('Not available')));
     }
-
-    final tourId = user.activeTourId!;
     final tourStream = ref.watch(tourStreamProvider(tourId));
     final membersStream = ref.watch(tourMembersStreamProvider(tourId));
     final expenseStream = ref.watch(
@@ -74,7 +79,7 @@ class ExpenseDetailScreen extends ConsumerWidget {
             error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
             data: (tour) {
               if (tour == null) return const Scaffold();
-              if (!tour.memberIds.contains(user.uid)) {
+              if (!tour.memberIds.contains(currentUid)) {
                 return Scaffold(
                   appBar: AppBar(
                     leading: IconButton(
@@ -88,10 +93,10 @@ class ExpenseDetailScreen extends ConsumerWidget {
                       child: Text('You are no longer a member of this tour.')),
                 );
               }
-            final isAdmin = tour.isAdmin(user.uid);
+            final isAdmin = tour.isAdmin(currentUid);
             final canEdit = isAdmin ||
-                expense.paidByUserId == user.uid ||
-                expense.addedByUserId == user.uid;
+                expense.paidByUserId == currentUid ||
+                expense.addedByUserId == currentUid;
 
             return membersStream.when(
               loading: () => const Scaffold(
@@ -194,9 +199,6 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           ),
                         ).animate().fadeIn().scale(),
                         const SizedBox(height: 24),
-                        if (expense.category.isNotEmpty &&
-                            expense.category != 'General')
-                          _InfoRow(label: 'Category', value: expense.category),
                         _InfoRow(
                             label: 'Date',
                             value: DateFormat('EEEE, MMM d, y')
@@ -206,21 +208,36 @@ class ExpenseDetailScreen extends ConsumerWidget {
                           value: expense.isMultiPayer
                               ? '${expense.paidByName} (${expense.payers!.length} people)'
                               : expense.paidByName,
-                          onTap: expense.isMultiPayer
-                              ? null
-                              : () {
+                          onTap: (!expense.isMultiPayer && expense.paidByUserId == currentUid)
+                              ? () {
                                   HapticFeedback.lightImpact();
-                                  if (expense.paidByUserId == user.uid) {
-                                    context.push('/profile');
-                                  } else {
-                                    final mem = members.firstWhereOrNull(
-                                        (m) => m.userId == expense.paidByUserId);
-                                    context.push(
-                                        '/member/${expense.paidByUserId}',
-                                        extra: mem);
-                                  }
-                                },
+                                  context.push('/profile');
+                                }
+                              : null,
                         ),
+                        Builder(builder: (context) {
+                          final addedMem = members.firstWhereOrNull((m) => m.userId == expense.addedByUserId);
+                          final rawAddedName = expense.resolveAddedByName(
+                              addedMem?.displayName ?? UserCacheService.getUser(expense.addedByUserId)?.displayName);
+                          final addedDisplayName = (expense.addedByUserId == currentUid)
+                              ? '$rawAddedName (You)'
+                              : rawAddedName;
+                          return _InfoRow(
+                            label: 'Added By',
+                            value: addedDisplayName,
+                            onTap: (expense.addedByUserId == currentUid)
+                                ? () {
+                                    HapticFeedback.lightImpact();
+                                    context.push('/profile');
+                                  }
+                                : (addedMem != null
+                                    ? () {
+                                        HapticFeedback.lightImpact();
+                                        context.push('/member/${expense.addedByUserId}', extra: addedMem);
+                                      }
+                                    : null),
+                          );
+                        }),
                         _InfoRow(
                             label: 'Split Type',
                             value: _splitLabel(expense.splitType)),
@@ -242,7 +259,7 @@ class ExpenseDetailScreen extends ConsumerWidget {
                               symbol: tour.currencySymbol,
                               onTap: () {
                                 HapticFeedback.lightImpact();
-                                if (entry.key == user.uid) {
+                                if (entry.key == currentUid) {
                                   context.push('/profile');
                                 } else {
                                   context.push('/member/${entry.key}',
@@ -269,7 +286,7 @@ class ExpenseDetailScreen extends ConsumerWidget {
                             symbol: tour.currencySymbol,
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              if (entry.key == user.uid) {
+                              if (entry.key == currentUid) {
                                 context.push('/profile');
                               } else {
                                 context.push('/member/${entry.key}',
@@ -393,6 +410,10 @@ class ExpenseDetailScreen extends ConsumerWidget {
       await ref
           .read(expenseRepositoryProvider)
           .deleteExpense(tourId, expense.id);
+      ref.invalidate(tourExpensesStreamProvider(tourId));
+      ref.invalidate(approvedExpensesStreamProvider(tourId));
+      ref.invalidate(singleExpenseStreamProvider((tourId: tourId, expenseId: expense.id)));
+      ref.read(localExpensesRefreshProvider.notifier).bump();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -411,6 +432,10 @@ class ExpenseDetailScreen extends ConsumerWidget {
     await ref
         .read(expenseRepositoryProvider)
         .updateExpenseStatus(tourId, expense.id, status);
+    ref.invalidate(tourExpensesStreamProvider(tourId));
+    ref.invalidate(approvedExpensesStreamProvider(tourId));
+    ref.invalidate(singleExpenseStreamProvider((tourId: tourId, expenseId: expense.id)));
+    ref.read(localExpensesRefreshProvider.notifier).bump();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

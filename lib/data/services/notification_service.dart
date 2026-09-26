@@ -19,7 +19,9 @@ class NotificationService {
     'tour_chat_messages_channel',
     'Tour Chat Messages',
     description: 'Notifications for tour messages and mesh chat updates',
-    importance: Importance.high,
+    importance: Importance.max,
+    enableVibration: true,
+    playSound: true,
   );
 
   static Future<void> initialize() async {
@@ -60,6 +62,7 @@ class NotificationService {
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.requestNotificationsPermission();
       await androidPlugin?.createNotificationChannel(_channel);
       await androidPlugin?.createNotificationChannel(_chatChannel);
 
@@ -96,12 +99,44 @@ class NotificationService {
         ),
       );
 
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(_channel);
+      await androidPlugin?.createNotificationChannel(_chatChannel);
+
+      // Prioritize chat messages so they always use _chatChannel with max priority and payload
+      if (message.data['type'] == 'chat') {
+        final tourId = message.data['tourId'] ?? '';
+        final tourName = message.data['tourName'] ?? 'Tour';
+        final senderName = message.data['senderName'] ?? 'Tour Member';
+        final content = message.data['content'] ??
+            message.data['text'] ??
+            message.notification?.body ??
+            'New message';
+        await showChatMessageNotification(
+          tourId: tourId,
+          tourName: tourName,
+          senderName: senderName,
+          messageText: content,
+          messageId: message.data['messageId'],
+        );
+        return;
+      }
+
+      if (message.data['type'] == 'app_update') {
+        final version = message.data['version'] ?? 'latest';
+        await showUpdateNotification(latestVersion: version);
+        return;
+      }
+
       final notif = message.notification;
       if (notif != null) {
         await _localNotifications.show(
           id: notif.hashCode,
           title: notif.title,
           body: notif.body,
+          payload: message.data['payload'] ?? message.data['click_action'],
           notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
               _channel.id,
@@ -114,24 +149,10 @@ class NotificationService {
             iOS: const DarwinNotificationDetails(),
           ),
         );
-      } else if (message.data['type'] == 'app_update') {
-        final version = message.data['version'] ?? 'latest';
-        await showUpdateNotification(latestVersion: version);
-      } else if (message.data['type'] == 'chat') {
-        final tourId = message.data['tourId'] ?? '';
-        final tourName = message.data['tourName'] ?? 'Tour';
-        final senderName = message.data['senderName'] ?? 'Tour Member';
-        final content = message.data['content'] ??
-            message.notification?.body ??
-            'New message';
-        await showChatMessageNotification(
-          tourId: tourId,
-          tourName: tourName,
-          senderName: senderName,
-          messageText: content,
-        );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[NOTIFICATION] Error handling background message: $e');
+    }
   }
 
   static Future<void> showChatMessageNotification({
@@ -142,10 +163,18 @@ class NotificationService {
     String? messageId,
   }) async {
     try {
-      final notifId = (messageId ?? '${tourId}_${DateTime.now().millisecondsSinceEpoch}').hashCode;
+      final notifId = (messageId ??
+              '${tourId}_${DateTime.now().millisecondsSinceEpoch}')
+          .hashCode;
+      final notifTitle = tourName.isNotEmpty
+          ? (tourName.toLowerCase().endsWith('chat')
+              ? '$senderName • $tourName'
+              : '$senderName • $tourName Chat')
+          : senderName;
+
       await _localNotifications.show(
         id: notifId,
-        title: tourName.isNotEmpty ? '$senderName • $tourName' : senderName,
+        title: notifTitle,
         body: messageText,
         payload: '/tour/chat/$tourId?name=${Uri.encodeComponent(tourName)}',
         notificationDetails: NotificationDetails(
@@ -153,10 +182,17 @@ class NotificationService {
             _chatChannel.id,
             _chatChannel.name,
             channelDescription: _chatChannel.description,
-            importance: Importance.high,
+            importance: Importance.max,
             priority: Priority.high,
+            category: AndroidNotificationCategory.message,
             icon: '@mipmap/ic_launcher',
             showWhen: true,
+            enableVibration: true,
+            playSound: true,
+            styleInformation: BigTextStyleInformation(
+              messageText,
+              contentTitle: notifTitle,
+            ),
           ),
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
@@ -171,6 +207,23 @@ class NotificationService {
   }
 
   static Future<void> _showLocalNotification(RemoteMessage message) async {
+    if (message.data['type'] == 'chat') {
+      final tourId = message.data['tourId'] ?? '';
+      final tourName = message.data['tourName'] ?? 'Tour';
+      final senderName = message.data['senderName'] ?? 'Tour Member';
+      final content = message.data['content'] ??
+          message.data['text'] ??
+          message.notification?.body ??
+          'New message';
+      await showChatMessageNotification(
+        tourId: tourId,
+        tourName: tourName,
+        senderName: senderName,
+        messageText: content,
+      );
+      return;
+    }
+
     final notification = message.notification;
     if (notification == null) return;
 

@@ -38,8 +38,30 @@ class SettlementModel {
 
   factory SettlementModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    return SettlementModel.fromMap(data, doc.id);
+  }
+
+  factory SettlementModel.fromMap(Map<String, dynamic> data, String id) {
+    DateTime reqDate = DateTime.now();
+    if (data['requestedAt'] is Timestamp) {
+      reqDate = (data['requestedAt'] as Timestamp).toDate();
+    } else if (data['requestedAt'] is int) {
+      reqDate = DateTime.fromMillisecondsSinceEpoch(data['requestedAt'] as int);
+    } else if (data['requestedAt'] is DateTime) {
+      reqDate = data['requestedAt'] as DateTime;
+    }
+
+    DateTime? resDate;
+    if (data['resolvedAt'] is Timestamp) {
+      resDate = (data['resolvedAt'] as Timestamp).toDate();
+    } else if (data['resolvedAt'] is int) {
+      resDate = DateTime.fromMillisecondsSinceEpoch(data['resolvedAt'] as int);
+    } else if (data['resolvedAt'] is DateTime) {
+      resDate = data['resolvedAt'] as DateTime;
+    }
+
     return SettlementModel(
-      id: doc.id,
+      id: id,
       tourId: data['tourId'] ?? '',
       fromUserId: data['fromUserId'] ?? '',
       fromUserName: data['fromUserName'] ?? '',
@@ -48,9 +70,8 @@ class SettlementModel {
       amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
       currency: data['currency'] ?? 'BDT',
       status: _parseStatus(data['status']),
-      requestedAt:
-          (data['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
+      requestedAt: reqDate,
+      resolvedAt: resDate,
       resolvedBy: data['resolvedBy'],
       note: data['note'],
     );
