@@ -77,6 +77,74 @@ class AppUpdateService {
   static const MethodChannel _installerChannel =
       MethodChannel('com.shoruv.toursplit/installer');
 
+  /// Known app store installer package identifiers (Samsung, Huawei, Amazon, Xiaomi, F-Droid, Google Play).
+  static const Set<String> _knownAppStorePackages = {
+    // Samsung Galaxy Store
+    'com.sec.android.app.samsungapps',
+    'com.samsung.android.app.samsungapps',
+    // Huawei AppGallery
+    'com.huawei.appmarket',
+    // Amazon Appstore
+    'com.amazon.venezia',
+    // Xiaomi GetApps
+    'com.xiaomi.mipicks',
+    'com.xiaomi.market',
+    // F-Droid & popular FOSS store clients
+    'org.fdroid.fdroid',
+    'org.fdroid.fdroid.privileged',
+    'com.looker.droidify',
+    'com.machiav3lli.fdroid',
+    // Google Play Store
+    'com.android.vending',
+    // Aurora Store
+    'com.aurora.store',
+  };
+
+  /// Returns true if [installer] points to a recognized app store.
+  static bool isAppStorePackage(String? installer) {
+    if (installer == null || installer.trim().isEmpty) return false;
+    final lower = installer.trim().toLowerCase();
+
+    // Standard Android package installers / sideloads are direct sources, not app stores
+    if (lower == 'com.google.android.packageinstaller' ||
+        lower == 'com.android.packageinstaller') {
+      return false;
+    }
+
+    if (_knownAppStorePackages.contains(lower)) return true;
+
+    // Substring fallback for OEM store package variations
+    return lower.contains('samsung') ||
+        lower.contains('huawei') ||
+        lower.contains('amazon') ||
+        lower.contains('xiaomi') ||
+        lower.contains('mipicks') ||
+        lower.contains('fdroid') ||
+        lower.contains('droidify') ||
+        lower.contains('vending');
+  }
+
+  /// Checks if the current app installation originated from an app store (Samsung, Huawei, Amazon, Xiaomi, F-Droid, etc.).
+  static Future<bool> isInstalledFromAppStore() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return isAppStorePackage(info.installerStore);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Checks if the installation is from a direct source (such as raw APK download
+  /// from GitHub or APKPure) rather than an app store.
+  static Future<bool> isDirectInstallationSource() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return !isAppStorePackage(info.installerStore);
+    } catch (_) {
+      return true;
+    }
+  }
+
   static bool isVersionNewer(String latest, String current) {
     try {
       final cleanLatest =
@@ -154,8 +222,12 @@ class AppUpdateService {
 
   static String? _lastPromptedDialogVersion;
 
-  static void promptUpdateIfNeeded(
-      BuildContext context, AppUpdateInfo info, String currentVersion) {
+  static Future<void> promptUpdateIfNeeded(
+      BuildContext context, AppUpdateInfo info, String currentVersion) async {
+    // If installed via an app store (Samsung, Huawei, Amazon, Xiaomi, F-Droid, etc.),
+    // completely disable the internal OTA update popup to comply with store policies.
+    if (await isInstalledFromAppStore()) return;
+
     if (isVersionNewer(info.latestVersion, currentVersion)) {
       notifyIfNewUpdate(info, currentVersion);
       if (_lastPromptedDialogVersion != info.latestVersion) {
@@ -287,6 +359,18 @@ class AppUpdateService {
     final packageInfo = await ref.read(currentAppVersionProvider.future);
     final currentVer = packageInfo.version;
 
+    if (isAppStorePackage(packageInfo.installerStore)) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Updates are managed automatically by your app store.'),
+          backgroundColor: AppColors.primaryTeal,
+        ),
+      );
+      return;
+    }
+
     final updateInfo = await ref.refresh(latestUpdateInfoProvider.future);
     if (!context.mounted) return;
 
@@ -356,11 +440,14 @@ class AppUpdateService {
 
   static bool isUpdateDialogShowing = false;
 
-  static void showUpdateDialog(
+  static Future<void> showUpdateDialog(
     BuildContext context, {
     required AppUpdateInfo info,
     required String currentVersion,
-  }) {
+  }) async {
+    // Completely disable update dialog for app store distributions
+    if (await isInstalledFromAppStore()) return;
+    if (!context.mounted) return;
     if (isUpdateDialogShowing) return;
     isUpdateDialogShowing = true;
     showDialog(
@@ -405,6 +492,10 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
   }
 
   Future<void> _initUpdateFlow() async {
+    // Only turn on the ota_update package flow if the app detects a direct installation source
+    final isDirect = await AppUpdateService.isDirectInstallationSource();
+    if (!isDirect) return;
+
     final downloaded =
         await AppUpdateService.isApkDownloaded(widget.info.latestVersion);
     if (!mounted) return;
@@ -443,6 +534,12 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
   }
 
   Future<void> _triggerInstall() async {
+    final isDirect = await AppUpdateService.isDirectInstallationSource();
+    if (!isDirect) {
+      AppUpdateService.launchDownload(widget.info.apkUrl);
+      return;
+    }
+
     setState(() {
       _step = _UpdateStep.installing;
       _progress = 100;
@@ -458,7 +555,14 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
     }
   }
 
-  void _startOtaUpdate() {
+  void _startOtaUpdate() async {
+    final isDirect = await AppUpdateService.isDirectInstallationSource();
+    if (!isDirect) {
+      // Store compliance: only direct installation sources can use ota_update
+      AppUpdateService.launchDownload(widget.info.apkUrl);
+      return;
+    }
+
     if (!Platform.isAndroid) {
       AppUpdateService.launchDownload(widget.info.apkUrl);
       return;

@@ -1,0 +1,28 @@
+TourSplit is a smart, real-time travel expense tracker, debt settlement, and hybrid collaboration application built for real trips with real people.
+
+Whether you are traveling with companions, sharing an apartment with roommates, or organizing group activities, TourSplit makes tracking shared spending effortless, transparent, and completely confusion-free.
+
+Key Features:
+
+• Real-Time & Offline Expense Tracking
+Record shared expenses as they happen. Offline storage powered by Hive ensures complete usability even without an active cellular or internet connection.
+
+• Greedy Debt Simplification
+Our two-pointer greedy debt reduction algorithm collapses multi-party liabilities into the absolute minimum number of settlement transfers.
+
+• Peer-to-Peer Offline Sync
+Collaborate off-grid using nearby Bluetooth mesh networking when traveling through remote areas with zero cellular reception.
+
+• In-Line Math Calculator
+Write math expressions directly into the expense amount field (e.g. 500 * 2 + 350) with instant glowing preview total calculation.
+
+• Offline Companions & Account Migration
+Add friends with just a name in seconds even if they haven't installed the app, and seamlessly link their profiles once they join.
+
+• Itemized PDF Reports & Export
+Generate clean, professional accounting summaries and debt settlement breakdowns ready to print or share with one tap.
+
+• Multi-Currency & Settlement Channels
+Track transactions across multiple currencies and record settlements through cash, bank transfer, and mobile payment channels.
+
+Split the costs, keep the memories!

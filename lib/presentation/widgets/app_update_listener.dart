@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/routing/app_router.dart';
 import '../../data/models/app_update_model.dart';
@@ -43,38 +44,54 @@ class _AppUpdateListenerState extends ConsumerState<AppUpdateListener>
     }
   }
 
-  void _checkAndPrompt() {
+  Future<void> _checkAndPrompt() async {
     if (!mounted) return;
-    final updateInfo = ref.read(effectiveUpdateInfoProvider);
-    final packageInfo = ref.read(currentAppVersionProvider).value;
 
-    if (updateInfo != null && packageInfo != null) {
+    // Check installation source via package_info_plus
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    if (AppUpdateService.isAppStorePackage(packageInfo.installerStore)) {
+      // If installer package points to an app store (Samsung, Huawei, Amazon, Xiaomi, or F-Droid),
+      // completely disable the internal OTA update popup to comply with store policies.
+      return;
+    }
+
+    final updateInfo = ref.read(effectiveUpdateInfoProvider);
+
+    if (updateInfo != null && mounted) {
       final targetContext = rootNavigatorKey.currentContext ?? context;
-      AppUpdateService.promptUpdateIfNeeded(
-        targetContext,
-        updateInfo,
-        packageInfo.version,
-      );
+      if (targetContext.mounted) {
+        AppUpdateService.promptUpdateIfNeeded(
+          targetContext,
+          updateInfo,
+          packageInfo.version,
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     // Reactively listen to live updates pushed via Firestore or GitHub
-    ref.listen<AppUpdateInfo?>(effectiveUpdateInfoProvider, (prev, next) {
+    ref.listen<AppUpdateInfo?>(effectiveUpdateInfoProvider, (prev, next) async {
       if (next != null) {
-        final packageInfo = ref.read(currentAppVersionProvider).value;
-        if (packageInfo != null) {
-          final targetContext = rootNavigatorKey.currentContext ?? context;
-          AppUpdateService.promptUpdateIfNeeded(
-            targetContext,
-            next,
-            packageInfo.version,
-          );
+        final packageInfo = await PackageInfo.fromPlatform();
+        if (!context.mounted) return;
+        if (AppUpdateService.isAppStorePackage(packageInfo.installerStore)) {
+          // Disable internal OTA popup for store installs
+          return;
         }
+
+        final targetContext = rootNavigatorKey.currentContext ?? context;
+        AppUpdateService.promptUpdateIfNeeded(
+          targetContext,
+          next,
+          packageInfo.version,
+        );
       }
     });
 
     return widget.child;
   }
 }
+
