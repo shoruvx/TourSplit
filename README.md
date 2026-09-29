@@ -174,6 +174,7 @@ TourSplit/
 │   │   └── widgets/          # Shared design components, badges, bottom navigation
 │   └── main.dart             # Application entry point, Hive & Firebase initialization
 ├── pubspec.yaml              # Package manifest and dependencies
+├── LICENSE                   # MIT License
 └── README.md                 # Project documentation
 ```
 
