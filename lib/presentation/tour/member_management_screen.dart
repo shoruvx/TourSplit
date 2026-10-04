@@ -12,7 +12,6 @@ import '../../data/repositories/tour_repository.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_tour_queue_service.dart';
-import '../home/home_screen.dart' show localMembersRefreshProvider;
 import '../widgets/member_avatar.dart';
 import 'widgets/tour_qr_dialog.dart';
 import 'widgets/replace_offline_member_dialog.dart';
@@ -170,9 +169,11 @@ class MemberManagementScreen extends ConsumerWidget {
                         foregroundColor: AppColors.primaryTeal,
                         side: BorderSide(
                             color:
-                                AppColors.primaryTeal.withValues(alpha: 0.45)),
+                                AppColors.primaryTeal.withValues(alpha: 0.45),
+                            width: 1.5),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
@@ -404,8 +405,9 @@ class MemberManagementScreen extends ConsumerWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(AppRadius.button)),
             ),
             onPressed: () async {
               if (formKey.currentState?.validate() == true) {

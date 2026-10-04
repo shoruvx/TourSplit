@@ -30,14 +30,14 @@ class HomeBottomNavigationBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                : AppColors.lightBorder,
-            width: 0.8,
-          ),
-        ),
+        border: isDark
+            ? null
+            : const Border(
+                top: BorderSide(
+                  color: AppColors.lightBorder,
+                  width: 0.8,
+                ),
+              ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
@@ -125,14 +125,14 @@ class TourBottomNavigationBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                : AppColors.lightBorder,
-            width: 0.8,
-          ),
-        ),
+        border: isDark
+            ? null
+            : const Border(
+                top: BorderSide(
+                  color: AppColors.lightBorder,
+                  width: 0.8,
+                ),
+              ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),

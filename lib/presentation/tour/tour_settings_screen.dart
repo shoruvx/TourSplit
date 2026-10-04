@@ -10,6 +10,7 @@ import '../../data/repositories/tour_repository.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/theme_switch_toggle.dart';
 import '../widgets/app_bottom_nav_bar.dart';
 
 class TourSettingsScreen extends ConsumerStatefulWidget {
@@ -398,6 +399,14 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                     color: AppColors.primaryTeal,
                   ),
                 ),
+                actions: [
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: 16),
+                      child: ThemeSwitchToggle(height: 36, width: 62),
+                    ),
+                  ),
+                ],
               ),
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
@@ -463,7 +472,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       label: const Text('Remove from My Tours',
                           style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.danger),
+                        side: const BorderSide(
+                            color: AppColors.danger, width: 1.5),
                       ),
                     ).animate().fadeIn(delay: 250.ms)
                   else if (!isAdmin) ...[
@@ -474,7 +484,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       label: const Text('Leave Tour',
                           style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.danger),
+                        side: const BorderSide(
+                            color: AppColors.danger, width: 1.5),
                       ),
                     ).animate().fadeIn(delay: 250.ms),
                     const SizedBox(height: 12),
@@ -486,7 +497,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       label: const Text('Remove from My Tours',
                           style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.danger),
+                        side: const BorderSide(
+                            color: AppColors.danger, width: 1.5),
                       ),
                     ).animate().fadeIn(delay: 300.ms),
                   ] else ...[
@@ -510,7 +522,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                         label: const Text('Reactivate Tour',
                             style: TextStyle(color: AppColors.accent)),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.accent),
+                          side: const BorderSide(
+                              color: AppColors.accent, width: 1.5),
                         ),
                       ).animate().fadeIn(delay: 250.ms)
                     else
@@ -521,7 +534,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                         label: const Text('End Tour',
                             style: TextStyle(color: AppColors.danger)),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.danger),
+                          side: const BorderSide(
+                              color: AppColors.danger, width: 1.5),
                         ),
                       ).animate().fadeIn(delay: 250.ms),
                     const SizedBox(height: 12),
@@ -532,7 +546,8 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
                       label: const Text('Delete Tour Permanently',
                           style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.danger),
+                        side: const BorderSide(
+                            color: AppColors.danger, width: 1.5),
                       ),
                     ).animate().fadeIn(delay: 300.ms),
                   ],

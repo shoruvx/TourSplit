@@ -49,6 +49,8 @@ class SettlementModel {
       reqDate = DateTime.fromMillisecondsSinceEpoch(data['requestedAt'] as int);
     } else if (data['requestedAt'] is DateTime) {
       reqDate = data['requestedAt'] as DateTime;
+    } else if (data['requestedAt'] is String) {
+      reqDate = DateTime.tryParse(data['requestedAt'] as String) ?? DateTime.now();
     }
 
     DateTime? resDate;
@@ -58,6 +60,8 @@ class SettlementModel {
       resDate = DateTime.fromMillisecondsSinceEpoch(data['resolvedAt'] as int);
     } else if (data['resolvedAt'] is DateTime) {
       resDate = data['resolvedAt'] as DateTime;
+    } else if (data['resolvedAt'] is String) {
+      resDate = DateTime.tryParse(data['resolvedAt'] as String);
     }
 
     return SettlementModel(
@@ -104,10 +108,27 @@ class SettlementModel {
         'note': note,
       };
 
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'tourId': tourId,
+        'fromUserId': fromUserId,
+        'fromUserName': fromUserName,
+        'toUserId': toUserId,
+        'toUserName': toUserName,
+        'amount': amount,
+        'currency': currency,
+        'status': status.name,
+        'requestedAt': requestedAt.millisecondsSinceEpoch,
+        'resolvedAt': resolvedAt?.millisecondsSinceEpoch,
+        'resolvedBy': resolvedBy,
+        'note': note,
+      };
+
   SettlementModel copyWith({
     SettlementStatus? status,
     DateTime? resolvedAt,
     String? resolvedBy,
+    String? note,
   }) {
     return SettlementModel(
       id: id,
@@ -122,7 +143,7 @@ class SettlementModel {
       requestedAt: requestedAt,
       resolvedAt: resolvedAt ?? this.resolvedAt,
       resolvedBy: resolvedBy ?? this.resolvedBy,
-      note: note,
+      note: note ?? this.note,
     );
   }
 }

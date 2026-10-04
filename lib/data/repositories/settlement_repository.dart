@@ -27,6 +27,37 @@ class SettlementRepository {
     bool autoApprove = false,
     String? resolvedByUserId,
   }) async {
+    // 1. Guard against duplicate pending requests between the same members
+    if (!autoApprove) {
+      final cached = ActiveTourCacheService.getCachedSettlements(tourId);
+      final existingPending = cached.firstWhereOrNull((s) =>
+          s.fromUserId == fromUserId &&
+          s.toUserId == toUserId &&
+          s.status == SettlementStatus.requested);
+      if (existingPending != null) {
+        debugPrint('[SETTLEMENT] Existing pending settlement found in cache: ${existingPending.id}');
+        return existingPending;
+      }
+
+      if (!tourId.startsWith('local_')) {
+        try {
+          final query = await _settlements(tourId)
+              .where('fromUserId', isEqualTo: fromUserId)
+              .where('toUserId', isEqualTo: toUserId)
+              .where('status', isEqualTo: 'requested')
+              .limit(1)
+              .get()
+              .timeout(const Duration(milliseconds: 1500));
+          if (query.docs.isNotEmpty) {
+            final existing = SettlementModel.fromFirestore(query.docs.first);
+            await ActiveTourCacheService.appendCachedSettlement(tourId, existing);
+            debugPrint('[SETTLEMENT] Existing pending settlement found in Firestore: ${existing.id}');
+            return existing;
+          }
+        } catch (_) {}
+      }
+    }
+
     final data = {
       'tourId': tourId,
       'fromUserId': fromUserId,
@@ -59,21 +90,37 @@ class SettlementRepository {
       note: note,
     );
 
-    if (localSettlement.isApproved) {
-      await ActiveTourCacheService.appendCachedSettlement(tourId, localSettlement);
-    }
+    // Save locally to cache immediately so UI reflects pending/approved state
+    await ActiveTourCacheService.appendCachedSettlement(tourId, localSettlement);
 
     if (tourId.startsWith('local_')) {
       return localSettlement;
     }
 
     try {
-      final ref = await _settlements(tourId).add(data).timeout(const Duration(milliseconds: 2000));
-      final doc = await ref.get();
-      return SettlementModel.fromFirestore(doc);
+      final docData = Map<String, dynamic>.from(data);
+      docData['id'] = localId;
+      await _settlements(tourId)
+          .doc(localId)
+          .set(docData, SetOptions(merge: true))
+          .timeout(const Duration(milliseconds: 2000));
+      return localSettlement;
     } catch (e) {
       debugPrint('[SETTLEMENT] Firestore requestSettlement offline/timeout: $e');
       return localSettlement;
+    }
+  }
+
+  Future<void> saveSettlement(SettlementModel settlement) async {
+    if (settlement.tourId.startsWith('local_')) return;
+    try {
+      final docRef = settlement.id.isNotEmpty
+          ? _settlements(settlement.tourId).doc(settlement.id)
+          : _settlements(settlement.tourId).doc();
+      await docRef.set(settlement.toFirestore(), SetOptions(merge: true));
+      await ActiveTourCacheService.appendCachedSettlement(settlement.tourId, settlement);
+    } catch (e) {
+      debugPrint('[SETTLEMENT] Firestore saveSettlement error: $e');
     }
   }
 
@@ -93,6 +140,36 @@ class SettlementRepository {
         resolvedBy: resolvedByUserId,
       );
       await ActiveTourCacheService.appendCachedSettlement(tourId, updated);
+
+      // If approved, automatically discard any OTHER pending settlement duplicates between this pair
+      if (status == SettlementStatus.approved) {
+        final duplicates = cached.where((s) =>
+            s.id != settlementId &&
+            s.fromUserId == target.fromUserId &&
+            s.toUserId == target.toUserId &&
+            s.status == SettlementStatus.requested).toList();
+
+        for (final dup in duplicates) {
+          final discarded = dup.copyWith(
+            status: SettlementStatus.rejected,
+            resolvedAt: DateTime.now(),
+            resolvedBy: resolvedByUserId,
+            note: 'Auto-discarded: duplicate settlement already resolved',
+          );
+          await ActiveTourCacheService.appendCachedSettlement(tourId, discarded);
+
+          if (!tourId.startsWith('local_')) {
+            try {
+              await _settlements(tourId).doc(dup.id).set({
+                'status': 'rejected',
+                'resolvedAt': FieldValue.serverTimestamp(),
+                'resolvedBy': resolvedByUserId,
+                'note': 'Auto-discarded: duplicate settlement already resolved',
+              }, SetOptions(merge: true)).timeout(const Duration(milliseconds: 1500));
+            } catch (_) {}
+          }
+        }
+      }
     }
 
     if (tourId.startsWith('local_')) {
@@ -101,11 +178,11 @@ class SettlementRepository {
 
     // 2. Update Firestore if online
     try {
-      await _settlements(tourId).doc(settlementId).update({
+      await _settlements(tourId).doc(settlementId).set({
         'status': status.name,
         'resolvedAt': FieldValue.serverTimestamp(),
         'resolvedBy': resolvedByUserId,
-      }).timeout(const Duration(milliseconds: 2000));
+      }, SetOptions(merge: true)).timeout(const Duration(milliseconds: 2000));
     } catch (e) {
       debugPrint('[SETTLEMENT] Firestore resolveSettlement offline/timeout: $e');
     }
@@ -127,11 +204,48 @@ class SettlementRepository {
           .orderBy('requestedAt', descending: true)
           .snapshots()
           .map((snap) {
-        final list =
+        final firestoreList =
             snap.docs.map((d) => SettlementModel.fromFirestore(d)).toList();
-        final approved = list.where((s) => s.isApproved).toList();
-        ActiveTourCacheService.cacheSettlements(tourId, approved);
-        return list;
+        final localCached = ActiveTourCacheService.getCachedSettlements(tourId);
+
+        final Map<String, SettlementModel> mergedMap = {};
+        for (final s in localCached) {
+          mergedMap[s.id] = s;
+        }
+        for (final s in firestoreList) {
+          mergedMap[s.id] = s;
+        }
+        final list = mergedMap.values.toList();
+
+        // Automatic deduplication: keep only earliest pending settlement per from/to pair
+        final seenPendingPairs = <String>{};
+        final deduplicated = <SettlementModel>[];
+        final duplicatesToDiscard = <SettlementModel>[];
+
+        for (final s in list) {
+          if (s.isPending) {
+            final pairKey = '${s.fromUserId}_${s.toUserId}';
+            if (seenPendingPairs.contains(pairKey)) {
+              duplicatesToDiscard.add(s);
+              continue;
+            }
+            seenPendingPairs.add(pairKey);
+          }
+          deduplicated.add(s);
+        }
+
+        // Silently discard duplicates in Firestore in the background
+        for (final dup in duplicatesToDiscard) {
+          _settlements(tourId).doc(dup.id).update({
+            'status': 'rejected',
+            'resolvedAt': FieldValue.serverTimestamp(),
+            'resolvedBy': 'system_deduplication',
+            'note': 'Auto-discarded: redundant duplicate pending request',
+          }).catchError((_) {});
+        }
+
+        ActiveTourCacheService.cacheSettlements(tourId, deduplicated);
+        return deduplicated;
       });
     } catch (e) {
       debugPrint('[SETTLEMENT] Firestore watchSettlements offline/error: $e');
@@ -139,15 +253,26 @@ class SettlementRepository {
     }
   }
 
-  Stream<List<SettlementModel>> watchPendingSettlements(String tourId) {
-    if (tourId.startsWith('local_')) {
-      return Stream.value(<SettlementModel>[]);
+  Stream<List<SettlementModel>> watchPendingSettlements(String tourId) async* {
+    final cached = ActiveTourCacheService.getCachedSettlements(tourId);
+    final cachedPending = cached.where((s) => s.isPending).toList();
+    if (cachedPending.isNotEmpty) {
+      yield cachedPending;
     }
-    return _settlements(tourId)
-        .where('status', isEqualTo: 'requested')
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => SettlementModel.fromFirestore(d)).toList());
+    if (tourId.startsWith('local_')) {
+      yield cachedPending;
+      return;
+    }
+    try {
+      yield* _settlements(tourId)
+          .where('status', isEqualTo: 'requested')
+          .snapshots()
+          .map((snap) =>
+              snap.docs.map((d) => SettlementModel.fromFirestore(d)).toList());
+    } catch (e) {
+      debugPrint('[SETTLEMENT] Firestore watchPendingSettlements offline/error: $e');
+      if (cachedPending.isNotEmpty) yield cachedPending;
+    }
   }
 }
 
@@ -156,11 +281,13 @@ final settlementRepositoryProvider =
 
 final tourSettlementsStreamProvider =
     StreamProvider.family<List<SettlementModel>, String>((ref, tourId) {
+  ref.watch(localSettlementsRefreshProvider);
   return ref.watch(settlementRepositoryProvider).watchSettlements(tourId);
 });
 
 final pendingSettlementsStreamProvider =
     StreamProvider.family<List<SettlementModel>, String>((ref, tourId) {
+  ref.watch(localSettlementsRefreshProvider);
   return ref
       .watch(settlementRepositoryProvider)
       .watchPendingSettlements(tourId);

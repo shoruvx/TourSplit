@@ -34,16 +34,8 @@ import '../settlement/widgets/receiver_payment_accounts_view.dart';
 import '../chat/widgets/messenger_chat_head.dart';
 import '../widgets/app_bottom_nav_bar.dart';
 
-/// Bump this to force _ActiveTourBody to re-read getCachedMembers() from Hive.
-/// Used after adding an offline member locally so the UI reflects the change immediately.
-class _LocalMembersRefreshNotifier extends Notifier<int> {
-  @override
-  int build() => 0;
-  void bump() => state++;
-}
-
-final localMembersRefreshProvider =
-    NotifierProvider<_LocalMembersRefreshNotifier, int>(_LocalMembersRefreshNotifier.new);
+export '../../data/services/active_tour_cache_service.dart'
+    show localMembersRefreshProvider, localSettlementsRefreshProvider;
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -349,16 +341,12 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryTeal,
                           foregroundColor: Colors.white,
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            width: 1.0,
-                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius:
                                 BorderRadius.circular(AppRadius.button),
                           ),
-                          elevation: 2,
+                          elevation: 0,
                         ),
                       ),
                     ).animate().fadeIn(delay: 250.ms),
@@ -413,8 +401,9 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                                 BorderRadius.circular(AppRadius.button),
                           ),
                           side: BorderSide(
-                            color:
-                                isDark ? AppColors.darkBorder : Colors.black,
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder,
                             width: 1.5,
                           ),
                         ),
@@ -475,9 +464,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         return Dialog(
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          backgroundColor: isDark ? const Color(0xFF131D2E) : Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          backgroundColor: isDark ? AppColors.darkBg : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: isDark
+                ? BorderSide(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 1.0,
+                  )
+                : BorderSide.none,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -526,12 +522,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF1E293B)
+                        ? AppColors.darkCard
                         : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isDark
-                          ? const Color(0xFF334155)
+                          ? Colors.white.withValues(alpha: 0.15)
                           : const Color(0xFFCBD5E1),
                     ),
                   ),
@@ -619,9 +615,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         },
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: AppColors.negative),
+                          side: const BorderSide(
+                              color: AppColors.negative, width: 1.5),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.button)),
                         ),
                         child: const Text(
                           'Decline',
@@ -671,8 +669,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           backgroundColor: AppColors.primaryTeal,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          elevation: 3,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.button)),
+                          elevation: 0,
                         ),
                       ),
                     ),
@@ -712,8 +711,31 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final currentUser = ref.watch(currentUserProvider).value;
     final syncService = ref.watch(chatSyncServiceProvider);
     final cachedTour = ActiveTourCacheService.getCachedActiveTour();
-    final effectiveTour = tourStream.value ??
-        (cachedTour?.id == widget.tourId ? cachedTour : null) ??
+    final isLocal = widget.tourId.startsWith('local_');
+    final streamTour = tourStream.value;
+    if (tourStream.hasValue &&
+        !isLocal &&
+        (streamTour == null ||
+            streamTour.isDeleted ||
+            streamTour.status == TourStatus.deleted)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ActiveTourCacheService.removeTourCache(widget.tourId);
+        ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
+        ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+      });
+      return _NoActiveTourScreen(
+        displayName:
+            ref.read(currentUserProvider).value?.firstName ?? 'User',
+        noticeMessage: 'This tour has been deleted by the creator.',
+      );
+    }
+
+    final effectiveTour = streamTour ??
+        (cachedTour?.id == widget.tourId &&
+                cachedTour?.isDeleted != true &&
+                cachedTour?.status != TourStatus.deleted
+            ? cachedTour
+            : null) ??
         ref.read(tourRepositoryProvider).getLocalTour(widget.tourId);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -755,14 +777,16 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     }
 
     final tour = effectiveTour;
-    if (tour.isDeleted) {
+    if (tour.isDeleted || tour.status == TourStatus.deleted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        ActiveTourCacheService.removeTourCache(widget.tourId);
         ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
+        ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
       });
       return _NoActiveTourScreen(
         displayName:
             ref.read(currentUserProvider).value?.firstName ?? 'User',
-        noticeMessage: 'The selected tour is no longer available.',
+        noticeMessage: 'This tour has been deleted by the creator.',
       );
     }
 
@@ -879,9 +903,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
 
     ref.watch(localExpensesRefreshProvider);
 
-    final streamExpenses = expensesStream.value ?? ActiveTourCacheService.getCachedExpenses(widget.tourId);
+    final cachedExpenses = ActiveTourCacheService.getCachedExpenses(widget.tourId);
     final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: widget.tourId);
     final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: widget.tourId);
+    final streamExpenses = expensesStream.value ?? [];
 
     final Map<String, ExpenseModel> allExpensesMap = {};
     for (final e in queuedExpenses) {
@@ -889,9 +914,14 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         allExpensesMap[e.id] = e;
       }
     }
-    for (final e in streamExpenses) {
+    for (final e in cachedExpenses) {
       if (!deletedIds.contains(e.id)) {
         allExpensesMap.putIfAbsent(e.id, () => e);
+      }
+    }
+    for (final e in streamExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap[e.id] = e;
       }
     }
     final allExpenses = allExpensesMap.values.toList()
@@ -907,11 +937,18 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       );
     });
 
-    final approvedSettlements = settlementsStream.maybeWhen(
-      data: (settlements) =>
-          settlements.where((s) => s.isApproved).toList(),
-      orElse: () => ActiveTourCacheService.getCachedSettlements(widget.tourId),
-    );
+    ref.watch(localSettlementsRefreshProvider);
+
+    final cachedSettlements = ActiveTourCacheService.getCachedSettlements(widget.tourId);
+    final streamSettlements = settlementsStream.value ?? cachedSettlements;
+    final Map<String, SettlementModel> settlementsMap = {};
+    for (final s in cachedSettlements) {
+      settlementsMap[s.id] = s;
+    }
+    for (final s in streamSettlements) {
+      settlementsMap[s.id] = s;
+    }
+    final approvedSettlements = settlementsMap.values.where((s) => s.isApproved).toList();
 
         var computedBalances =
             BalanceService.calculateBalances(membersList, approvedExpenses);
@@ -1140,12 +1177,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
                                 color: isDark
-                                    ? const Color(0xFF1E293B)
+                                    ? AppColors.darkCard
                                     : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: isDark
-                                      ? const Color(0xFF334155)
+                                      ? Colors.white.withValues(alpha: 0.15)
                                       : const Color(0xFFE2E8F0),
                                 ),
                               ),
@@ -1189,9 +1226,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.button),
                                 ),
-                                elevation: 2,
+                                elevation: 0,
                               ),
                             ),
                           ),
@@ -1321,7 +1359,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               ),
             ),
             if (_showSpreadsheetView) ...[
-              ..._groupExpensesByDay(list, tourStartDate).map((group) {
+              ..._groupExpensesByDay(list.where((e) => e.isApproved).toList(), tourStartDate).map((group) {
                 return DaySummaryTable(
                   dayNumber: group.dayNumber,
                   date: group.date,
@@ -1391,7 +1429,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.lightBorder,
         ),
       ),
       child: Column(
@@ -1461,11 +1501,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color:
-                    isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                    isDark ? AppColors.darkCard : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color:
-                      isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : const Color(0xFFE2E8F0),
                 ),
               ),
               child: Row(
@@ -1583,7 +1624,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.lightBorder,
         ),
       ),
       child: Column(
@@ -1764,12 +1807,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF1E293B)
+                      ? AppColors.darkCard
                       : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isDark
-                        ? const Color(0xFF334155)
+                        ? Colors.white.withValues(alpha: 0.12)
                         : const Color(0xFFE2E8F0),
                   ),
                 ),
@@ -1837,7 +1880,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                               horizontal: 14, vertical: 8),
                           minimumSize: const Size(68, 34),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.button)),
                           elevation: 0,
                         ),
                         child: const Text(
@@ -1866,7 +1910,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.button)),
+                  elevation: 0,
                 ),
               ),
             ),
@@ -1983,6 +2029,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         autoApprove: shouldAutoApprove,
         resolvedByUserId: currentUid ?? widget.userId,
       );
+      ref.read(localSettlementsRefreshProvider.notifier).bump();
 
       if (mounted) {
         final message = isOfflineReceiver
@@ -2035,11 +2082,13 @@ class _MyBalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131D2E) : Colors.white,
+        color: isDark ? AppColors.darkBg : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: color.withValues(alpha: isDark ? 0.4 : 0.25),
-          width: 1.5,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : color.withValues(alpha: 0.25),
+          width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
@@ -2144,8 +2193,10 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.40 : 0.28),
-          width: 1.1,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.primaryTeal.withValues(alpha: 0.28),
+          width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
@@ -2385,13 +2436,13 @@ class _SquareActionButton extends StatelessWidget {
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.button),
         child: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
             color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppRadius.button),
             border: Border.all(
               color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             ),
@@ -2616,7 +2667,9 @@ class _EmptyExpensesCard extends StatelessWidget {
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.lightBorder,
         ),
       ),
       child: Column(
@@ -2625,7 +2678,9 @@ class _EmptyExpensesCard extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFF1F5F9),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -2655,8 +2710,9 @@ class _EmptyExpensesCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(AppRadius.button)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              elevation: 0,
             ),
           ),
         ],
@@ -2848,7 +2904,9 @@ class _PendingJoinRequestsDashboardCard extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 8),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button)),
+                        elevation: 0,
                       ),
                     ),
                   ],

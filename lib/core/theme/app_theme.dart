@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primaryBlue = Color(0xFF3B82F6);
-  static const Color primaryDark = Color(0xFF1D4ED8);
+  static const Color primaryBlue = Color(0xFF00897B); // Unified with Teal theme
+  static const Color primaryDark = Color(0xFF00695C);
   static const Color primaryTeal = Color(0xFF00897B);
   static const Color primaryTealDark = Color(0xFF00695C);
   static const Color accent = Color(0xFF00897B);
@@ -18,12 +18,13 @@ class AppColors {
   static const Color lightText = Color(0xFF1E293B);
   static const Color lightTextSecondary = Color(0xFF64748B);
 
-  static const Color darkBg = Color(0xFF0F172A);
-  static const Color darkSurface = Color(0xFF1E293B);
-  static const Color darkCard = Color(0xFF1E293B);
-  static const Color darkBorder = Color(0xFF334155);
-  static const Color darkText = Color(0xFFF1F5F9);
-  static const Color darkTextSecondary = Color(0xFF94A3B8);
+  // Pure OLED Pitch Black & Neutral Dark Palette (Zero Blue Tint)
+  static const Color darkBg = Color(0xFF000000);
+  static const Color darkSurface = Color(0xFF000000);
+  static const Color darkCard = Color(0xFF000000);
+  static const Color darkBorder = Color(0x2EFFFFFF); // Crisp thin white contrast border (18% white)
+  static const Color darkText = Color(0xFFF4F4F5);
+  static const Color darkTextSecondary = Color(0xFFA1A1AA);
 
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [Color(0xFF00897B), Color(0xFF0D9488)],
@@ -38,7 +39,7 @@ class AppColors {
   );
 
   static const LinearGradient blueGradient = LinearGradient(
-    colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
+    colors: [Color(0xFF00897B), Color(0xFF14B8A6)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -53,7 +54,7 @@ class AppColors {
 class AppRadius {
   static const double card = 12.0;
   static const double container = 12.0;
-  static const double button = 10.0;
+  static const double button = 12.0;
   static const double dialog = 14.0;
   static const double input = 10.0;
   static const double chip = 8.0;
@@ -196,21 +197,43 @@ class AppTheme {
       textTheme: textTheme,
       scaffoldBackgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       dialogTheme: DialogThemeData(
+        backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.dialog),
+          side: isDark
+              ? BorderSide(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1.0,
+                )
+              : BorderSide.none,
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          side: isDark
+              ? BorderSide(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1.0,
+                )
+              : BorderSide.none,
         ),
       ),
       cardTheme: CardThemeData(
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
-        elevation: isDark ? 2.5 : 1.5,
+        elevation: isDark ? 0 : 1.5,
         shadowColor:
-            AppColors.primaryTeal.withValues(alpha: isDark ? 0.35 : 0.15),
+            AppColors.primaryTeal.withValues(alpha: isDark ? 0.20 : 0.15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.card),
           side: BorderSide(
-            color:
-                AppColors.primaryTeal.withValues(alpha: isDark ? 0.40 : 0.28),
-            width: 1.1,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.15)
+                : AppColors.primaryTeal.withValues(alpha: 0.28),
+            width: 1.0,
           ),
         ),
       ),
@@ -231,12 +254,9 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryTeal,
           foregroundColor: Colors.white,
-          elevation: 1,
-          side: BorderSide(
-            color: Colors.white.withValues(alpha: 0.85),
-            width: 1.0,
-          ),
-          minimumSize: const Size(double.infinity, 50),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.button),
           ),
@@ -251,13 +271,28 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primaryTeal,
           side: const BorderSide(color: AppColors.primaryTeal, width: 1.5),
-          minimumSize: const Size(double.infinity, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.button),
           ),
           textStyle: const TextStyle(
             fontFamily: 'Outfit',
             fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryTeal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.button),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
         ),

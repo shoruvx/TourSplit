@@ -11,11 +11,13 @@ import '../../data/services/auth_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/settlement_repository.dart';
+import '../../data/models/expense_model.dart';
 import '../../data/models/settlement_model.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_expense_queue_service.dart';
+import '../../data/services/user_cache_service.dart';
 import 'widgets/manual_settlement_dialog.dart';
 import 'widgets/receiver_payment_accounts_view.dart';
 import '../widgets/app_bottom_nav_bar.dart';
@@ -75,6 +77,36 @@ class SettlementScreen extends ConsumerWidget {
     final isAdmin = tour.isAdmin(currentUserId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final cachedMembers = ActiveTourCacheService.getCachedMembers(effectiveTourId);
+    final rawMembers = membersStream.maybeWhen(
+      data: (list) => list.isNotEmpty ? list : cachedMembers,
+      orElse: () => cachedMembers,
+    );
+    final Map<String, TourMemberModel> membersMap = {};
+    for (final m in rawMembers) {
+      membersMap[m.userId] = m;
+    }
+    for (final uid in tour.memberIds) {
+      if (!membersMap.containsKey(uid)) {
+        final cached = UserCacheService.getUser(uid);
+        membersMap[uid] = TourMemberModel(
+          userId: uid,
+          displayName: cached?.displayName ??
+              (uid == currentUserId ? (user?.displayName ?? 'You') : 'Member'),
+          username: cached?.username ?? '',
+          email: uid == currentUserId ? (user?.email ?? '') : '',
+          photoUrl: cached?.photoUrl ??
+              (uid == currentUserId ? user?.photoUrl : null),
+          role: tour.isAdmin(uid) ? 'admin' : 'member',
+          status: 'active',
+          joinedAt: tour.createdAt,
+          balance: 0.0,
+          isOffline: uid.startsWith('offline_'),
+        );
+      }
+    }
+    final effectiveMembers = membersMap.values.toList();
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -104,20 +136,41 @@ class SettlementScreen extends ConsumerWidget {
                   onPressed: () {
                     final cachedExp = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
                     final queuedExp = ref.read(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
+                    final deletedIds = ref.read(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: effectiveTourId);
                     final streamExp = expensesStream.maybeWhen(
-                      data: (list) => list.where((e) => e.isApproved).toList(),
-                      orElse: () => cachedExp,
+                      data: (list) => list,
+                      orElse: () => <ExpenseModel>[],
                     );
-                    final approvedExp = [
-                      ...queuedExp,
-                      ...streamExp.where((e) => !queuedExp.any((q) => q.id == e.id)),
-                    ];
-                    final cachedMems = ActiveTourCacheService.getCachedMembers(effectiveTourId);
-                    final mems = membersStream.value ?? (cachedMems.isNotEmpty ? cachedMems : <TourMemberModel>[]);
+                    final Map<String, ExpenseModel> allExpMap = {};
+                    for (final e in queuedExp) {
+                      if (!deletedIds.contains(e.id)) {
+                        allExpMap[e.id] = e;
+                      }
+                    }
+                    for (final e in cachedExp) {
+                      if (!deletedIds.contains(e.id)) {
+                        allExpMap.putIfAbsent(e.id, () => e);
+                      }
+                    }
+                    for (final e in streamExp) {
+                      if (!deletedIds.contains(e.id)) {
+                        allExpMap[e.id] = e;
+                      }
+                    }
+                    final approvedExp = allExpMap.values.where((e) => e.isApproved).toList();
+                    final mems = effectiveMembers;
                     var bals = BalanceService.calculateBalances(mems, approvedExp);
-                    final approvedSets = (settlementsStream.value ?? [])
-                        .where((s) => s.isApproved)
-                        .toList();
+
+                    final cachedSets = ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+                    final streamSets = settlementsStream.value ?? [];
+                    final Map<String, SettlementModel> setsMap = {};
+                    for (final s in cachedSets) {
+                      setsMap[s.id] = s;
+                    }
+                    for (final s in streamSets) {
+                      setsMap[s.id] = s;
+                    }
+                    final approvedSets = setsMap.values.where((s) => s.isApproved).toList();
                     bals = BalanceService.applySettlements(bals, approvedSets);
 
                     ManualSettlementDialog.show(
@@ -134,22 +187,44 @@ class SettlementScreen extends ConsumerWidget {
             ),
             body: Builder(
               builder: (context) {
-                final settlements = settlementsStream.value ?? <SettlementModel>[];
+                ref.watch(localSettlementsRefreshProvider);
+                final cachedSettlements = ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+                final streamSettlements = settlementsStream.value ?? <SettlementModel>[];
+                final Map<String, SettlementModel> settlementsMap = {};
+                for (final s in cachedSettlements) {
+                  settlementsMap[s.id] = s;
+                }
+                for (final s in streamSettlements) {
+                  settlementsMap[s.id] = s;
+                }
+                final settlements = settlementsMap.values.toList();
+
+                ref.watch(localExpensesRefreshProvider);
                 final cachedExpenses = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
                 final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
+                final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: effectiveTourId);
                 final streamExpenses = expensesStream.maybeWhen(
-                  data: (list) => list.where((e) => e.isApproved).toList(),
-                  orElse: () => cachedExpenses,
-                );
-                final approvedExpenses = [
-                  ...queuedExpenses,
-                  ...streamExpenses.where((e) => !queuedExpenses.any((q) => q.id == e.id)),
-                ];
-                final cachedMembers = ActiveTourCacheService.getCachedMembers(effectiveTourId);
-                final members = membersStream.maybeWhen(
                   data: (list) => list,
-                  orElse: () => cachedMembers,
+                  orElse: () => <ExpenseModel>[],
                 );
+                final Map<String, ExpenseModel> allExpensesMap = {};
+                for (final e in queuedExpenses) {
+                  if (!deletedIds.contains(e.id)) {
+                    allExpensesMap[e.id] = e;
+                  }
+                }
+                for (final e in cachedExpenses) {
+                  if (!deletedIds.contains(e.id)) {
+                    allExpensesMap.putIfAbsent(e.id, () => e);
+                  }
+                }
+                for (final e in streamExpenses) {
+                  if (!deletedIds.contains(e.id)) {
+                    allExpensesMap[e.id] = e;
+                  }
+                }
+                final approvedExpenses = allExpensesMap.values.where((e) => e.isApproved).toList();
+                final members = effectiveMembers;
                 final approvedSettlements =
                     settlements.where((s) => s.isApproved).toList();
 
@@ -247,7 +322,8 @@ class SettlementScreen extends ConsumerWidget {
                                       horizontal: 14, vertical: 8),
                                   minimumSize: const Size(0, 34),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.button),
                                   ),
                                   elevation: 0,
                                 ),
@@ -290,18 +366,24 @@ class SettlementScreen extends ConsumerWidget {
                         count: suggestedDebts.length,
                       ),
                       const SizedBox(height: 8),
-                      ...suggestedDebts.map((d) => _SuggestedDebtCard(
-                            debt: d,
-                            currency: tour.currencySymbol,
-                            currentUserId: currentUserId,
-                            onSettle: () => _showSettleConfirmationDialog(
-                              context,
-                              ref,
-                              tour,
-                              d,
-                              isAdmin,
-                            ),
-                          ).animate().fadeIn()),
+                      ...suggestedDebts.map((d) {
+                            final hasPending = pending.any((s) =>
+                                s.fromUserId == d.fromUserId &&
+                                s.toUserId == d.toUserId);
+                            return _SuggestedDebtCard(
+                              debt: d,
+                              currency: tour.currencySymbol,
+                              currentUserId: currentUserId,
+                              isPending: hasPending,
+                              onSettle: () => _showSettleConfirmationDialog(
+                                context,
+                                ref,
+                                tour,
+                                d,
+                                isAdmin,
+                              ),
+                            ).animate().fadeIn();
+                          }),
                       const SizedBox(height: 20),
                     ],
                     if (pending.isNotEmpty) ...[
@@ -370,6 +452,22 @@ class SettlementScreen extends ConsumerWidget {
     DebtTransaction debt,
     bool isAdmin,
   ) async {
+    final cached = ActiveTourCacheService.getCachedSettlements(tour.id);
+    final isAlreadyPending = cached.any((s) =>
+        s.fromUserId == debt.fromUserId &&
+        s.toUserId == debt.toUserId &&
+        s.status == SettlementStatus.requested);
+    if (isAlreadyPending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'A settlement between ${debt.fromUserName} and ${debt.toUserName} is already in processing.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     final noteCtrl = TextEditingController(text: 'Cash / Mobile Payment');
 
     final confirmed = await showDialog<bool>(
@@ -448,6 +546,7 @@ class SettlementScreen extends ConsumerWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.button),
               ),
@@ -460,39 +559,53 @@ class SettlementScreen extends ConsumerWidget {
     );
 
     if (confirmed == true) {
-      final members = ref.read(tourMembersStreamProvider(tour.id)).value ?? [];
-      final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
-      final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
-      final currentUid = ref.read(currentUserProvider).value?.uid;
-      final isReceiver = currentUid == debt.toUserId;
-      final shouldAutoApprove = isReceiver || isOfflineReceiver;
+      try {
+        final members = ref.read(tourMembersStreamProvider(tour.id)).value ?? [];
+        final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+        final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
+        final currentUid = ref.read(currentUserProvider).value?.uid;
+        final isReceiver = currentUid == debt.toUserId;
+        final isAdmin = tour.isAdmin(currentUid ?? '');
+        final shouldAutoApprove = isReceiver || isOfflineReceiver || isAdmin;
 
-      final repo = ref.read(settlementRepositoryProvider);
-      await repo.requestSettlement(
-        tourId: tour.id,
-        fromUserId: debt.fromUserId,
-        fromUserName: debt.fromUserName,
-        toUserId: debt.toUserId,
-        toUserName: debt.toUserName,
-        amount: debt.amount,
-        currency: tour.currency,
-        note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
-        autoApprove: shouldAutoApprove,
-        resolvedByUserId: currentUid ?? tour.adminId,
-      );
-
-      if (context.mounted) {
-        final message = isOfflineReceiver
-            ? 'Settlement recorded and auto-approved for offline member.'
-            : (isReceiver
-                ? 'Settlement recorded and approved!'
-                : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.positive,
-          ),
+        final repo = ref.read(settlementRepositoryProvider);
+        await repo.requestSettlement(
+          tourId: tour.id,
+          fromUserId: debt.fromUserId,
+          fromUserName: debt.fromUserName,
+          toUserId: debt.toUserId,
+          toUserName: debt.toUserName,
+          amount: debt.amount,
+          currency: tour.currency,
+          note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+          autoApprove: shouldAutoApprove,
+          resolvedByUserId: currentUid ?? tour.adminId,
         );
+        ref.read(localSettlementsRefreshProvider.notifier).bump();
+
+        if (context.mounted) {
+          final message = isOfflineReceiver
+              ? 'Settlement recorded and auto-approved for offline member.'
+              : (isReceiver || isAdmin
+                  ? 'Settlement recorded and approved!'
+                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: AppColors.positive,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('[SETTLEMENT] Error recording payment: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to record settlement: $e'),
+              backgroundColor: AppColors.negative,
+            ),
+          );
+        }
       }
     }
   }
@@ -502,26 +615,39 @@ class SettlementScreen extends ConsumerWidget {
     final user = ref.read(currentUserProvider).value;
     if (user == null) return;
 
-    await ref.read(settlementRepositoryProvider).resolveSettlement(
-          tourId: tourId,
-          settlementId: s.id,
-          status: status,
-          resolvedByUserId: user.uid,
-        );
+    try {
+      await ref.read(settlementRepositoryProvider).resolveSettlement(
+            tourId: tourId,
+            settlementId: s.id,
+            status: status,
+            resolvedByUserId: user.uid,
+          );
+      ref.read(localSettlementsRefreshProvider.notifier).bump();
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            status == SettlementStatus.approved
-                ? 'Settlement approved!'
-                : 'Settlement rejected.',
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              status == SettlementStatus.approved
+                  ? 'Settlement approved!'
+                  : 'Settlement rejected.',
+            ),
+            backgroundColor: status == SettlementStatus.approved
+                ? AppColors.positive
+                : AppColors.negative,
           ),
-          backgroundColor: status == SettlementStatus.approved
-              ? AppColors.positive
-              : AppColors.negative,
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      debugPrint('[SETTLEMENT] Error resolving settlement: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update settlement: $e'),
+            backgroundColor: AppColors.negative,
+          ),
+        );
+      }
     }
   }
 }
@@ -563,12 +689,14 @@ class _SuggestedDebtCard extends StatelessWidget {
   final DebtTransaction debt;
   final String currency;
   final String currentUserId;
+  final bool isPending;
   final VoidCallback onSettle;
 
   const _SuggestedDebtCard({
     required this.debt,
     required this.currency,
     required this.currentUserId,
+    this.isPending = false,
     required this.onSettle,
   });
 
@@ -580,10 +708,10 @@ class _SuggestedDebtCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        color: isDark ? AppColors.darkCard : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
         ),
       ),
       child: Row(
@@ -662,24 +790,69 @@ class _SuggestedDebtCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: onSettle,
-            icon: const Icon(Icons.check_rounded, size: 16),
-            label: const Text('Settle',
-                style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryTeal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              minimumSize: const Size(80, 36),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
+          if (isPending)
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Settlement between ${debt.fromUserName} and ${debt.toUserName} ($currency${debt.amount}) is already in processing. Waiting for confirmation.',
+                    ),
+                    backgroundColor: AppColors.warning,
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.hourglass_top_rounded,
+                        size: 14, color: AppColors.warning),
+                    SizedBox(width: 4),
+                    Text(
+                      'Processing',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: onSettle,
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Settle',
+                  style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryTeal,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(80, 36),
+                shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.button)),
+                elevation: 0,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -847,7 +1020,7 @@ class _SettlementCard extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
             if (settlement.isPending) ...[
-              if (settlement.toUserId == currentUserId) ...[
+              if (settlement.toUserId == currentUserId || isAdmin) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -855,10 +1028,12 @@ class _SettlementCard extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: onReject,
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.negative),
+                          side: const BorderSide(
+                              color: AppColors.negative, width: 1.5),
                           minimumSize: const Size(0, 36),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.button)),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.button)),
                         ),
                         child: const Text('Reject',
                             style: TextStyle(
@@ -872,9 +1047,11 @@ class _SettlementCard extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.positive,
                           foregroundColor: Colors.white,
+                          elevation: 0,
                           minimumSize: const Size(0, 36),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.button)),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.button)),
                         ),
                         child: const Text('Approve',
                             style: TextStyle(fontFamily: 'Outfit')),

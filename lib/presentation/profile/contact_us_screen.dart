@@ -260,7 +260,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                         color: isSelected
                             ? AppColors.primaryTeal
                             : (isDark
-                                ? const Color(0xFF1E293B)
+                                ? AppColors.darkCard
                                 : const Color(0xFFF1F5F9)),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
@@ -319,7 +319,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                   ),
                   filled: true,
                   fillColor: isDark
-                      ? const Color(0xFF1E293B)
+                      ? AppColors.darkCard
                       : const Color(0xFFFAFAFA),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -374,6 +374,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryTeal,
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.button),
@@ -392,7 +393,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF0F172A)
+                          ? AppColors.darkCard
                           : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(

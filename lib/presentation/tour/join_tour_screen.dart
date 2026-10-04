@@ -102,10 +102,15 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         return;
       }
 
-      await tourRepo.joinTour(
-        tourId: tour.id,
-        user: user,
-      );
+      try {
+        await tourRepo.joinTour(
+          tourId: tour.id,
+          user: user,
+        );
+      } catch (e) {
+        debugPrint('[JOIN] Offline join without cloud write: $e');
+      }
+
       ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
       await tourRepo.switchActiveTour(user.uid, tour.id);
 
@@ -374,14 +379,16 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   side: BorderSide(
                     color: isDark
                         ? AppColors.darkBorder
                         : AppColors.primaryTeal.withValues(alpha: 0.5),
+                    width: 1.5,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.button),
                   ),
                   foregroundColor:
                       isDark ? AppColors.darkText : AppColors.primaryTeal,

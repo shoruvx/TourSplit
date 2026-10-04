@@ -125,8 +125,14 @@ class _ImageCropDialogState extends State<ImageCropDialog> {
     final cropSize = maxByWidth < maxByHeight ? maxByWidth : maxByHeight;
 
     return Dialog(
-      backgroundColor: const Color(0xFF0F172A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      backgroundColor: AppColors.darkBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(
+          color: Colors.white.withValues(alpha: 0.15),
+          width: 1.0,
+        ),
+      ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -301,10 +307,12 @@ class _ImageCropDialogState extends State<ImageCropDialog> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(null),
                       style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 50),
                         padding: const EdgeInsets.symmetric(vertical: 13),
-                        side: const BorderSide(color: Colors.white24),
+                        side: const BorderSide(color: Colors.white24, width: 1.5),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
                         ),
                         foregroundColor: Colors.white70,
                       ),

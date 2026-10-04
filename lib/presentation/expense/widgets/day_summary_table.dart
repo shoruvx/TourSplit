@@ -152,7 +152,7 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF1E293B)
+                        ? AppColors.darkCard
                         : const Color(0xFFF1F5F9),
                     border: Border(
                       bottom: BorderSide(

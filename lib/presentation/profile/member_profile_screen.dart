@@ -130,9 +130,9 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Colors.white, width: 1.0),
+                borderRadius: BorderRadius.circular(AppRadius.button),
               ),
             ),
             onPressed: () async {
@@ -591,8 +591,8 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: const BorderSide(color: Colors.white, width: 1.0),
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
                         ),
                         elevation: 0,
                       ),
@@ -616,12 +616,13 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : Colors.white,
+                  color: isDark ? AppColors.darkCard : Colors.white,
                   borderRadius: BorderRadius.circular(AppRadius.card),
                   border: Border.all(
-                    color: AppColors.primaryTeal
-                        .withValues(alpha: isDark ? 0.40 : 0.28),
-                    width: 1.1,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : AppColors.primaryTeal.withValues(alpha: 0.28),
+                    width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -714,12 +715,13 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : Colors.white,
+                color: isDark ? AppColors.darkCard : Colors.white,
                 borderRadius: BorderRadius.circular(AppRadius.card),
                 border: Border.all(
-                  color: AppColors.primaryTeal
-                      .withValues(alpha: isDark ? 0.40 : 0.28),
-                  width: 1.1,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : AppColors.primaryTeal.withValues(alpha: 0.28),
+                  width: 1.0,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -809,12 +811,12 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? const Color(0xFF1E293B)
+                            ? AppColors.darkBg
                             : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isDark
-                              ? AppColors.darkBorder
+                              ? Colors.white.withValues(alpha: 0.15)
                               : AppColors.lightBorder,
                         ),
                       ),
@@ -1011,10 +1013,10 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryTeal,
                       foregroundColor: Colors.white,
+                      elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadius.button),
-                        side: const BorderSide(color: Colors.white, width: 1.0),
                       ),
                     ),
                     onPressed: () {
@@ -1061,9 +1063,11 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                           foregroundColor: AppColors.primaryTeal,
                           side: BorderSide(
                             color: AppColors.primaryTeal.withValues(alpha: 0.5),
+                            width: 1.5,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                         ),
@@ -1086,9 +1090,10 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryTeal,
                           foregroundColor: Colors.white,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: const BorderSide(color: Colors.white, width: 1.0),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                         ),
@@ -1162,10 +1167,10 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        color: isDark ? AppColors.darkBg : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFFE2E8F0),
         ),
       ),
       child: Column(

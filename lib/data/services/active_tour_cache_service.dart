@@ -1,9 +1,30 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/tour_model.dart';
 import '../models/expense_model.dart';
 import '../models/settlement_model.dart';
+
+class LocalSettlementsRefreshNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void bump() => state++;
+}
+
+final localSettlementsRefreshProvider =
+    NotifierProvider<LocalSettlementsRefreshNotifier, int>(
+        LocalSettlementsRefreshNotifier.new);
+
+class LocalMembersRefreshNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void bump() => state++;
+}
+
+final localMembersRefreshProvider =
+    NotifierProvider<LocalMembersRefreshNotifier, int>(
+        LocalMembersRefreshNotifier.new);
 
 class ActiveTourCacheService {
   static const String boxName = 'active_tour_cache';
@@ -288,6 +309,24 @@ class ActiveTourCacheService {
       await pruneStaleToursCache(null);
     } catch (e) {
       debugPrint('[CACHE] Error clearing cached active tour: $e');
+    }
+  }
+
+  /// Completely removes all cached data for a specific tour
+  static Future<void> removeTourCache(String tourId) async {
+    try {
+      await init();
+      final activeId = _box.get('active_tour_id') as String?;
+      if (activeId == tourId) {
+        await _box.delete('active_tour_id');
+        await _box.delete('active_tour_data');
+      }
+      await _box.delete('active_tour_members_$tourId');
+      await _box.delete('active_tour_expenses_$tourId');
+      await _box.delete('active_tour_settlements_$tourId');
+      debugPrint('[CACHE] Completely removed tour cache ($tourId)');
+    } catch (e) {
+      debugPrint('[CACHE] Error removing tour cache ($tourId): $e');
     }
   }
 

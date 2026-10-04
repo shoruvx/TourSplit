@@ -191,6 +191,21 @@ class TourRepository {
     await batch.commit();
   }
 
+  /// Save or update a member in the tour (e.g. bridged from offline mesh)
+  Future<void> saveMember(String tourId, TourMemberModel member) async {
+    final batch = _db.batch();
+    batch.update(_tours.doc(tourId), {
+      'members': FieldValue.arrayUnion([member.userId]),
+      'pastMembers': FieldValue.arrayRemove([member.userId]),
+    });
+    final memberRef = _tours
+        .doc(tourId)
+        .collection(AppConstants.membersSubcollection)
+        .doc(member.userId);
+    batch.set(memberRef, member.toFirestore(), SetOptions(merge: true));
+    await batch.commit();
+  }
+
   Future<void> addAdminAsMember({
     required String tourId,
     required UserModel admin,
@@ -274,16 +289,37 @@ class TourRepository {
       return;
     }
     final cached = ActiveTourCacheService.getCachedActiveTour();
-    if (cached != null && cached.id == tourId) {
+    if (cached != null &&
+        cached.id == tourId &&
+        !cached.isDeleted &&
+        cached.status != TourStatus.deleted) {
       yield cached;
     }
     try {
-      yield* _tours.doc(tourId).snapshots().map(
-            (doc) => doc.exists ? TourModel.fromFirestore(doc) : null,
-          );
+      yield* _tours.doc(tourId).snapshots().map((doc) {
+        if (!doc.exists) {
+          if (ActiveTourCacheService.getActiveTourId() == tourId) {
+            unawaited(ActiveTourCacheService.removeTourCache(tourId));
+          }
+          return null;
+        }
+        final tour = TourModel.fromFirestore(doc);
+        if (tour.isDeleted || tour.status == TourStatus.deleted) {
+          if (ActiveTourCacheService.getActiveTourId() == tourId) {
+            unawaited(ActiveTourCacheService.removeTourCache(tourId));
+          }
+          return null;
+        }
+        return tour;
+      });
     } catch (e) {
       debugPrint('[TOUR_REPO] watchTour error: $e');
-      if (cached != null && cached.id == tourId) yield cached;
+      if (cached != null &&
+          cached.id == tourId &&
+          !cached.isDeleted &&
+          cached.status != TourStatus.deleted) {
+        yield cached;
+      }
     }
   }
 
@@ -442,36 +478,32 @@ class TourRepository {
         return;
       }
 
-      // 1. Remove current user from members array and clear activeTourId immediately
-      if (currentUserId != null && currentUserId.isNotEmpty) {
-        try {
-          await _tours.doc(tourId).update({
-            'members': FieldValue.arrayRemove([currentUserId]),
-          }).timeout(const Duration(seconds: 4));
-        } catch (_) {}
-        try {
-          await _users.doc(currentUserId).update({'activeTourId': null}).timeout(const Duration(seconds: 4));
-        } catch (_) {}
-      }
-
-      // 2. Soft-mark as deleted and clear remaining members list so all listeners drop it instantly
+      // 1. Soft-mark as deleted and clear members list so all listeners drop it instantly
       try {
         await _tours.doc(tourId).update({
           'isDeleted': true,
           'status': 'deleted',
+          'deletedAt': FieldValue.serverTimestamp(),
           'members': [],
+          'pastMembers': [],
         }).timeout(const Duration(seconds: 4));
       } catch (_) {}
 
-      // 3. Collect member IDs from subcollection to clear their activeTourId
-      final membersSnap = await _tours
-          .doc(tourId)
-          .collection(AppConstants.membersSubcollection)
-          .get()
-          .timeout(const Duration(seconds: 4));
-      final memberIds = membersSnap.docs.map((d) => d.id).toSet();
-      if (currentUserId != null) memberIds.add(currentUserId);
+      // 2. Clear creator's and all members' activeTourId immediately so no one stays stranded
+      try {
+        final allMembers = <String>{
+          if (currentUserId != null && currentUserId.isNotEmpty) currentUserId,
+          if (tour != null) ...tour.memberIds,
+          if (tour != null) ...tour.pastMemberIds,
+        };
+        for (final mId in allMembers) {
+          try {
+            await _users.doc(mId).update({'activeTourId': null}).timeout(const Duration(seconds: 2));
+          } catch (_) {}
+        }
+      } catch (_) {}
 
+      // 3. Delete all subcollections
       final subcollections = [
         AppConstants.membersSubcollection,
         AppConstants.expensesSubcollection,
@@ -496,22 +528,13 @@ class TourRepository {
         } catch (_) {}
       }
 
+      // 4. Delete the tour document completely
       try {
         await _tours.doc(tourId).delete().timeout(const Duration(seconds: 4));
       } catch (_) {}
 
-      for (final uid in memberIds) {
-        try {
-          await _db
-              .collection(AppConstants.usersCollection)
-              .doc(uid)
-              .update({'activeTourId': null}).timeout(const Duration(seconds: 4));
-        } catch (_) {}
-      }
-
-      if (ActiveTourCacheService.getActiveTourId() == tourId) {
-        await ActiveTourCacheService.clearCachedActiveTour();
-      }
+      // 5. Completely wipe local cache for this tour
+      await ActiveTourCacheService.removeTourCache(tourId);
     } catch (e) {
       // Offline fallback: queue deletion for sync and clear locally
       await _queueTourDeletionInternal(tourId, currentUserId);
@@ -1306,6 +1329,7 @@ class TourRepository {
     StreamSubscription? subLocal;
     List<TourModel> activeList = [];
     List<TourModel> pastList = [];
+    bool hasReceivedServerSnapshot = false;
 
     void emitCombined() {
       if (controller.isClosed) return;
@@ -1368,19 +1392,33 @@ class TourRepository {
         }
       } catch (_) {}
 
-      // Include cached active tour if it belongs to this user
+      // 2. Include cached active tour if it belongs to this user
       final cachedActive = ActiveTourCacheService.getCachedActiveTour();
       if (cachedActive != null &&
+          !cachedActive.isDeleted &&
+          cachedActive.status != TourStatus.deleted &&
           (cachedActive.memberIds.contains(userId) ||
               cachedActive.adminId == userId)) {
-        map.putIfAbsent(cachedActive.id, () => cachedActive);
+        if (!hasReceivedServerSnapshot ||
+            cachedActive.id.startsWith('local_') ||
+            activeList.any((t) => t.id == cachedActive.id)) {
+          map.putIfAbsent(cachedActive.id, () => cachedActive);
+        } else {
+          if (ActiveTourCacheService.getActiveTourId() == cachedActive.id) {
+            unawaited(ActiveTourCacheService.removeTourCache(cachedActive.id));
+          }
+        }
       }
 
       for (final t in activeList) {
-        map[t.id] = t;
+        if (!t.isDeleted && t.status != TourStatus.deleted) {
+          map[t.id] = t;
+        }
       }
       for (final t in pastList) {
-        map.putIfAbsent(t.id, () => t);
+        if (!t.isDeleted && t.status != TourStatus.deleted) {
+          map.putIfAbsent(t.id, () => t);
+        }
       }
       final list = map.values
           .where((t) =>
@@ -1408,6 +1446,7 @@ class TourRepository {
             .where('members', arrayContains: userId)
             .snapshots()
             .listen((snap) {
+          hasReceivedServerSnapshot = true;
           activeList = snap.docs
               .where((d) => d.exists)
               .map((d) => TourModel.fromFirestore(d))
@@ -1423,6 +1462,7 @@ class TourRepository {
             .where('pastMembers', arrayContains: userId)
             .snapshots()
             .listen((snap) {
+          hasReceivedServerSnapshot = true;
           pastList = snap.docs
               .where((d) => d.exists)
               .map((d) => TourModel.fromFirestore(d))
@@ -1536,6 +1576,7 @@ final tourStreamProvider =
 
 final tourMembersStreamProvider =
     StreamProvider.family<List<TourMemberModel>, String>((ref, tourId) {
+  ref.watch(localMembersRefreshProvider);
   return ref.watch(tourRepositoryProvider).watchMembers(tourId);
 });
 

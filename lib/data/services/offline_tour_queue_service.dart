@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -466,13 +467,11 @@ class OfflineTourQueueService {
 
   String _generateInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    var seed = DateTime.now().millisecondsSinceEpoch;
-    final buf = StringBuffer();
-    for (int i = 0; i < 8; i++) {
-      seed = (seed * 1664525 + 1013904223) & 0xFFFFFFFF;
-      buf.write(chars[seed % chars.length]);
-    }
-    return buf.toString();
+    final rand = Random.secure();
+    return List.generate(
+      AppConstants.inviteCodeLength,
+      (_) => chars[rand.nextInt(chars.length)],
+    ).join();
   }
 
   /// Prunes any orphaned member entries from local_tours box where the parent tour no longer exists

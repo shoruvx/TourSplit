@@ -310,7 +310,7 @@ class ExpenseDetailScreen extends ConsumerWidget {
                                           TextStyle(color: AppColors.negative)),
                                   style: OutlinedButton.styleFrom(
                                     side: const BorderSide(
-                                        color: AppColors.negative),
+                                        color: AppColors.negative, width: 1.5),
                                   ),
                                 ),
                               ),
@@ -323,6 +323,7 @@ class ExpenseDetailScreen extends ConsumerWidget {
                                   label: const Text('Approve'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.positive,
+                                    elevation: 0,
                                   ),
                                 ),
                               ),
@@ -352,10 +353,11 @@ class ExpenseDetailScreen extends ConsumerWidget {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryTeal,
                                 padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16)),
-                                elevation: 2,
+                                    borderRadius: BorderRadius.circular(
+                                        AppRadius.button)),
+                                elevation: 0,
                               ),
                             ),
                           ),

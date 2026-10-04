@@ -670,8 +670,16 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
     return PopScope(
       canPop: !widget.info.forceUpdate && _step != _UpdateStep.downloading,
       child: Dialog(
-        backgroundColor: isDark ? const Color(0xFF131D2E) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: isDark ? AppColors.darkBg : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: isDark
+              ? BorderSide(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1.0,
+                )
+              : BorderSide.none,
+        ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
         child: SingleChildScrollView(
           child: Padding(
@@ -783,12 +791,12 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                         horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF1E293B)
+                          ? AppColors.darkBg
                           : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isDark
-                            ? const Color(0xFF334155)
+                            ? Colors.white.withValues(alpha: 0.15)
                             : const Color(0xFFCBD5E1),
                       ),
                     ),
@@ -858,8 +866,9 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                             padding:
                                 const EdgeInsets.symmetric(vertical: 11),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            elevation: 1,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.button)),
+                            elevation: 0,
                           ),
                         ),
                       ),
@@ -891,9 +900,14 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                         horizontal: 14, vertical: 14),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF1E293B)
+                          ? AppColors.darkBg
                           : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.15)
+                            : const Color(0xFFCBD5E1),
+                      ),
                     ),
                     child: Column(
                       children: [
@@ -951,11 +965,13 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF1E293B)
+                          ? AppColors.darkBg
                           : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.15)
+                            : AppColors.primaryTeal.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Column(
@@ -1006,8 +1022,9 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                               padding:
                                   const EdgeInsets.symmetric(vertical: 11),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              elevation: 1,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.button)),
+                              elevation: 0,
                             ),
                           ),
                         ),
@@ -1105,10 +1122,12 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryTeal,
+                              elevation: 0,
                               padding:
                                   const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.button)),
                             ),
                           ),
                         ),
@@ -1119,8 +1138,11 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                           onPressed: _startOtaUpdate,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 10),
+                            side: const BorderSide(
+                                color: AppColors.primaryTeal, width: 1.5),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.button)),
                           ),
                           child: const Text('Try Again',
                               style: TextStyle(fontSize: 12)),
@@ -1144,9 +1166,11 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primaryTeal,
+                            elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.button)),
                           ),
                         ),
                       ),

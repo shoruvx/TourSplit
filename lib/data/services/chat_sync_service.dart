@@ -91,14 +91,13 @@ class ChatSyncService {
 
     if (_liveTourSubs.containsKey(tourId)) return;
 
-    final lastTimestamp = _chatRepo.getLastTimestamp(tourId);
     try {
       _liveTourSubs[tourId] = _firestore
           .collection('tours')
           .doc(tourId)
           .collection('chats')
-          .where('c', isGreaterThan: lastTimestamp)
-          .orderBy('c')
+          .orderBy('c', descending: true)
+          .limit(100)
           .snapshots()
           .listen((snapshot) {
         final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -220,8 +219,7 @@ class ChatSyncService {
           .collection('tours')
           .doc(tourId)
           .collection('chats')
-          .where('c', isGreaterThan: lastLocalTimestamp)
-          .orderBy('c')
+          .orderBy('c', descending: true)
           .limit(100)
           .get();
 

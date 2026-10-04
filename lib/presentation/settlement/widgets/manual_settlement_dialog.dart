@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/tour_model.dart';
 import '../../../data/repositories/settlement_repository.dart';
+import '../../../data/services/active_tour_cache_service.dart';
 
 class ManualSettlementDialog {
   static Future<void> show(
@@ -17,7 +18,14 @@ class ManualSettlementDialog {
     String? initialRecipientId,
     double? initialAmount,
   }) async {
-    if (members.length < 2) {
+    // 1. Deduplicate members by userId
+    final uniqueMembersMap = <String, TourMemberModel>{};
+    for (final m in members) {
+      uniqueMembersMap[m.userId] = m;
+    }
+    final uniqueMembers = uniqueMembersMap.values.toList();
+
+    if (uniqueMembers.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('At least 2 tour members required for settlement')),
       );
@@ -26,15 +34,24 @@ class ManualSettlementDialog {
 
     // Default payer: pre-selected initialPayerId, or current user if in members, or first member
     String fromUid = initialPayerId ??
-        (members.any((m) => m.userId == currentUserId)
+        (uniqueMembers.any((m) => m.userId == currentUserId)
             ? currentUserId
-            : members.first.userId);
+            : uniqueMembers.first.userId);
+    if (!uniqueMembers.any((m) => m.userId == fromUid)) {
+      fromUid = uniqueMembers.first.userId;
+    }
 
     // Default recipient: pre-selected or first member different from fromUid
     String toUid = initialRecipientId ??
-        members
-            .firstWhere((m) => m.userId != fromUid, orElse: () => members.last)
+        uniqueMembers
+            .firstWhere((m) => m.userId != fromUid, orElse: () => uniqueMembers.last)
             .userId;
+    if (toUid == fromUid || !uniqueMembers.any((m) => m.userId == toUid)) {
+      final other = uniqueMembers.where((m) => m.userId != fromUid).firstOrNull;
+      if (other != null) {
+        toUid = other.userId;
+      }
+    }
 
     final amountCtrl = TextEditingController(
       text: initialAmount != null && initialAmount > 0
@@ -49,19 +66,39 @@ class ManualSettlementDialog {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
+          if (!uniqueMembers.any((m) => m.userId == fromUid)) {
+            fromUid = uniqueMembers.first.userId;
+          }
+          final availableRecipients =
+              uniqueMembers.where((m) => m.userId != fromUid).toList();
+          if (!availableRecipients.any((m) => m.userId == toUid)) {
+            toUid = availableRecipients.isNotEmpty
+                ? availableRecipients.first.userId
+                : '';
+          }
+
           final payerBalance = computedBalances[fromUid] ?? 0.0;
           final payerOwes = payerBalance < -0.01 ? -payerBalance : 0.0;
 
-          final fromMember = members.firstWhere((m) => m.userId == fromUid,
-              orElse: () => members.first);
-          final toMember = members.firstWhere((m) => m.userId == toUid,
-              orElse: () => members.last);
+          final fromMember = uniqueMembers.firstWhere((m) => m.userId == fromUid,
+              orElse: () => uniqueMembers.first);
+          final toMember = uniqueMembers.firstWhere((m) => m.userId == toUid,
+              orElse: () => availableRecipients.isNotEmpty
+                  ? availableRecipients.first
+                  : uniqueMembers.last);
 
           return AlertDialog(
-            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            backgroundColor: isDark ? AppColors.darkBg : Colors.white,
             insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: isDark
+                  ? BorderSide(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      width: 1.0,
+                    )
+                  : BorderSide.none,
+            ),
             title: Row(
               children: [
                 Container(
@@ -103,6 +140,7 @@ class ManualSettlementDialog {
                   ),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
+                    key: ValueKey('payer_$fromUid'),
                     initialValue: fromUid,
                     isExpanded: true,
                     decoration: InputDecoration(
@@ -111,7 +149,7 @@ class ManualSettlementDialog {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                     ),
-                    items: members.map((m) {
+                    items: uniqueMembers.map((m) {
                       final bal = computedBalances[m.userId] ?? 0.0;
                       final balText = bal < -0.01
                           ? ' (Owes ${tour.currencySymbol}${(-bal) % 1 == 0 ? (-bal).toStringAsFixed(0) : (-bal).toStringAsFixed(2)})'
@@ -130,11 +168,13 @@ class ManualSettlementDialog {
                       if (val != null) {
                         setS(() {
                           fromUid = val;
-                          if (toUid == fromUid) {
-                            toUid = members
-                                .firstWhere((m) => m.userId != fromUid,
-                                    orElse: () => members.last)
-                                .userId;
+                          final validRecipients = uniqueMembers
+                              .where((m) => m.userId != fromUid)
+                              .toList();
+                          if (!validRecipients.any((m) => m.userId == toUid)) {
+                            toUid = validRecipients.isNotEmpty
+                                ? validRecipients.first.userId
+                                : '';
                           }
                         });
                       }
@@ -152,7 +192,8 @@ class ManualSettlementDialog {
                   ),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
-                    initialValue: toUid,
+                    key: ValueKey('recipient_${fromUid}_$toUid'),
+                    initialValue: toUid.isNotEmpty ? toUid : null,
                     isExpanded: true,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
@@ -160,7 +201,7 @@ class ManualSettlementDialog {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                     ),
-                    items: members.where((m) => m.userId != fromUid).map((m) {
+                    items: availableRecipients.map((m) {
                       final bal = computedBalances[m.userId] ?? 0.0;
                       final balText = bal > 0.01
                           ? ' (Gets back ${tour.currencySymbol}${bal % 1 == 0 ? bal.toStringAsFixed(0) : bal.toStringAsFixed(2)})'
@@ -322,8 +363,9 @@ class ManualSettlementDialog {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(AppRadius.button)),
                 ),
                 onPressed: () {
                   final amt = double.tryParse(amountCtrl.text.trim());
@@ -350,40 +392,79 @@ class ManualSettlementDialog {
     );
 
     if (confirmed == true) {
-      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
-      final fromMember = members.firstWhere((m) => m.userId == fromUid);
-      final toMember = members.firstWhere((m) => m.userId == toUid);
-
-      final isReceiver = currentUserId == toUid;
-      final isOfflineReceiver = toMember.isOffline || toUid.startsWith('offline_');
-      final shouldAutoApprove = isReceiver || isOfflineReceiver;
-
-      final repo = ref.read(settlementRepositoryProvider);
-      await repo.requestSettlement(
-        tourId: tour.id,
-        fromUserId: fromUid,
-        fromUserName: fromMember.displayName,
-        toUserId: toUid,
-        toUserName: toMember.displayName,
-        amount: amt,
-        currency: tour.currency,
-        note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
-        autoApprove: shouldAutoApprove,
-        resolvedByUserId: currentUserId,
-      );
-
-      if (context.mounted) {
-        final message = isOfflineReceiver
-            ? 'Settlement recorded and auto-approved for offline member.'
-            : (isReceiver
-                ? 'Settlement recorded and approved! Balances adjusted.'
-                : 'Settlement recorded. Waiting for ${toMember.displayName} to approve.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.positive,
+      try {
+        final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+        final fromMember = uniqueMembers.firstWhere(
+          (m) => m.userId == fromUid,
+          orElse: () => TourMemberModel(
+            userId: fromUid,
+            displayName: 'Payer',
+            username: '',
+            email: '',
+            role: 'member',
+            status: 'active',
+            joinedAt: DateTime.now(),
           ),
         );
+        final toMember = uniqueMembers.firstWhere(
+          (m) => m.userId == toUid,
+          orElse: () => TourMemberModel(
+            userId: toUid,
+            displayName: 'Recipient',
+            username: '',
+            email: '',
+            role: 'member',
+            status: 'active',
+            joinedAt: DateTime.now(),
+          ),
+        );
+
+        final isAdmin = tour.isAdmin(currentUserId);
+        final isReceiver = currentUserId == toUid;
+        final isOfflineReceiver = toMember.isOffline || toUid.startsWith('offline_');
+        final shouldAutoApprove = isReceiver || isOfflineReceiver || isAdmin;
+
+        final repo = ref.read(settlementRepositoryProvider);
+        await repo.requestSettlement(
+          tourId: tour.id,
+          fromUserId: fromUid,
+          fromUserName: fromMember.displayName,
+          toUserId: toUid,
+          toUserName: toMember.displayName,
+          amount: amt,
+          currency: tour.currency,
+          note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+          autoApprove: shouldAutoApprove,
+          resolvedByUserId: currentUserId,
+        );
+        ref.read(localSettlementsRefreshProvider.notifier).bump();
+
+        if (context.mounted) {
+          final String message;
+          if (isOfflineReceiver) {
+            message = 'Settlement recorded and auto-approved for offline member.';
+          } else if (isReceiver || isAdmin) {
+            message = 'Settlement recorded and approved! Balances adjusted.';
+          } else {
+            message = 'Settlement recorded. Waiting for ${toMember.displayName} to approve.';
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: shouldAutoApprove ? AppColors.positive : AppColors.warning,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('[MANUAL_SETTLEMENT] Error saving settlement: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to record settlement: $e'),
+              backgroundColor: AppColors.negative,
+            ),
+          );
+        }
       }
     }
   }

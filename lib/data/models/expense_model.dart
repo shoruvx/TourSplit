@@ -118,12 +118,13 @@ class ExpenseModel {
 
   static ExpenseStatus _parseStatus(String? s) {
     switch (s) {
-      case 'approved':
-        return ExpenseStatus.approved;
       case 'rejected':
         return ExpenseStatus.rejected;
-      default:
+      case 'pending_approval':
+      case 'pendingApproval':
         return ExpenseStatus.pendingApproval;
+      default:
+        return ExpenseStatus.approved;
     }
   }
 
@@ -157,6 +158,28 @@ class ExpenseModel {
         'addedBy': addedByUserId,
         'addedByName': addedByName,
         'createdAt': Timestamp.fromDate(createdAt),
+      };
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'tourId': tourId,
+        'title': title,
+        'amount': amount,
+        'currency': currency,
+        'category': category,
+        'paidBy': paidByUserId,
+        'paidByName': paidByName,
+        'payers': payers,
+        'splitType': splitType.name,
+        'splitAmong': splitAmong,
+        'customSplits': customSplits,
+        'description': description,
+        'date': date.millisecondsSinceEpoch,
+        'status':
+            status.name == 'pendingApproval' ? 'pending_approval' : status.name,
+        'addedBy': addedByUserId,
+        'addedByName': addedByName,
+        'createdAt': createdAt.millisecondsSinceEpoch,
       };
 
   ExpenseModel copyWith({

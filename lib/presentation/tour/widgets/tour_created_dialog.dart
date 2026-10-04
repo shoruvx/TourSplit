@@ -54,8 +54,16 @@ class TourCreatedDialog extends StatelessWidget {
         }
       },
       child: Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: isDark
+              ? BorderSide(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1.0,
+                )
+              : BorderSide.none,
+        ),
+        backgroundColor: isDark ? AppColors.darkBg : Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),

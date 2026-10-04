@@ -66,7 +66,7 @@ class MeshPermissionHelper {
       builder: (ctx) => AlertDialog(
         title: const Text('Permissions Required'),
         content: const Text(
-          'Offline P2P Mesh chat requires Bluetooth, Nearby Devices, Location, and Notification permissions to discover peers and deliver messages instantly.\n\nPlease enable them in App Settings.',
+          'Offline P2P Mesh requires Bluetooth, Nearby Devices, Location, and Notification permissions to discover peers and sync expenses, balances, settlements, and chat instantly without internet.\n\nPlease enable them in App Settings.',
         ),
         actions: [
           TextButton(

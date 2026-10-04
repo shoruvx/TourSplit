@@ -12,7 +12,7 @@ class BalanceService {
     };
 
     for (final expense in approvedExpenses) {
-      if (expense.status != ExpenseStatus.approved) continue;
+      if (!expense.isApproved) continue;
 
       final contributions = expense.contributions;
       for (final entry in contributions.entries) {
@@ -42,7 +42,7 @@ class BalanceService {
     };
 
     for (final expense in approvedExpenses) {
-      if (expense.status != ExpenseStatus.approved) continue;
+      if (!expense.isApproved) continue;
 
       final contributions = expense.contributions;
       for (final entry in contributions.entries) {
@@ -66,7 +66,7 @@ class BalanceService {
     };
 
     for (final expense in approvedExpenses) {
-      if (expense.status != ExpenseStatus.approved) continue;
+      if (!expense.isApproved) continue;
 
       final splits = expense.splits;
       for (final entry in splits.entries) {
@@ -88,7 +88,7 @@ class BalanceService {
   ) {
     final result = Map<String, double>.from(balances);
     for (final s in approvedSettlements) {
-      if (s.status != SettlementStatus.approved) continue;
+      if (!s.isApproved) continue;
       result[s.fromUserId] = (result[s.fromUserId] ?? 0) + s.amount;
       result[s.toUserId] = (result[s.toUserId] ?? 0) - s.amount;
     }

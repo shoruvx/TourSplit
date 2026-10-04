@@ -2,6 +2,19 @@
 
 All notable changes to TourSplit are documented in this file. Releases follow a detailed yet minimalistic format highlighting core capabilities, bug fixes, and user experience enhancements.
 
+## [v1.5.2] - 2026-10-04
+
+- 🧮 **In-App Expense Math Calculator**: Evaluate mathematical expressions with live results and instant calculation directly inside the expense amount field.
+- 🎨 **Symmetric & Unified UI Buttons**: Standardized corner radius, elevation, and border stroke width across all screen actions and dialogs.
+- 💬 **Peer-to-Peer Chat & Reactions**: Coordinate with companions and react to messages in real time or offline nearby.
+- 📴 **Pure Offline Host Mode**: Create tours and record expenses completely offline with automatic local caching.
+- 🛡️ **Settlement Deduplication**: Prevents duplicate settlements with automated guards and queue protection.
+- 🧭 **Unified Navigation Bar**: Seamless bottom navigation bar across all tour views, eliminating header clutter and duplicate back buttons.
+- 🖤 **Pure OLED Pitch Black Theme**: High-contrast true black mode optimized for battery savings and readability.
+- ✨ **Minimalist App Experience**: Clean, distraction-free layout with focused guides and zero background notifications.
+
+---
+
 ## [v1.5.1] - 2026-09-26
 
 - **Unified Bottom Navigation**: Seamless context-aware navigation bar across Home, My Tours, Profile, and all tour screens, eliminating top-bar clutter and duplicate back buttons.

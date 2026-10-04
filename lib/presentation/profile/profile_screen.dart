@@ -21,6 +21,7 @@ import '../widgets/whats_new_dialog.dart';
 import '../../data/services/user_cache_service.dart';
 import '../../data/repositories/tour_repository.dart';
 import '../../data/services/active_tour_cache_service.dart';
+import '../widgets/theme_switch_toggle.dart';
 import '../widgets/app_bottom_nav_bar.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -289,6 +290,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadius.button),
                   ),
@@ -434,11 +436,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         vertical: _isAccountsExpanded ? 12 : 11,
       ),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
+        color: isDark ? AppColors.darkCard : Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.40 : 0.28),
-          width: 1.1,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.primaryTeal.withValues(alpha: 0.28),
+          width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
@@ -607,13 +611,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: isDark
-                                ? AppColors.darkBg.withValues(alpha: 0.5)
+                                ? AppColors.darkBg
                                 : const Color(0xFFF8FAFC),
                             borderRadius:
                                 BorderRadius.circular(AppRadius.input),
                             border: Border.all(
                               color: isDark
-                                  ? AppColors.darkBorder
+                                  ? Colors.white.withValues(alpha: 0.12)
                                   : AppColors.lightBorder,
                             ),
                           ),
@@ -727,6 +731,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         foregroundColor: AppColors.primaryTeal,
                         side: BorderSide(
                           color: AppColors.primaryTeal.withValues(alpha: 0.5),
+                          width: 1.5,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadius.button),
@@ -1047,8 +1052,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: const Text('Copy Link'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder,
+                          width: 1.5,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
                         ),
                       ),
                     ),
@@ -1067,9 +1079,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
                         foregroundColor: Colors.white,
+                        elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
                         ),
                       ),
                     ),
@@ -1140,11 +1154,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        icon: Icon(Icons.mark_chat_unread_outlined,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                        tooltip: 'Contact Us',
-                        onPressed: () => context.push('/profile/contact-us'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const ThemeSwitchToggle(height: 36, width: 62),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: Icon(Icons.mark_chat_unread_outlined,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                            tooltip: 'Contact Us',
+                            onPressed: () => context.push('/profile/contact-us'),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1244,10 +1265,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryTeal,
-                        foregroundColor: Colors.white,
+                        backgroundColor: isDark
+                            ? AppColors.darkCard
+                            : const Color(0xFFF8FAFC),
+                        foregroundColor: AppColors.primaryTeal,
+                        elevation: 0,
                         side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.85),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.15)
+                              : AppColors.primaryTeal.withValues(alpha: 0.28),
                           width: 1.0,
                         ),
                         shape: RoundedRectangleBorder(
@@ -1262,14 +1288,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: AppColors.primaryTeal,
                               ),
                             )
-                          : const Icon(Icons.save_rounded),
-                      label: Text(_isLoading ? 'Saving...' : 'Save Changes'),
+                          : const Icon(Icons.save_rounded,
+                              color: AppColors.primaryTeal),
+                      label: Text(
+                        _isLoading ? 'Saving...' : 'Save Changes',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14.5,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
                     ),
                   ).animate().fadeIn(delay: 300.ms),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
                   Consumer(
@@ -1290,24 +1325,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF131D2E)
-                              : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(20),
+                              ? AppColors.darkCard
+                              : AppColors.lightCard,
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: hasUpdate
                                 ? AppColors.primaryTeal
-                                : AppColors.primaryTeal
-                                    .withValues(alpha: isDark ? 0.40 : 0.28),
-                            width: hasUpdate ? 1.8 : 1.1,
+                                : (isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder),
+                            width: hasUpdate ? 1.5 : 1.0,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primaryTeal
-                                  .withValues(alpha: isDark ? 0.12 : 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1388,7 +1416,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                       ? Icons.system_update_alt_rounded
                                       : Icons.check_circle_outline_rounded,
                                   size: 18,
-                                  color: Colors.white,
+                                  color: AppColors.primaryTeal,
                                 ),
                                 label: Text(
                                   hasUpdate
@@ -1398,15 +1426,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     fontFamily: 'Outfit',
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                                    color: AppColors.primaryTeal,
                                   ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryTeal,
-                                  foregroundColor: Colors.white,
-                                  elevation: 1,
+                                  backgroundColor: isDark
+                                      ? AppColors.darkBg
+                                      : (hasUpdate
+                                          ? AppColors.primaryTeal
+                                              .withValues(alpha: 0.08)
+                                          : Colors.white),
+                                  foregroundColor: AppColors.primaryTeal,
+                                  elevation: 0,
                                   side: BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.85),
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.15)
+                                        : AppColors.primaryTeal
+                                            .withValues(alpha: 0.28),
                                     width: 1.0,
                                   ),
                                   padding: const EdgeInsets.symmetric(
@@ -1429,25 +1465,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           Theme.of(context).brightness == Brightness.dark;
                       return Material(
                         color: isDark
-                            ? const Color(0xFF131D2E)
-                            : const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(20),
+                            ? AppColors.darkCard
+                            : AppColors.lightCard,
+                        borderRadius: BorderRadius.circular(16),
                         child: Container(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: AppColors.primaryTeal
-                                  .withValues(alpha: isDark ? 0.40 : 0.28),
-                              width: 1.1,
+                              color: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.lightBorder,
+                              width: 1.0,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryTeal
-                                    .withValues(alpha: isDark ? 0.10 : 0.04),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
                           ),
                           child: Column(
                             children: [
@@ -1465,8 +1494,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryTeal
-                                        .withValues(alpha: isDark ? 0.2 : 0.1),
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.06)
+                                        : Colors.black.withValues(alpha: 0.04),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Icon(
@@ -1505,8 +1535,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 indent: 16,
                                 endIndent: 16,
                                 color: isDark
-                                    ? const Color(0xFF334155)
-                                    : const Color(0xFFE2E8F0),
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
                               ),
                               ListTile(
                                 onTap: () =>
@@ -1517,8 +1547,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryTeal
-                                        .withValues(alpha: isDark ? 0.2 : 0.1),
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.06)
+                                        : Colors.black.withValues(alpha: 0.04),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Icon(
@@ -1557,8 +1588,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 indent: 16,
                                 endIndent: 16,
                                 color: isDark
-                                    ? const Color(0xFF334155)
-                                    : const Color(0xFFE2E8F0),
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
                               ),
                               ListTile(
                                 onTap: () => _showShareAppBottomSheet(context),
@@ -1568,8 +1599,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryTeal
-                                        .withValues(alpha: isDark ? 0.2 : 0.1),
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.06)
+                                        : Colors.black.withValues(alpha: 0.04),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Icon(
@@ -1643,7 +1675,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: const Text('Sign Out',
                           style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.danger),
+                        side: const BorderSide(
+                            color: AppColors.danger, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
+                        ),
                       ),
                     ),
                   ).animate().fadeIn(delay: 350.ms),

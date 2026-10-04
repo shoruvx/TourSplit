@@ -262,7 +262,7 @@ class ChatBubble extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: isUserReaction
                     ? AppColors.primaryTeal.withValues(alpha: isDark ? 0.35 : 0.2)
-                    : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                    : (isDark ? AppColors.darkCard : Colors.white),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isUserReaction

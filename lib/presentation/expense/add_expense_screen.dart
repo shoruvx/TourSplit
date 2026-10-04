@@ -19,7 +19,6 @@ import '../../data/models/tour_model.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/member_avatar.dart';
-import '../home/home_screen.dart' show localMembersRefreshProvider;
 
 class LastExpenseDateNotifier extends Notifier<DateTime?> {
   @override
@@ -64,6 +63,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final Map<String, TextEditingController> _customSplitControllers = {};
   List<TourMemberModel> _members = [];
 
+  double get _totalCustomSplit => _customSplitControllers.values.fold(
+      0.0, (sum, c) => sum + (double.tryParse(c.text.trim()) ?? 0.0));
+
   @override
   void initState() {
     super.initState();
@@ -96,7 +98,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       }
 
       if (exp.splitType == SplitType.custom && exp.customSplits != null) {
-        _splitMode = 2;
+        _splitMode = 1;
         for (final entry in exp.customSplits!.entries) {
           _customSplitControllers[entry.key] = TextEditingController(
             text: entry.value.toStringAsFixed(
@@ -104,7 +106,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           );
         }
       } else if (exp.splitType == SplitType.selected) {
-        _splitMode = 1;
+        _splitMode = 2;
         _selectedMemberIds = List.from(exp.splitAmong);
       } else {
         _splitMode = 0;
@@ -162,10 +164,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _amountFocusNode.dispose();
     _titleCtrl.dispose();
     _amountCtrl.dispose();
-    for (final ctrl in _customSplitControllers.values) {
+    for (final ctrl in _contributorControllers.values) {
       ctrl.dispose();
     }
-    for (final ctrl in _contributorControllers.values) {
+    for (final ctrl in _customSplitControllers.values) {
       ctrl.dispose();
     }
     super.dispose();
@@ -192,16 +194,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _selectedDateTime = normalized;
     });
     ref.read(lastExpenseDateProvider.notifier).setDate(normalized);
-  }
-
-  double get _totalCustomSplit {
-    double sum = 0.0;
-    for (final ctrl in _customSplitControllers.values) {
-      final val = MathExpressionEvaluator.tryEvaluate(ctrl.text.trim()) ??
-          (double.tryParse(ctrl.text.trim()) ?? 0.0);
-      sum += val;
-    }
-    return (sum * 100).round() / 100;
   }
 
   double get _totalContributions {
@@ -304,6 +296,29 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       splitMembers = _members.map((m) => m.userId).toList();
       customSplitsMap = null;
     } else if (_splitMode == 1) {
+      splitType = SplitType.custom;
+      final parsedSplits = <String, double>{};
+      for (final m in _members) {
+        final val =
+            double.tryParse(_customSplitControllers[m.userId]?.text.trim() ?? '');
+        if (val != null && val > 0) {
+          parsedSplits[m.userId] = val;
+        }
+      }
+      final totalCustom =
+          parsedSplits.values.fold<double>(0.0, (sum, v) => sum + v);
+      if ((totalCustom - totalAmount).abs() > 0.05) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Custom split total (${tour.currencySymbol}${totalCustom.toStringAsFixed(2)}) must equal expense amount (${tour.currencySymbol}${totalAmount.toStringAsFixed(2)})'),
+          ),
+        );
+        return;
+      }
+      splitMembers = parsedSplits.keys.toList();
+      customSplitsMap = parsedSplits;
+    } else {
       splitType = SplitType.selected;
       splitMembers = _selectedMemberIds;
       customSplitsMap = null;
@@ -314,31 +329,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   Text('Select at least one member to share this expense')),
         );
         return;
-      }
-    } else {
-      splitType = SplitType.custom;
-      final currentCustomTotal = _totalCustomSplit;
-      if ((currentCustomTotal - totalAmount).abs() > 0.05) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Custom split sum (${tour.currencySymbol}${currentCustomTotal.toStringAsFixed(2)}) must equal total expense (${tour.currencySymbol}${totalAmount.toStringAsFixed(2)})'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-        return;
-      }
-
-      customSplitsMap = {};
-      splitMembers = [];
-      for (final entry in _customSplitControllers.entries) {
-        final amt = MathExpressionEvaluator.tryEvaluate(entry.value.text.trim()) ??
-            (double.tryParse(entry.value.text.trim()) ?? 0.0);
-        final roundedAmt = (amt * 100).round() / 100;
-        if (roundedAmt > 0) {
-          customSplitsMap[entry.key] = roundedAmt;
-          splitMembers.add(entry.key);
-        }
       }
     }
 
@@ -358,7 +348,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           splitAmong: splitMembers,
           customSplits: customSplitsMap,
           date: _selectedDateTime,
-          status: isAdmin ? ExpenseStatus.approved : widget.existingExpense!.status,
+          status: isAdmin ? ExpenseStatus.approved : ExpenseStatus.pendingApproval,
         );
 
         // 1. Immediately cache and queue offline for instant UI updates
@@ -379,7 +369,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           'customSplits': customSplitsMap,
           'date': _selectedDateTime,
           'description': null,
-          if (isAdmin) 'status': 'approved',
+          'status': 'approved',
         };
 
         // 2. If online and not a local tour, attempt immediate Firestore update
@@ -447,8 +437,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         createdAt: widget.existingExpense?.createdAt ?? DateTime.now(),
         addedByUserId: effectiveAddedByUserId,
         addedByName: effectiveAddedByName,
-        status:
-            isAdmin ? ExpenseStatus.approved : ExpenseStatus.pendingApproval,
+        status: isAdmin ? ExpenseStatus.approved : ExpenseStatus.pendingApproval,
         description: null,
       );
 
@@ -460,16 +449,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         await ref.read(offlineExpenseQueueProvider).queueExpense(expense);
         savedOfflineLocally = true;
       }
+      await ActiveTourCacheService.appendCachedExpense(tour.id, expense);
+      ref.read(localExpensesRefreshProvider.notifier).bump();
       ref.read(lastExpenseDateProvider.notifier).setDate(_selectedDateTime);
 
       if (mounted) {
+        final message = savedOfflineLocally
+            ? 'Offline: Expense saved and will sync automatically when back online!'
+            : (isAdmin
+                ? 'Expense saved successfully!'
+                : 'Expense submitted for admin approval');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(savedOfflineLocally
-                ? 'Offline: Expense saved and will sync automatically when back online!'
-                : (isAdmin
-                    ? 'Expense saved successfully!'
-                    : 'Expense submitted for admin approval')),
+            content: Text(message),
             backgroundColor: AppColors.accent,
           ),
         );
@@ -619,18 +611,23 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         _paidByName = defaultPayer.displayName;
       }
       if (_selectedMemberIds.isEmpty) {
-        _selectedMemberIds = members.map((m) => m.userId).toList();
+        final defaultTarget = _paidByUserId!;
+        final targetMember = members.firstWhere(
+          (m) => m.userId == defaultTarget,
+          orElse: () => members.first,
+        );
+        _selectedMemberIds = [targetMember.userId];
       }
     }
 
-            for (final m in members) {
-              if (!_customSplitControllers.containsKey(m.userId)) {
-                _customSplitControllers[m.userId] = TextEditingController();
-              }
-              if (!_contributorControllers.containsKey(m.userId)) {
-                _contributorControllers[m.userId] = TextEditingController();
-              }
-            }
+    for (final m in members) {
+      if (!_contributorControllers.containsKey(m.userId)) {
+        _contributorControllers[m.userId] = TextEditingController();
+      }
+      if (!_customSplitControllers.containsKey(m.userId)) {
+        _customSplitControllers[m.userId] = TextEditingController();
+      }
+    }
 
             return PopScope(
               canPop: false,
@@ -679,80 +676,41 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                             final currentAmountNum = previewVal ?? MathExpressionEvaluator.tryEvaluate(expressionText) ?? 0.0;
                             final isFocused = _amountFocusNode.hasFocus;
 
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: isDark
-                                      ? [
-                                          const Color(0xFF1E293B),
-                                          const Color(0xFF0F172A)
-                                        ]
-                                      : [
-                                          const Color(0xFFFFFFFF),
-                                          const Color(0xFFF8FAFC)
-                                        ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isFocused
-                                      ? AppColors.primaryTeal
-                                      : (isDark
-                                          ? const Color(0xFF334155)
-                                          : const Color(0xFFCBD5E1)),
-                                  width: isFocused ? 2.0 : 1.5,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: isFocused
-                                        ? AppColors.primaryTeal.withValues(alpha: 0.25)
-                                        : (isDark
-                                            ? Colors.black.withValues(alpha: 0.3)
-                                            : const Color(0xFF94A3B8)
-                                                .withValues(alpha: 0.12)),
-                                    blurRadius: isFocused ? 16 : 12,
-                                    offset: const Offset(0, 4),
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Minimal Amount Input Card
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.darkSurface
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isFocused
+                                          ? AppColors.primaryTeal
+                                          : (isDark
+                                              ? AppColors.darkBorder
+                                              : AppColors.lightBorder),
+                                      width: isFocused ? 1.5 : 1.0,
+                                    ),
                                   ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                                  child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.center,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 14, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: isDark
-                                              ? const Color(0xFF0F2E28)
-                                              : const Color(0xFFECFDF5),
-                                          borderRadius: BorderRadius.circular(14),
-                                          border: Border.all(
-                                            color: isDark
-                                                ? const Color(0xFF10B981)
-                                                    .withValues(alpha: 0.5)
-                                                : const Color(0xFFA7F3D0),
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          tour.currencySymbol,
-                                          style: TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.w800,
-                                            color: isDark
-                                                ? const Color(0xFF34D399)
-                                                : const Color(0xFF065F46),
-                                          ),
+                                      Text(
+                                        tour.currencySymbol,
+                                        style: const TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppColors.primaryTeal,
+                                          height: 1.0,
                                         ),
                                       ),
-                                      const SizedBox(width: 14),
+                                      const SizedBox(width: 10),
                                       Expanded(
                                         child: TextFormField(
                                           controller: _amountCtrl,
@@ -764,7 +722,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                           ],
                                           style: TextStyle(
                                             fontFamily: 'Outfit',
-                                            fontSize: 30,
+                                            fontSize: 28,
                                             fontWeight: FontWeight.w800,
                                             color: isDark
                                                 ? Colors.white
@@ -777,10 +735,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                               color: isDark
                                                   ? const Color(0xFF475569)
                                                   : const Color(0xFF94A3B8),
-                                              fontSize: 30,
+                                              fontSize: 28,
                                               fontWeight: FontWeight.w600,
                                             ),
                                             border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                            errorBorder: InputBorder.none,
+                                            focusedErrorBorder: InputBorder.none,
+                                            disabledBorder: InputBorder.none,
+                                            filled: false,
                                             isDense: true,
                                             contentPadding: EdgeInsets.zero,
                                           ),
@@ -791,7 +755,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                             if (v == null || v.trim().isEmpty) {
                                               return 'Enter amount';
                                             }
-                                            final val = MathExpressionEvaluator.tryEvaluate(v);
+                                            final val =
+                                                MathExpressionEvaluator.tryEvaluate(v);
                                             if (val == null || val <= 0) {
                                               return 'Invalid amount or expression';
                                             }
@@ -801,123 +766,138 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 10),
-                                  // Quick Math Toolbar
-                                  Row(
-                                    children: [
-                                      for (final op in ['+', '−', '×', '÷', '(', ')', '='])
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                                            child: InkWell(
-                                              onTap: () => _insertOperator(op),
-                                              borderRadius: BorderRadius.circular(8),
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                                decoration: BoxDecoration(
+                                ),
+                                // Calculations Outside the Card
+                                if (hasMath && previewVal != null) ...[
+                                  const SizedBox(height: 8),
+                                  InkWell(
+                                    onTap: _evaluateAmount,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryTeal
+                                            .withValues(alpha: isDark ? 0.15 : 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: AppColors.primaryTeal
+                                              .withValues(alpha: 0.35),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.calculate_rounded,
+                                              size: 15,
+                                              color: AppColors.primaryTeal),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            '= ${tour.currencySymbol}${MathExpressionEvaluator.formatResult(previewVal)}',
+                                            style: const TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.primaryTeal,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Text(
+                                            '• tap to apply',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.primaryTeal,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                // Quick Math Toolbar
+                                Row(
+                                  children: [
+                                    for (final op in ['+', '−', '×', '÷', '(', ')', '='])
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 2),
+                                          child: InkWell(
+                                            onTap: () => _insertOperator(op),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: Container(
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: op == '='
+                                                    ? AppColors.primaryTeal
+                                                    : (isDark
+                                                        ? Colors.white.withValues(
+                                                            alpha: 0.06)
+                                                        : Colors.black.withValues(
+                                                            alpha: 0.04)),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
                                                   color: op == '='
                                                       ? AppColors.primaryTeal
                                                       : (isDark
-                                                          ? const Color(0xFF334155).withValues(alpha: 0.5)
-                                                          : const Color(0xFFF1F5F9)),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                    color: op == '='
-                                                        ? AppColors.primaryTeal
-                                                        : (isDark
-                                                            ? const Color(0xFF475569)
-                                                            : const Color(0xFFE2E8F0)),
-                                                    width: 1,
-                                                  ),
+                                                          ? AppColors.darkBorder
+                                                          : AppColors.lightBorder),
+                                                  width: 1,
                                                 ),
-                                                alignment: Alignment.center,
-                                                child: Text(
-                                                  op,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Outfit',
-                                                    fontSize: op == '=' ? 14 : 15,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: op == '='
-                                                        ? Colors.white
-                                                        : (isDark ? Colors.white70 : const Color(0xFF334155)),
-                                                  ),
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: Text(
+                                                op,
+                                                style: TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontSize: op == '=' ? 14 : 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: op == '='
+                                                      ? Colors.white
+                                                      : (isDark
+                                                          ? Colors.white70
+                                                          : AppColors.lightText),
                                                 ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                    ],
-                                  ),
-                                  if (hasMath && previewVal != null) ...[
-                                    const SizedBox(height: 8),
-                                    InkWell(
-                                      onTap: _evaluateAmount,
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 5),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primaryTeal.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(
-                                            color: AppColors.primaryTeal.withValues(alpha: 0.4),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.calculate_rounded,
-                                                size: 15, color: AppColors.primaryTeal),
-                                            const SizedBox(width: 5),
-                                            Text(
-                                              '= ${tour.currencySymbol}${MathExpressionEvaluator.formatResult(previewVal)}',
-                                              style: const TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.primaryTeal,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            const Text(
-                                              '• tap to apply',
-                                              style: TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.primaryTeal,
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ),
-                                    ),
                                   ],
-                                  if (currentAmountNum > 0 && members.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryTeal
-                                            .withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                                ),
+                                if (currentAmountNum > 0 &&
+                                    members.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.people_alt_outlined,
+                                        size: 14,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
                                       ),
-                                      child: Text(
-                                        '≈ ${tour.currencySymbol}${(currentAmountNum / members.length).toStringAsFixed(2)} / person',
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        '≈ ${tour.currencySymbol}${(currentAmountNum / members.length).toStringAsFixed(2)} / person (${members.length} members)',
                                         style: TextStyle(
                                           fontFamily: 'Outfit',
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                           color: isDark
-                                              ? const Color(0xFF5EEAD4)
-                                              : const Color(0xFF0D9488),
+                                              ? AppColors.darkTextSecondary
+                                              : AppColors.lightTextSecondary,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ],
-                              ),
+                              ],
                             );
                           },
                         ),
@@ -1431,14 +1411,35 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                 onTap: () => setState(() => _splitMode = 0),
                               ),
                               _SplitModeTab(
-                                label: 'Specific Members',
+                                label: 'Custom Split',
                                 isSelected: _splitMode == 1,
-                                onTap: () => setState(() => _splitMode = 1),
+                                onTap: () {
+                                  setState(() {
+                                    _splitMode = 1;
+                                    for (final m in members) {
+                                      _customSplitControllers.putIfAbsent(
+                                          m.userId, () => TextEditingController());
+                                    }
+                                  });
+                                },
                               ),
                               _SplitModeTab(
-                                label: 'Custom Split',
+                                label: 'Specific Member',
                                 isSelected: _splitMode == 2,
-                                onTap: () => setState(() => _splitMode = 2),
+                                onTap: () {
+                                  setState(() {
+                                    _splitMode = 2;
+                                    if (_selectedMemberIds.isEmpty) {
+                                      final defaultTarget = _paidByUserId ??
+                                          members.first.userId;
+                                      final targetMember = members.firstWhere(
+                                        (m) => m.userId == defaultTarget,
+                                        orElse: () => members.first,
+                                      );
+                                      _selectedMemberIds = [targetMember.userId];
+                                    }
+                                  });
+                                },
                               ),
                             ],
                           ),
@@ -1475,43 +1476,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                             ),
                           ),
                         ] else if (_splitMode == 1) ...[
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: members.map((m) {
-                              final isIncluded =
-                                  _selectedMemberIds.contains(m.userId);
-                              return FilterChip(
-                                label: Text(
-                                    '${m.displayName}${m.isOffline ? ' (Offline)' : ''}'),
-                                selected: isIncluded,
-                                selectedColor: AppColors.primaryTeal
-                                    .withValues(alpha: 0.2),
-                                checkmarkColor: AppColors.primaryTeal,
-                                onSelected: (selected) {
-                                  setState(() {
-                                    if (selected) {
-                                      _selectedMemberIds.add(m.userId);
-                                    } else if (_selectedMemberIds.length > 1) {
-                                      _selectedMemberIds.remove(m.userId);
-                                    }
-                                  });
-                                },
-                              );
-                            }).toList(),
-                          ),
-                          if (_selectedMemberIds.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              '${_selectedMemberIds.length} members selected (~${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / _selectedMemberIds.length).toStringAsFixed(0)} each)',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.lightTextSecondary),
-                            ),
-                          ],
-                        ] else ...[
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -1556,17 +1520,113 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                 ...members.map((m) {
                                   final ctrl =
                                       _customSplitControllers[m.userId]!;
+                                  final totalExp =
+                                      double.tryParse(_amountCtrl.text.trim()) ??
+                                          0.0;
+                                  final otherSum = _customSplitControllers
+                                      .entries
+                                      .where((e) => e.key != m.userId)
+                                      .fold(
+                                          0.0,
+                                          (sum, e) =>
+                                              sum +
+                                              (double.tryParse(
+                                                      e.value.text.trim()) ??
+                                                  0.0));
+                                  final remainingForMember = totalExp - otherSum;
+                                  final currentMemberVal =
+                                      double.tryParse(ctrl.text.trim()) ?? 0.0;
+
                                   return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.only(bottom: 10),
                                     child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
                                       children: [
                                         Expanded(
-                                          child: Text(
-                                              '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13)),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              if (remainingForMember > 0.009 &&
+                                                  (remainingForMember - currentMemberVal).abs() > 0.009) ...[
+                                                const SizedBox(height: 3),
+                                                InkWell(
+                                                  onTap: () {
+                                                    HapticFeedback.lightImpact();
+                                                    setState(() {
+                                                      ctrl.text = remainingForMember.toStringAsFixed(
+                                                          remainingForMember.truncateToDouble() ==
+                                                                  remainingForMember
+                                                              ? 0
+                                                              : 2);
+                                                    });
+                                                  },
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.primaryTeal
+                                                          .withValues(
+                                                              alpha: isDark
+                                                                  ? 0.20
+                                                                  : 0.10),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              6),
+                                                      border: Border.all(
+                                                        color: AppColors
+                                                            .primaryTeal
+                                                            .withValues(
+                                                                alpha: 0.35),
+                                                        width: 0.8,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        const Icon(
+                                                          Icons
+                                                              .auto_fix_high_rounded,
+                                                          size: 11,
+                                                          color: AppColors
+                                                              .primaryTeal,
+                                                        ),
+                                                        const SizedBox(
+                                                            width: 4),
+                                                        Text(
+                                                          'Fill Rest (${tour.currencySymbol}${remainingForMember.toStringAsFixed(remainingForMember.truncateToDouble() == remainingForMember ? 0 : 2)})',
+                                                          style: const TextStyle(
+                                                            fontFamily:
+                                                                'Outfit',
+                                                            fontSize: 10.5,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: AppColors
+                                                                .primaryTeal,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
                                         ),
+                                        const SizedBox(width: 8),
                                         SizedBox(
                                           width: 110,
                                           height: 42,
@@ -1599,6 +1659,111 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               ],
                             ),
                           ),
+                        ] else ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Select Member(s)',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary),
+                              ),
+                              if (members.length > 1)
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      if (_selectedMemberIds.length == 1) {
+                                        _selectedMemberIds = members
+                                            .map((m) => m.userId)
+                                            .toList();
+                                      } else {
+                                        final defaultTarget = _paidByUserId ??
+                                            members.first.userId;
+                                        _selectedMemberIds = [defaultTarget];
+                                      }
+                                    });
+                                  },
+                                  child: Text(
+                                    _selectedMemberIds.length == 1
+                                        ? 'Select All'
+                                        : 'Reset to Single',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primaryTeal,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: members.map((m) {
+                              final isIncluded =
+                                  _selectedMemberIds.contains(m.userId);
+                              return FilterChip(
+                                label: Text(
+                                    '${m.displayName}${m.isOffline ? ' (Offline)' : ''}'),
+                                selected: isIncluded,
+                                selectedColor: AppColors.primaryTeal
+                                    .withValues(alpha: 0.2),
+                                checkmarkColor: AppColors.primaryTeal,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    if (selected) {
+                                      _selectedMemberIds.add(m.userId);
+                                    } else if (_selectedMemberIds.length > 1) {
+                                      _selectedMemberIds.remove(m.userId);
+                                    }
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          if (_selectedMemberIds.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryTeal.withValues(
+                                    alpha: isDark ? 0.15 : 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: AppColors.primaryTeal
+                                      .withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.person_rounded,
+                                      size: 16,
+                                      color: AppColors.primaryTeal),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedMemberIds.length == 1
+                                          ? '100% assigned to ${members.firstWhere((m) => m.userId == _selectedMemberIds.first, orElse: () => members.first).displayName} (${tour.currencySymbol}${_amountCtrl.text.trim().isEmpty ? '0' : _amountCtrl.text.trim()})'
+                                          : '${_selectedMemberIds.length} members selected (~${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / _selectedMemberIds.length).toStringAsFixed(0)} each)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark
+                                            ? AppColors.darkText
+                                            : AppColors.lightText,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                         const SizedBox(height: 32),
                         GradientButton(

@@ -12,6 +12,7 @@ import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/models/tour_model.dart';
+import '../../data/models/expense_model.dart';
 import '../../data/models/settlement_model.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_expense_queue_service.dart';
@@ -115,14 +116,37 @@ class BalanceScreen extends ConsumerWidget {
     final cachedExpenses = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
     final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
     final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: effectiveTourId);
-    final streamExpenses = expensesStream.value ?? cachedExpenses;
-    final expenses = [
-      ...queuedExpenses,
-      ...streamExpenses.where((e) => !queuedExpenses.any((q) => q.id == e.id)),
-    ].where((e) => !deletedIds.contains(e.id)).toList();
+    final streamExpenses = expensesStream.value ?? [];
 
-    final settlements = settlementsStream.value ??
-        ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+    final Map<String, ExpenseModel> allExpensesMap = {};
+    for (final e in queuedExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap[e.id] = e;
+      }
+    }
+    for (final e in cachedExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap.putIfAbsent(e.id, () => e);
+      }
+    }
+    for (final e in streamExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap[e.id] = e;
+      }
+    }
+    final expenses = allExpensesMap.values.where((e) => e.isApproved).toList();
+
+    ref.watch(localSettlementsRefreshProvider);
+    final cachedSettlements = ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+    final streamSettlements = settlementsStream.value ?? [];
+    final Map<String, SettlementModel> settlementsMap = {};
+    for (final s in cachedSettlements) {
+      settlementsMap[s.id] = s;
+    }
+    for (final s in streamSettlements) {
+      settlementsMap[s.id] = s;
+    }
+    final settlements = settlementsMap.values.toList();
     final approvedSettlements = settlements.where((s) => s.isApproved).toList();
 
     var balances = BalanceService.calculateBalances(members, expenses);
@@ -181,12 +205,12 @@ class BalanceScreen extends ConsumerWidget {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF1E293B)
+                              ? AppColors.darkCard
                               : const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isDark
-                                ? const Color(0xFF334155)
+                                ? Colors.white.withValues(alpha: 0.15)
                                 : const Color(0xFFCBD5E1),
                           ),
                         ),
@@ -243,7 +267,8 @@ class BalanceScreen extends ConsumerWidget {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 8),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
+                                    borderRadius: BorderRadius.circular(
+                                        AppRadius.button)),
                                 elevation: 0,
                               ),
                             ),
@@ -330,6 +355,22 @@ class BalanceScreen extends ConsumerWidget {
 
   void _requestSettlement(BuildContext context, WidgetRef ref, String tourId,
       DebtTransaction debt, String currency) async {
+    final cached = ActiveTourCacheService.getCachedSettlements(tourId);
+    final isAlreadyPending = cached.any((s) =>
+        s.fromUserId == debt.fromUserId &&
+        s.toUserId == debt.toUserId &&
+        s.status == SettlementStatus.requested);
+    if (isAlreadyPending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'A settlement between ${debt.fromUserName} and ${debt.toUserName} is already in processing.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     final members = ref.read(tourMembersStreamProvider(tourId)).value ?? [];
     final toMember =
         members.firstWhereOrNull((m) => m.userId == debt.toUserId);
@@ -368,6 +409,7 @@ class BalanceScreen extends ConsumerWidget {
             autoApprove: shouldAutoApprove,
             resolvedByUserId: currentUid,
           );
+      ref.read(localSettlementsRefreshProvider.notifier).bump();
       if (context.mounted) {
         final message = isOfflineReceiver
             ? 'Settlement recorded and auto-approved for offline member.'
@@ -542,12 +584,15 @@ class _DebtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isInvolved =
         debt.fromUserId == currentUserId || debt.toUserId == currentUserId;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: isInvolved ? AppColors.primaryBlue.withValues(alpha: 0.06) : null,
+      color: isDark
+          ? AppColors.darkCard
+          : (isInvolved ? AppColors.primaryBlue.withValues(alpha: 0.06) : null),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(

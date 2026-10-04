@@ -24,6 +24,9 @@ import '../../presentation/profile/contact_us_screen.dart';
 import '../../presentation/profile/member_profile_screen.dart';
 import '../../presentation/chat/tour_chat_screen.dart';
 import '../../data/models/tour_model.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../presentation/onboarding/onboarding_screen.dart';
+import '../../screens/splash_screen.dart';
 
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this._ref) {
@@ -41,18 +44,38 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterRefreshNotifier(ref);
-  final initialUser = FirebaseAuth.instance.currentUser;
 
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: initialUser != null ? '/home' : '/login',
+    initialLocation: '/splash',
     refreshListenable: notifier,
     redirect: (context, state) {
+      if (state.matchedLocation == '/splash') {
+        return null;
+      }
+
       final authState = ref.read(authStateProvider);
       final currentUser = FirebaseAuth.instance.currentUser;
       final isLoggedIn = currentUser != null || authState.value != null;
+      final seenGuide = Hive.isBoxOpen('app_preferences')
+          ? (Hive.box('app_preferences')
+                  .get('has_completed_onboarding_guide', defaultValue: false)
+              as bool)
+          : false;
+
       debugPrint(
-          '[ROUTER] redirect check for ${state.matchedLocation} (currentUser: ${currentUser?.email}, loggedIn: $isLoggedIn, auth loading: ${authState.isLoading})');
+          '[ROUTER] redirect check for ${state.matchedLocation} (currentUser: ${currentUser?.email}, loggedIn: $isLoggedIn, seenGuide: $seenGuide)');
+
+      if (!seenGuide) {
+        if (!state.matchedLocation.startsWith('/onboarding')) {
+          return '/onboarding';
+        }
+        return null;
+      }
+
+      if (state.matchedLocation.startsWith('/onboarding')) {
+        return isLoggedIn ? '/home' : '/login';
+      }
 
       final isAuthRoute = state.matchedLocation.startsWith('/login') ||
           state.matchedLocation.startsWith('/register') ||
@@ -65,6 +88,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
       GoRoute(
         path: '/login',
         name: 'login',

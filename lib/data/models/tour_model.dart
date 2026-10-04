@@ -120,6 +120,26 @@ class TourModel {
         'isDeleted': isDeleted,
       };
 
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'currency': currency,
+        'currencySymbol': currencySymbol,
+        'adminId': adminId,
+        'adminIds': adminIds.isNotEmpty ? adminIds : [adminId],
+        'inviteCode': inviteCode,
+        'status': status.name,
+        'startDate': startDate.millisecondsSinceEpoch,
+        'endDate': endDate?.millisecondsSinceEpoch,
+        'createdAt': createdAt.millisecondsSinceEpoch,
+        'members': memberIds,
+        'pastMembers': pastMemberIds,
+        'budget': budget,
+        'coverImageUrl': coverImageUrl,
+        'isDeleted': isDeleted,
+      };
+
   TourModel copyWith({
     String? name,
     String? description,
@@ -200,17 +220,29 @@ class TourMemberModel {
 
   factory TourMemberModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    return TourMemberModel.fromMap(data, doc.id);
+  }
+
+  factory TourMemberModel.fromMap(Map<String, dynamic> data, String id) {
     final isOffline =
-        data['isOffline'] == true || doc.id.startsWith('offline_');
+        data['isOffline'] == true || id.startsWith('offline_');
+
+    DateTime parseDate(dynamic val) {
+      if (val is Timestamp) return val.toDate();
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      if (val is DateTime) return val;
+      return DateTime.now();
+    }
+
     return TourMemberModel(
-      userId: doc.id,
+      userId: id,
       displayName: data['displayName'] ?? '',
       username: data['username'] as String? ?? '',
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'],
       role: data['role'] ?? 'member',
       status: data['status'] ?? 'active',
-      joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      joinedAt: parseDate(data['joinedAt']),
       balance: (data['balance'] as num?)?.toDouble() ?? 0.0,
       isOffline: isOffline,
     );
@@ -225,6 +257,19 @@ class TourMemberModel {
         'role': role,
         'status': status,
         'joinedAt': Timestamp.fromDate(joinedAt),
+        'balance': balance,
+        'isOffline': isOffline,
+      };
+
+  Map<String, dynamic> toMap() => {
+        'userId': userId,
+        'displayName': displayName,
+        'username': username,
+        'email': email,
+        'photoUrl': photoUrl,
+        'role': role,
+        'status': status,
+        'joinedAt': joinedAt.millisecondsSinceEpoch,
         'balance': balance,
         'isOffline': isOffline,
       };

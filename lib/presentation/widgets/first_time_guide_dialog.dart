@@ -5,7 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/app_theme.dart';
 
-class FirstTimeGuideDialog extends StatefulWidget {
+class FirstTimeGuideDialog extends StatelessWidget {
   const FirstTimeGuideDialog({super.key});
 
   static bool _hasCheckedThisSession = false;
@@ -20,11 +20,7 @@ class FirstTimeGuideDialog extends StatefulWidget {
       if (!hasSeen && context.mounted) {
         await box.put('has_seen_first_time_guide', true);
         if (context.mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => const FirstTimeGuideDialog(),
-          );
+          show(context);
         }
       }
     } catch (e) {
@@ -32,199 +28,198 @@ class FirstTimeGuideDialog extends StatefulWidget {
     }
   }
 
-  @override
-  State<FirstTimeGuideDialog> createState() => _FirstTimeGuideDialogState();
-}
+  static Future<void> show(BuildContext context) async {
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (ctx, anim, secAnim) => const FirstTimeGuideDialog(),
+        transitionsBuilder: (ctx, anim, secAnim, child) {
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
-  int _currentPage = 0;
-  final PageController _pageController = PageController();
-
-  final List<({IconData icon, String title, String description})> _steps =
-      const [
+  static const List<({IconData icon, String title, String description})> _steps =
+      [
     (
       icon: Icons.travel_explore_rounded,
-      title: 'Create or Join Tours',
+      title: 'Create & Join Tours',
       description:
-          'Start a tour with friends or join instantly using a 6-digit invite code or QR scan.',
+          'Create a trip or join instantly with a 6-digit code or QR scan.',
     ),
     (
       icon: Icons.receipt_long_rounded,
-      title: 'Track & Split Expenses',
+      title: 'Track Expenses',
       description:
-          'Log daily spending with categories, multiple payers, and equal or custom splits.',
+          'Log spending with custom split ratios, multiple payers, and offline support.',
     ),
     (
       icon: Icons.handshake_rounded,
-      title: 'Easy Settlements',
+      title: 'Simplified Settlements',
       description:
-          'See who owes what and clear balances easily with minimal payments.',
+          'Clear balances with minimized transactions and saved payment accounts.',
+    ),
+    (
+      icon: Icons.forum_rounded,
+      title: 'Peer-to-Peer Chat',
+      description:
+          'Coordinate with companions and react in real-time or offline nearby.',
     ),
   ];
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  void _finish() {
-    HapticFeedback.lightImpact();
-    Navigator.of(context).pop();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+      body: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Quick Guide (${_currentPage + 1}/${_steps.length})',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryTeal,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 20),
+                    // Centered top title (matching screenshot layout)
+                    Text(
+                      'TourSplit',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : AppColors.lightText,
+                        letterSpacing: -0.5,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded,
-                      size: 20, color: Colors.grey),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: _finish,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 230,
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: _steps.length,
-                onPageChanged: (i) => setState(() => _currentPage = i),
-                itemBuilder: (context, i) {
-                  final step = _steps[i];
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  AppColors.primaryTeal.withValues(alpha: 0.3),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Split the costs, keep the memories.',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 14,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 48),
+
+                    // Minimalist feature highlights
+                    ..._steps.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final step = entry.value;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 30),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              margin: const EdgeInsets.only(top: 2),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : Colors.black.withValues(alpha: 0.04),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                step.icon,
+                                size: 22,
+                                color: AppColors.primaryTeal,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    step.title,
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : AppColors.lightText,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    step.description,
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 14,
+                                      height: 1.42,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : AppColors.lightTextSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        child: Icon(step.icon, size: 38, color: Colors.white),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        step.title,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 19,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          step.description,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            height: 1.45,
-                            color: isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF475569),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                      )
+                          .animate()
+                          .fadeIn(
+                            delay: Duration(milliseconds: 60 * index),
+                            duration: 350.ms,
+                          )
+                          .slideY(
+                            begin: 0.1,
+                            end: 0,
+                            curve: Curves.easeOutCubic,
+                          );
+                    }),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_steps.length, (i) {
-                final isSelected = _currentPage == i;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: isSelected ? 22 : 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primaryTeal
-                        : (isDark
-                            ? const Color(0xFF334155)
-                            : const Color(0xFFCBD5E1)),
-                    borderRadius: BorderRadius.circular(4),
+
+            // Modern Pill Bottom Action Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryTeal,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.button),
+                    ),
                   ),
-                );
-              }),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_currentPage < _steps.length - 1) {
-                    _pageController.nextPage(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOut,
-                    );
-                  } else {
-                    _finish();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryTeal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                child: Text(
-                  _currentPage == _steps.length - 1 ? 'Got it!' : 'Next',
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                  child: const Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -232,6 +227,6 @@ class _FirstTimeGuideDialogState extends State<FirstTimeGuideDialog> {
           ],
         ),
       ),
-    ).animate().fadeIn(duration: 200.ms).scale(begin: const Offset(0.92, 0.92));
+    );
   }
 }

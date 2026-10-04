@@ -14,6 +14,7 @@ import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/balance_service.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/models/settlement_model.dart';
 import '../../data/models/tour_model.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_expense_queue_service.dart';
@@ -102,14 +103,35 @@ class ReportScreen extends ConsumerWidget {
     final cachedExpenses = ActiveTourCacheService.getCachedExpenses(effectiveTourId);
     final queuedExpenses = ref.watch(offlineExpenseQueueProvider).getQueuedExpenses(tourId: effectiveTourId);
     final deletedIds = ref.watch(offlineExpenseQueueProvider).getQueuedDeletedExpenseIds(tourId: effectiveTourId);
-    final streamExpenses = expensesStream.value ?? cachedExpenses;
-    final expenses = [
-      ...queuedExpenses,
-      ...streamExpenses.where((e) => !queuedExpenses.any((q) => q.id == e.id)),
-    ].where((e) => !deletedIds.contains(e.id)).toList();
+    final streamExpenses = expensesStream.value ?? [];
 
-    final settlements = settlementsStream.value ??
-        ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+    final Map<String, ExpenseModel> allExpensesMap = {};
+    for (final e in queuedExpenses) {
+      if (!deletedIds.contains(e.id)) allExpensesMap[e.id] = e;
+    }
+    for (final e in cachedExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap.putIfAbsent(e.id, () => e);
+      }
+    }
+    for (final e in streamExpenses) {
+      if (!deletedIds.contains(e.id)) {
+        allExpensesMap[e.id] = e;
+      }
+    }
+    final expenses = allExpensesMap.values.where((e) => e.isApproved).toList();
+
+    ref.watch(localSettlementsRefreshProvider);
+    final cachedSettlements = ActiveTourCacheService.getCachedSettlements(effectiveTourId);
+    final streamSettlements = settlementsStream.value ?? [];
+    final Map<String, SettlementModel> settlementsMap = {};
+    for (final s in cachedSettlements) {
+      settlementsMap[s.id] = s;
+    }
+    for (final s in streamSettlements) {
+      settlementsMap[s.id] = s;
+    }
+    final settlements = settlementsMap.values.toList();
     final approvedSettlements = settlements.where((s) => s.isApproved).toList();
     var balances = BalanceService.calculateBalances(members, expenses);
     balances = BalanceService.applySettlements(balances, approvedSettlements);

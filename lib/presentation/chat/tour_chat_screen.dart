@@ -182,8 +182,9 @@ class _TourChatScreenState extends ConsumerState<TourChatScreen> {
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primaryTeal,
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(AppRadius.button)),
             ),
             icon: const Icon(Icons.bluetooth_rounded, size: 18),
             label: const Text('Turn On Bluetooth'),

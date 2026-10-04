@@ -258,4 +258,48 @@ class OfflineExpenseQueueService {
     }
     return syncedCount;
   }
+
+  /// Sync all queued expenses and deletions and return the list of successfully synced IDs
+  Future<List<String>> syncQueuedExpensesAndGetIds() async {
+    if (_isSyncing) return [];
+    if (!Hive.isBoxOpen(boxName) || _box.isEmpty) return [];
+
+    _isSyncing = true;
+    final syncedIds = <String>[];
+
+    try {
+      final keys = List.from(_box.keys);
+      for (final key in keys) {
+        final val = _box.get(key);
+        if (val is Map) {
+          final map = Map<String, dynamic>.from(val);
+          if (map['type'] == 'deleteExpense') {
+            final tId = map['tourId'] as String? ?? '';
+            final expId = map['expenseId'] as String? ?? key.toString().replaceFirst('del_', '');
+            try {
+              if (tId.isNotEmpty && expId.isNotEmpty && !tId.startsWith('local_')) {
+                await _expenseRepo.deleteExpense(tId, expId);
+              }
+              await _box.delete(key);
+              syncedIds.add(expId);
+            } catch (_) {}
+            continue;
+          }
+
+          final id = key.toString();
+          final expense = ExpenseModel.fromMap(map, id);
+
+          try {
+            await _expenseRepo.addExpense(expense);
+            await _box.delete(key);
+            syncedIds.add(id);
+          } catch (_) {}
+        }
+      }
+    } finally {
+      _isSyncing = false;
+    }
+
+    return syncedIds;
+  }
 }

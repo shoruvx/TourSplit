@@ -161,6 +161,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
               tourId: widget.tourId,
               user: user,
             );
+        ref.read(localMembersRefreshProvider.notifier).bump();
 
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -232,6 +233,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
           name: name,
         );
         ref.invalidate(tourMembersStreamProvider(widget.tourId));
+        ref.read(localMembersRefreshProvider.notifier).bump();
       }
 
       if (!mounted) return;
@@ -317,7 +319,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF0F172A)
+                      ? AppColors.darkCard
                       : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
@@ -629,7 +631,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppRadius.button),
               ),
               elevation: 0,
             ),
@@ -708,7 +710,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
                 backgroundColor: AppColors.primaryTeal,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.button),
                 ),
                 elevation: 0,
               ),

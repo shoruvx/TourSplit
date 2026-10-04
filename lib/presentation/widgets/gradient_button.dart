@@ -25,16 +25,16 @@ class GradientButton extends StatelessWidget {
       onTap: isLoading ? null : onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 52,
+        height: 50,
         width: double.infinity,
         decoration: BoxDecoration(
           gradient: onPressed == null ? null : grad,
           color: onPressed == null ? Colors.grey.shade400 : null,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.button),
           boxShadow: onPressed != null
               ? [
                   BoxShadow(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.35),
+                    color: AppColors.primaryTeal.withValues(alpha: 0.35),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),

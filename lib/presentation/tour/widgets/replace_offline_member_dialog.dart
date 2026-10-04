@@ -239,8 +239,9 @@ class _ReplaceOfflineMemberDialogState
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.button),
                   ),
                 ),
                 onPressed: _isProcessing ? null : _executeReplacement,
@@ -636,8 +637,9 @@ class _ReplaceOfflineMemberDialogState
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   minimumSize: const Size(60, 42),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.button),
                   ),
+                  elevation: 0,
                 ),
                 onPressed: _isSearching ? null : _handleSearch,
                 child: _isSearching
@@ -726,8 +728,9 @@ class _ReplaceOfflineMemberDialogState
                           horizontal: 12, vertical: 6),
                       minimumSize: const Size(60, 32),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(AppRadius.button),
                       ),
+                      elevation: 0,
                     ),
                     onPressed: () => _selectUser(
                       uid: _foundUser!.uid,

@@ -1019,8 +1019,10 @@ class _TourCard extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 6),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius:
+                            BorderRadius.circular(AppRadius.button),
                       ),
+                      elevation: 0,
                     ),
                   ),
                 ],
@@ -1067,10 +1069,12 @@ class _TourMetricsStrip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        color: isDark ? AppColors.darkCard : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.35 : 0.20),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.primaryTeal.withValues(alpha: 0.20),
           width: 1.0,
         ),
       ),

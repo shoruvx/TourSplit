@@ -233,11 +233,14 @@ class _ChatInputFieldState extends ConsumerState<ChatInputField> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF1E293B)
+                      ? AppColors.darkCard
                       : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(10),
-                  border: const Border(
-                    left: BorderSide(color: AppColors.primaryTeal, width: 3.5),
+                  border: Border(
+                    left: const BorderSide(color: AppColors.primaryTeal, width: 3.5),
+                    top: isDark ? BorderSide(color: Colors.white.withValues(alpha: 0.12)) : BorderSide.none,
+                    right: isDark ? BorderSide(color: Colors.white.withValues(alpha: 0.12)) : BorderSide.none,
+                    bottom: isDark ? BorderSide(color: Colors.white.withValues(alpha: 0.12)) : BorderSide.none,
                   ),
                 ),
                 child: Row(
@@ -310,7 +313,7 @@ class _ChatInputFieldState extends ConsumerState<ChatInputField> {
                       ),
                       filled: true,
                       fillColor:
-                          isDark ? const Color(0xFF1E293B) : Colors.white,
+                          isDark ? AppColors.darkCard : Colors.white,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -320,7 +323,7 @@ class _ChatInputFieldState extends ConsumerState<ChatInputField> {
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide(
                           color: isDark
-                              ? const Color(0xFF334155)
+                              ? Colors.white.withValues(alpha: 0.15)
                               : const Color(0xFFCBD5E1),
                           width: 1,
                         ),
@@ -329,7 +332,7 @@ class _ChatInputFieldState extends ConsumerState<ChatInputField> {
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide(
                           color: isDark
-                              ? const Color(0xFF334155)
+                              ? Colors.white.withValues(alpha: 0.15)
                               : const Color(0xFFCBD5E1),
                           width: 1,
                         ),
@@ -389,7 +392,7 @@ class _ChatInputFieldState extends ConsumerState<ChatInputField> {
           ),
         ),
         backgroundColor:
-            isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+            isDark ? AppColors.darkCard : const Color(0xFFF1F5F9),
         side: BorderSide(
           color: AppColors.primaryTeal.withValues(alpha: 0.4),
           width: 1,
@@ -434,7 +437,7 @@ class _ChatInputFieldState extends ConsumerState<ChatInputField> {
           ),
         ),
         backgroundColor:
-            isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+            isDark ? AppColors.darkCard : const Color(0xFFF1F5F9),
         side: BorderSide(
           color: AppColors.primaryTeal.withValues(alpha: 0.4),
           width: 1,

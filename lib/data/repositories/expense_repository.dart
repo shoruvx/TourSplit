@@ -165,6 +165,8 @@ class ExpenseRepository {
             snap.docs.map((d) => ExpenseModel.fromFirestore(d)).toList();
         final queued =
             OfflineExpenseQueueService().getQueuedExpenses(tourId: tourId);
+        final cached =
+            ActiveTourCacheService.getCachedExpenses(tourId);
         final deletedIds = OfflineExpenseQueueService()
             .getQueuedDeletedExpenseIds(tourId: tourId);
 
@@ -172,11 +174,20 @@ class ExpenseRepository {
             firestoreList.where((e) => !deletedIds.contains(e.id)).toList();
         final validQueued =
             queued.where((e) => !deletedIds.contains(e.id)).toList();
+        final validCached =
+            cached.where((e) => !deletedIds.contains(e.id)).toList();
 
-        final merged = [
-          ...validQueued,
-          ...validFirestore.where((e) => !validQueued.any((q) => q.id == e.id)),
-        ];
+        final Map<String, ExpenseModel> map = {};
+        for (final e in validQueued) {
+          map[e.id] = e;
+        }
+        for (final e in validCached) {
+          map.putIfAbsent(e.id, () => e);
+        }
+        for (final e in validFirestore) {
+          map[e.id] = e;
+        }
+        final merged = map.values.toList();
         merged.sort((a, b) => b.date.compareTo(a.date));
         return merged;
       });
@@ -212,6 +223,9 @@ class ExpenseRepository {
             .getQueuedExpenses(tourId: tourId)
             .where((e) => e.isApproved)
             .toList();
+        final cached = ActiveTourCacheService.getCachedExpenses(tourId)
+            .where((e) => e.isApproved)
+            .toList();
         final deletedIds = OfflineExpenseQueueService()
             .getQueuedDeletedExpenseIds(tourId: tourId);
 
@@ -219,11 +233,20 @@ class ExpenseRepository {
             firestoreList.where((e) => !deletedIds.contains(e.id)).toList();
         final validQueued =
             queued.where((e) => !deletedIds.contains(e.id)).toList();
+        final validCached =
+            cached.where((e) => !deletedIds.contains(e.id)).toList();
 
-        final merged = [
-          ...validQueued,
-          ...validFirestore.where((e) => !validQueued.any((q) => q.id == e.id)),
-        ];
+        final Map<String, ExpenseModel> map = {};
+        for (final e in validQueued) {
+          map[e.id] = e;
+        }
+        for (final e in validCached) {
+          map.putIfAbsent(e.id, () => e);
+        }
+        for (final e in validFirestore) {
+          map[e.id] = e;
+        }
+        final merged = map.values.toList();
         merged.sort((a, b) => b.date.compareTo(a.date));
         return merged;
       });
@@ -283,14 +306,50 @@ class ExpenseRepository {
       return;
     }
 
-    yield* _expenses(tourId)
-        .where('status', isEqualTo: 'pending_approval')
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs.map((d) => ExpenseModel.fromFirestore(d)).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+    final local = getLocalExpenses(tourId).where((e) => !e.isApproved).toList();
+    if (local.isNotEmpty) yield local;
+
+    try {
+      yield* _expenses(tourId)
+          .where('status', isEqualTo: 'pending_approval')
+          .snapshots()
+          .map((snap) {
+        final firestoreList = snap.docs.map((d) => ExpenseModel.fromFirestore(d)).toList();
+        final queued = OfflineExpenseQueueService()
+            .getQueuedExpenses(tourId: tourId)
+            .where((e) => !e.isApproved)
+            .toList();
+        final cached = ActiveTourCacheService.getCachedExpenses(tourId)
+            .where((e) => !e.isApproved)
+            .toList();
+        final deletedIds = OfflineExpenseQueueService()
+            .getQueuedDeletedExpenseIds(tourId: tourId);
+
+        final validFirestore =
+            firestoreList.where((e) => !deletedIds.contains(e.id)).toList();
+        final validQueued =
+            queued.where((e) => !deletedIds.contains(e.id)).toList();
+        final validCached =
+            cached.where((e) => !deletedIds.contains(e.id)).toList();
+
+        final Map<String, ExpenseModel> map = {};
+        for (final e in validQueued) {
+          map[e.id] = e;
+        }
+        for (final e in validCached) {
+          map.putIfAbsent(e.id, () => e);
+        }
+        for (final e in validFirestore) {
+          map[e.id] = e;
+        }
+        final list = map.values.toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+    } catch (e) {
+      debugPrint('[EXPENSE_REPO] Firestore pending watch failed: $e, falling back to local');
+      yield getLocalExpenses(tourId).where((e) => !e.isApproved).toList();
+    }
   }
 }
 
@@ -299,22 +358,26 @@ final expenseRepositoryProvider =
 
 final tourExpensesStreamProvider =
     StreamProvider.family<List<ExpenseModel>, String>((ref, tourId) {
+  ref.watch(localExpensesRefreshProvider);
   return ref.watch(expenseRepositoryProvider).watchExpenses(tourId);
 });
 
 final approvedExpensesStreamProvider =
     StreamProvider.family<List<ExpenseModel>, String>((ref, tourId) {
+  ref.watch(localExpensesRefreshProvider);
   return ref.watch(expenseRepositoryProvider).watchApprovedExpenses(tourId);
 });
 
 final pendingExpensesStreamProvider =
     StreamProvider.family<List<ExpenseModel>, String>((ref, tourId) {
+  ref.watch(localExpensesRefreshProvider);
   return ref.watch(expenseRepositoryProvider).watchPendingExpenses(tourId);
 });
 
 final singleExpenseStreamProvider =
     StreamProvider.family<ExpenseModel?, ({String tourId, String expenseId})>(
         (ref, arg) {
+  ref.watch(localExpensesRefreshProvider);
   return ref
       .watch(expenseRepositoryProvider)
       .watchExpense(arg.tourId, arg.expenseId);

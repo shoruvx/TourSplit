@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/app_update_service.dart';
@@ -54,10 +55,24 @@ class WhatsNewDialog extends ConsumerWidget {
       } catch (_) {}
     }
     if (!context.mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => WhatsNewDialog(version: resolvedVersion),
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (ctx, anim, secAnim) => WhatsNewDialog(version: resolvedVersion),
+        transitionsBuilder: (ctx, anim, secAnim, child) {
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -67,64 +82,68 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
+      icon: Icons.calculate_rounded,
+      title: 'In-App Expense Math Calculator',
+      description:
+          'Evaluate mathematical expressions with live results and instant calculation directly inside the expense amount field.',
+    ),
+    (
+      icon: Icons.rounded_corner_rounded,
+      title: 'Symmetric & Unified UI Buttons',
+      description:
+          'Standardized corner radius, elevation, and border stroke width across all screen actions and dialogs.',
+    ),
+    (
+      icon: Icons.forum_rounded,
+      title: 'Peer-to-Peer Chat & Reactions',
+      description:
+          'Coordinate with companions and react to messages in real time or offline nearby.',
+    ),
+    (
+      icon: Icons.cloud_off_rounded,
+      title: 'Pure Offline Host Mode',
+      description:
+          'Create tours and record expenses completely offline with automatic local caching.',
+    ),
+    (
+      icon: Icons.verified_user_rounded,
+      title: 'Settlement Deduplication',
+      description:
+          'Prevents duplicate settlements with automated guards and queue protection.',
+    ),
+    (
       icon: Icons.navigation_rounded,
-      title: 'Unified Bottom Navigation',
+      title: 'Unified Navigation Bar',
       description:
-          'Seamless context-aware navigation bar across Home, My Tours, Profile, and all tour screens, eliminating top-bar clutter and duplicate back buttons.',
+          'Seamless bottom navigation bar across all tour views, eliminating header clutter and duplicate back buttons.',
     ),
     (
-      icon: Icons.assignment_ind_rounded,
-      title: 'Expense Attribution Tracking',
+      icon: Icons.dark_mode_rounded,
+      title: 'Pure OLED Pitch Black Theme',
       description:
-          'Automatic immutable recording of who created each expense across Sheet, Cards, reports, and detail views to avoid misunderstandings.',
-    ),
-    (
-      icon: Icons.chat_bubble_outline_rounded,
-      title: 'Online & Offline Tour Chat',
-      description:
-          'Coordinate in real-time over cloud sync, or chat completely offline via peer-to-peer Bluetooth mesh networking with auto-reconnection.',
-    ),
-    (
-      icon: Icons.add_reaction_rounded,
-      title: 'Interactive Chat Reactions',
-      description:
-          'Long-press any message to react, view aggregate reaction pills, and tap to toggle counts without distracting clutter.',
-    ),
-    (
-      icon: Icons.sync_rounded,
-      title: 'Offline Reliability & Sync',
-      description:
-          'Complete offline usability with background queueing, automatic sync upon reconnection, and streamlined tour settings.',
+          'High-contrast true black mode optimized for battery savings and readability.',
     ),
   ];
 
   static IconData _iconForEmoji(String emoji) {
-    if (emoji.contains('📷') || emoji.contains('📸') || emoji.contains('🔍')) {
-      return Icons.qr_code_scanner_rounded;
+    if (emoji.contains('🧭') || emoji.contains('🗺️') || emoji.contains('📍')) {
+      return Icons.navigation_rounded;
     }
-    if (emoji.contains('👤') || emoji.contains('👥')) {
-      return Icons.account_circle_rounded;
+    if (emoji.contains('📡') || emoji.contains('📶') || emoji.contains('🔵')) {
+      return Icons.bluetooth_searching_rounded;
     }
-    if (emoji.contains('📅') || emoji.contains('🗓️')) {
-      return Icons.calendar_month_rounded;
+    if (emoji.contains('💬') || emoji.contains('✨') || emoji.contains('❤️')) {
+      return Icons.add_reaction_rounded;
     }
-    if (emoji.contains('🔗') || emoji.contains('📱') || emoji.contains('✈️')) {
-      return Icons.share_rounded;
+    if (emoji.contains('⚡') || emoji.contains('🛡️') || emoji.contains('✅')) {
+      return Icons.verified_user_rounded;
     }
-    if (emoji.contains('⚡') || emoji.contains('🚀')) {
-      return Icons.flash_on_rounded;
-    }
-    if (emoji.contains('🎨')) return Icons.palette_rounded;
-    if (emoji.contains('📊') || emoji.contains('📈')) {
-      return Icons.pie_chart_outline_rounded;
-    }
-    if (emoji.contains('💬') || emoji.contains('✨')) {
-      return Icons.translate_rounded;
+    if (emoji.contains('🎨') || emoji.contains('🖤') || emoji.contains('🌙')) {
+      return Icons.dark_mode_rounded;
     }
     if (emoji.contains('🧾') || emoji.contains('💳')) {
       return Icons.receipt_long_rounded;
     }
-    if (emoji.contains('🖼️')) return Icons.image_rounded;
     return Icons.auto_awesome_rounded;
   }
 
@@ -160,135 +179,122 @@ class WhatsNewDialog extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final updateInfo = ref.watch(effectiveUpdateInfoProvider);
+    final installedVersion =
+        ref.watch(currentAppVersionProvider).value?.version;
+    final targetVersion = (version != null && version!.isNotEmpty)
+        ? version!
+        : (installedVersion ?? '');
+
     List<({IconData icon, String title, String description})> activeFeatures =
         _features;
-    if (updateInfo != null && updateInfo.releaseNotes.isNotEmpty) {
+
+    // Only override with remote release notes if explicitly previewing a newer release
+    if (updateInfo != null &&
+        updateInfo.releaseNotes.isNotEmpty &&
+        targetVersion.isNotEmpty &&
+        AppUpdateService.isVersionNewer(
+            updateInfo.latestVersion, targetVersion)) {
       final parsed = _parseReleaseNotes(updateInfo.releaseNotes);
       if (parsed.isNotEmpty) {
         activeFeatures = parsed;
       }
     }
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 20),
+                    // Centered top title (identical to screenshot style)
+                    Text(
+                      'What\'s New',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : AppColors.lightText,
+                        letterSpacing: -0.5,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    child: FutureBuilder<PackageInfo>(
+                    const SizedBox(height: 6),
+                    FutureBuilder<PackageInfo>(
                       future: PackageInfo.fromPlatform(),
                       builder: (context, snapshot) {
                         final v = (version != null && version!.isNotEmpty)
                             ? version!
                             : (snapshot.data?.version ?? '');
-                        final label = v.isNotEmpty
-                            ? 'What\'s New in v$v'
-                            : 'What\'s New';
+                        if (v.isEmpty) return const SizedBox.shrink();
                         return Text(
-                          label,
+                          'Version $v',
                           style: const TextStyle(
                             fontFamily: 'Outfit',
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                             color: AppColors.primaryTeal,
                           ),
                         );
                       },
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        size: 20, color: Colors.grey),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Fresh Features & Refinements',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w800,
-                  fontSize: 19,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Here is what has improved in this update of TourSplit.',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Feature list
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: activeFeatures.map((feature) {
+                    const SizedBox(height: 48),
+
+                    // Minimalist features list (bold title + 1-2 sentence description)
+                    ...activeFeatures.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final feature = entry.value;
+
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
+                        padding: const EdgeInsets.only(bottom: 30),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(9),
+                              margin: const EdgeInsets.only(top: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryTeal
-                                    .withValues(alpha: isDark ? 0.2 : 0.1),
-                                borderRadius: BorderRadius.circular(10),
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : Colors.black.withValues(alpha: 0.04),
+                                shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 feature.icon,
-                                size: 18,
+                                size: 22,
                                 color: AppColors.primaryTeal,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     feature.title,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: 'Outfit',
-                                      fontSize: 14,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : AppColors.lightText,
+                                      letterSpacing: -0.2,
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
+                                  const SizedBox(height: 5),
                                   Text(
                                     feature.description,
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
-                                      fontSize: 12,
+                                      fontSize: 14,
+                                      height: 1.42,
                                       color: isDark
                                           ? AppColors.darkTextSecondary
                                           : AppColors.lightTextSecondary,
-                                      height: 1.3,
                                     ),
                                   ),
                                 ],
@@ -296,15 +302,29 @@ class WhatsNewDialog extends ConsumerWidget {
                             ),
                           ],
                         ),
-                      );
-                    }).toList(),
-                  ),
+                      )
+                          .animate()
+                          .fadeIn(
+                            delay: Duration(milliseconds: 60 * index),
+                            duration: 350.ms,
+                          )
+                          .slideY(
+                            begin: 0.1,
+                            end: 0,
+                            curve: Curves.easeOutCubic,
+                          );
+                    }),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // Action button
-              SizedBox(
+            ),
+
+            // Modern Pill Bottom Action Button (matching screenshot)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
+              child: SizedBox(
                 width: double.infinity,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: () {
                     HapticFeedback.lightImpact();
@@ -313,28 +333,23 @@ class WhatsNewDialog extends ConsumerWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryTeal,
                     foregroundColor: Colors.white,
-                    side: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      width: 1.0,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
-                    elevation: 1,
                   ),
                   child: const Text(
-                    'Got it, Continue',
+                    'Continue',
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 15,
+                      fontSize: 17,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
