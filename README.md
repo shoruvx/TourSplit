@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-1.5.1-teal.svg?style=for-the-badge)](https://github.com/shoruvx/TourSplit/releases)
+[![Version](https://img.shields.io/badge/version-1.5.2-teal.svg?style=for-the-badge)](https://github.com/shoruvx/TourSplit/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B.svg?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28.svg?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)](https://github.com/shoruvx/TourSplit/releases)
@@ -38,17 +38,40 @@ Anyone who has traveled with a group knows the drill: multiple companions pay fo
 
 <br/>
 
-### Expense Tracking & Collaboration
+### Expense Tracking & Attribution
 
 | Sheet Attribution | Cards Attribution | Members Management | Streamlined Settings |
 |:---:|:---:|:---:|:---:|
 | <img src="docs/TourSplit_sheet_table.png" width="220" alt="Sheet View with Added By Column"/> | <img src="docs/TourSplit_cards_view.png" width="220" alt="Cards View with Attribution"/> | <img src="docs/TourSplit_members.png" width="220" alt="Members Directory"/> | <img src="docs/TourSplit_tour_settings.png" width="220" alt="Tour Settings Screen"/> |
+
+<br/>
+
+### Smart Calculations & Collaboration
+
+| In-Line Math Calculator | Live Tour Chat & Mesh | Member Balances | Debt Settlements |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/TourSplit_math_preview.png" width="220" alt="In-Line Math Calculator"/> | <img src="docs/TourSplit_chat_view.png" width="220" alt="Live Tour Chat and Mesh"/> | <img src="docs/TourSplit_balances.png" width="220" alt="Member Net Balances"/> | <img src="docs/TourSplit_settlements.png" width="220" alt="Debt Settlements"/> |
 
 </div>
 
 ---
 
 ## Features
+
+### Pure OLED Pitch Black Theme & Symmetric UI
+- True pitch black background optimized for AMOLED battery efficiency, contrast, and outdoor readability.
+- Standardized symmetric corner radius, elevation curves, and consistent border strokes across all buttons, cards, and modal dialogs.
+
+### In-App Expense Math Calculator
+- Write math expressions directly into the expense amount field (e.g., `(500 * 2) + 350` or `1200 / 3 + 50`).
+- Instant live calculation chip displays evaluated totals in real-time with one-tap application.
+- Dedicated mathematical operator bar (`+`, `-`, `×`, `÷`, `(`, `)`, `=`) above the keyboard enables quick calculations without leaving the app.
+
+### Online & Peer-to-Peer Bluetooth Mesh Chat
+- Real-time cloud messaging when online, with seamless automatic fallback to peer-to-peer Bluetooth mesh networking when traveling off-grid.
+- Long-press interactive reaction bar with aggregate reaction pills and tap-to-toggle counters.
+- Quoted message replies and member mentions with autocomplete.
+- Silent, resilient Bluetooth connection management with automated reconnection and persistent last-used mode tracking.
 
 ### Unified Bottom Navigation
 - Consistent context-aware bottom navigation bar across Home, My Tours, Tour Dashboard, Members, and Tour Settings.
@@ -59,14 +82,13 @@ Anyone who has traveled with a group knows the drill: multiple companions pay fo
 - Displays an immutable "Added" column in the Sheet table and an author badge in Card views, detail sheets, and exported reports to prevent misunderstandings.
 - Author attribution is preserved permanently during edits, modifications, and offline syncing.
 
-### Online & Peer-to-Peer Bluetooth Mesh Chat
-- Real-time cloud messaging when online, with seamless automatic fallback to peer-to-peer Bluetooth mesh networking when traveling off-grid.
-- Long-press interactive reaction bar with aggregate reaction pills and tap-to-toggle counters.
-- Quoted message replies and member mentions with autocomplete.
-- Silent, resilient Bluetooth connection management with automated reconnection and persistent last-used mode tracking.
+### Settlement Deduplication & Greedy Simplification
+- Two-pointer greedy debt reduction algorithm collapses multi-party liabilities into the absolute minimum number of settlement payments.
+- Automated deduplication guards prevent duplicate settlements across offline queue syncs.
+- Records settlement channels (bKash, Nagad, Cash, Bank Transfer) with an unalterable audit log.
 
-### Full Offline Support & Sync Queue
-- Local storage caching powered by Hive allows complete app usability without an active internet connection.
+### Pure Offline Host Mode & Sync Queue
+- Local storage caching powered by Hive allows complete app usability and tour management without an active internet connection.
 - Background offline queue automatically stages expenses, tours, and settlements created offline, syncing them immediately when connectivity is restored.
 - Zero data loss or duplicated transactions during transitions between offline and online states.
 
@@ -75,21 +97,13 @@ Anyone who has traveled with a group knows the drill: multiple companions pay fo
 - Minimalist tour settings focused strictly on essential configurations, removing unnecessary description fields for a clutter-free experience.
 - Safe tour exit options allowing members without recorded expenses to leave completely or preserve mathematical records for shared spending.
 
-### In-Line Math Calculator
-- Write math expressions directly into the expense amount field (e.g., `(500 * 2) + 350` or `1200 / 3 + 50`).
-- Instant glowing preview chip displays calculated totals in real-time.
-- Dedicated mathematical operator bar above the keyboard enables quick arithmetic without switching to external apps.
-
-### Greedy Debt Simplification
-- Two-pointer greedy debt reduction algorithm collapses multi-party liabilities into the absolute minimum number of settlement payments.
-- Records settlement channels (bKash, Nagad, Cash, Bank Transfer) and maintains an unalterable audit log.
-
 ### Offline Companions & Instant Online Migration
 - Add travel companions with just their name in seconds, even if they have not installed the app or lack internet access.
 - Seamlessly link offline companion profiles to registered user accounts once they join the tour, migrating all historical balances and shared splits with zero data loss.
 
 ### Customizable User Profile
 - Profile personalization with camera capture, gallery selection, interactive photo cropping, or pre-built travel avatars.
+- Configure @username handles and preferred payout methods (bKash, Nagad, Bank, Cash).
 - Updates sync across active tours and member lists instantly.
 
 ### PDF Export & Accounting Reports
