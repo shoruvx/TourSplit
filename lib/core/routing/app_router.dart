@@ -74,7 +74,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (state.matchedLocation.startsWith('/onboarding')) {
-        return isLoggedIn ? '/home' : '/login';
+        return '/home';
       }
 
       final isAuthRoute = state.matchedLocation.startsWith('/login') ||
@@ -83,7 +83,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (isLoggedIn && isAuthRoute) return '/home';
 
-      if (!isLoggedIn && !authState.isLoading && !isAuthRoute) return '/login';
+      // Protected routes requiring authentication
+      final isAuthRequiredRoute = state.matchedLocation.startsWith('/profile') ||
+          state.matchedLocation.startsWith('/tour/create') ||
+          state.matchedLocation.startsWith('/tour/join');
+
+      if (!isLoggedIn && isAuthRequiredRoute) return '/login';
 
       return null;
     },

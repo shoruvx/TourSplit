@@ -3,8 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -101,12 +99,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
 
     if (!mounted) return;
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      context.go('/home');
-    } else {
-      context.go('/login');
-    }
+    context.go('/home');
   }
 
   void _nextPage() {
@@ -136,33 +129,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryTeal.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.travel_explore_rounded,
-                          color: AppColors.primaryTeal,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'TourSplit',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          letterSpacing: -0.3,
-                          color: AppColors.primaryTeal,
-                        ),
-                      ),
-                    ],
+                  const Text(
+                    'TourSplit',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: AppColors.primaryTeal,
+                      height: 1.1,
+                    ),
                   ),
                   if (_currentPage < 2)
                     TextButton(
@@ -257,14 +235,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : Text(
-                              _currentPage == 2
-                                  ? 'Grant Permissions & Start'
-                                  : 'Continue',
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
+                          : FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _currentPage == 2
+                                    ? 'Grant Permissions & Start'
+                                    : 'Continue',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                     ),
@@ -273,12 +254,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: _isRequestingPermissions ? null : _completeOnboarding,
-                      child: Text(
-                        'Continue without permissions',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12.5,
-                          color: isDark ? Colors.white54 : Colors.black45,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Continue without permissions',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12.5,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
                         ),
                       ),
                     ),
@@ -293,242 +277,171 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _buildSplitCostsSlide(bool isDark) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          Container(
-            width: 110,
-            height: 110,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primaryTeal.withValues(alpha: 0.2),
-                  AppColors.primaryBlue.withValues(alpha: 0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return Align(
+      alignment: const Alignment(0.0, -0.35),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                'Welcome to TourSplit',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                  color: isDark ? Colors.white : AppColors.lightText,
+                ),
               ),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.pie_chart_rounded,
-                size: 56,
-                color: AppColors.primaryTeal,
-              ),
+            const SizedBox(height: 24),
+            _buildFeatureBadge(
+              icon: Icons.qr_code_scanner_rounded,
+              title: 'Create & Join with QR',
+              description:
+                  'Start trips in seconds or join friends with a quick QR scan.',
+              isDark: isDark,
             ),
-          ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
-          const SizedBox(height: 32),
-          Text(
-            'Split Costs, Keep Memories',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-              color: isDark ? Colors.white : AppColors.lightText,
+            _buildFeatureBadge(
+              icon: Icons.person_add_alt_1_rounded,
+              title: 'Invite Friends',
+              description:
+                  'Share a simple 6-digit tour code or show your QR code.',
+              isDark: isDark,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Keep shared trip expenses completely transparent. Record who paid, customize split shares, and simplify settlements with minimum transactions.',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 15,
-              height: 1.45,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
+            _buildFeatureBadge(
+              icon: Icons.receipt_long_rounded,
+              title: 'Add Expenses',
+              description:
+                  'Record trip expenses quickly and keep all your spending organized.',
+              isDark: isDark,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 28),
-          _buildFeatureBadge(
-            icon: Icons.check_circle_outline_rounded,
-            title: 'Multi-Currency & Live Reports',
-            description: 'Automatic conversions and exportable PDF summaries.',
-            isDark: isDark,
-          ),
-          const SizedBox(height: 14),
-          _buildFeatureBadge(
-            icon: Icons.group_outlined,
-            title: 'Effortless Group Invitations',
-            description: 'Join in seconds via 6-digit code or QR scanning.',
-            isDark: isDark,
-          ),
-        ],
+            _buildFeatureBadge(
+              icon: Icons.call_split_rounded,
+              title: 'Equal & Custom Split',
+              description:
+                  'Split costs equally or choose custom shares for each person.',
+              isDark: isDark,
+              isLast: true,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildOfflineMeshSlide(bool isDark) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          Container(
-            width: 110,
-            height: 110,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.positive.withValues(alpha: 0.2),
-                  AppColors.primaryTeal.withValues(alpha: 0.15),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return Align(
+      alignment: const Alignment(0.0, -0.35),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                'Offline Chat & Settlements',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                  color: isDark ? Colors.white : AppColors.lightText,
+                ),
               ),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.cloud_off_rounded,
-                size: 56,
-                color: AppColors.primaryTeal,
-              ),
+            const SizedBox(height: 24),
+            _buildFeatureBadge(
+              icon: Icons.account_balance_wallet_rounded,
+              title: 'Live Balance Sheet',
+              description:
+                  'Real-time summaries showing who paid and who owes what.',
+              isDark: isDark,
             ),
-          ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
-          const SizedBox(height: 32),
-          Text(
-            'Offline Freedom & P2P Chat',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-              color: isDark ? Colors.white : AppColors.lightText,
+            _buildFeatureBadge(
+              icon: Icons.forum_rounded,
+              title: 'Online & Offline Chat',
+              description:
+                  'Chat with your travel group online or nearby without internet.',
+              isDark: isDark,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Create tours and record expenses completely offline. Chat and react with nearby companions over peer-to-peer Bluetooth without internet.',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 15,
-              height: 1.45,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
+            _buildFeatureBadge(
+              icon: Icons.handshake_rounded,
+              title: 'Export & Settle Up',
+              description:
+                  'Download tour summaries and settle balances with friends easily.',
+              isDark: isDark,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 28),
-          _buildFeatureBadge(
-            icon: Icons.cloud_off_rounded,
-            title: 'Pure Offline Host Mode',
-            description:
-                'Host tours and record expenses with instant local caching.',
-            isDark: isDark,
-          ),
-          const SizedBox(height: 14),
-          _buildFeatureBadge(
-            icon: Icons.forum_rounded,
-            title: 'Peer-to-Peer Nearby Chat',
-            description:
-                'Coordinate and react with nearby companions off the grid.',
-            isDark: isDark,
-          ),
-        ],
+            _buildFeatureBadge(
+              icon: Icons.cloud_off_rounded,
+              title: 'Offline Trip Mode',
+              description:
+                  'Record expenses and manage trips even without internet.',
+              isDark: isDark,
+              isLast: true,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPermissionsAssuranceSlide(bool isDark) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 10),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.positive.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.positive.withValues(alpha: 0.3),
+    return Align(
+      alignment: const Alignment(0.0, -0.35),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                'Permissions & Privacy',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                  color: isDark ? Colors.white : AppColors.lightText,
                 ),
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.shield_rounded, size: 16, color: AppColors.positive),
-                  SizedBox(width: 6),
-                  Text(
-                    '100% Privacy Respected',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.positive,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Permissions & Privacy Assurance',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-              color: isDark ? Colors.white : AppColors.lightText,
+            const SizedBox(height: 24),
+            _buildPermissionCard(
+              icon: Icons.bluetooth_searching_rounded,
+              title: 'Bluetooth & Nearby Devices',
+              description:
+                  'Connect and chat with nearby friends without mobile data.',
+              isGranted: _bluetoothGranted,
+              isDark: isDark,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'TourSplit needs the following system permissions to discover peers and keep your tour in sync offline:',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 13.5,
-              height: 1.4,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
+            _buildPermissionCard(
+              icon: Icons.location_on_outlined,
+              title: 'Nearby Device Search',
+              description:
+                  'Needed by Android to discover nearby friends; your location is never tracked.',
+              isGranted: _locationGranted,
+              isDark: isDark,
             ),
-          ),
-          const SizedBox(height: 20),
-
-          // Permission Cards
-          _buildPermissionCard(
-            icon: Icons.bluetooth_searching_rounded,
-            title: 'Bluetooth & Nearby Devices',
-            description:
-                'Discovers and pairs with companions nearby. Operates directly device-to-device without internet.',
-            isGranted: _bluetoothGranted,
-            isDark: isDark,
-          ),
-          const SizedBox(height: 12),
-
-          _buildPermissionCard(
-            icon: Icons.location_on_outlined,
-            title: 'Location Access (Beaconing)',
-            description:
-                'Required by Android OS for Bluetooth beacon discovery. TourSplit NEVER tracks, stores, or uploads your GPS location.',
-            isGranted: _locationGranted,
-            isDark: isDark,
-            isLocationAssurance: true,
-          ),
-          const SizedBox(height: 12),
-
-          _buildPermissionCard(
-            icon: Icons.notifications_active_outlined,
-            title: 'Background Sync Notification',
-            description:
-                'Keeps your P2P connection alive seamlessly when you leave the app, snap photos, or lock your screen.',
-            isGranted: _notificationGranted,
-            isDark: isDark,
-          ),
-        ],
+            _buildPermissionCard(
+              icon: Icons.notifications_active_outlined,
+              title: 'Notifications',
+              description:
+                  'Get updates when expenses are added or when friends send messages.',
+              isGranted: _notificationGranted,
+              isDark: isDark,
+              isLast: true,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -538,21 +451,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     required String title,
     required String description,
     required bool isDark,
+    bool isLast = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
-      ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 22),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primaryTeal, size: 22),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(9),
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.04),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.primaryTeal, size: 22),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,9 +478,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   title,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 14.5,
+                    fontSize: 16.5,
                     fontWeight: FontWeight.w700,
                     color: isDark ? Colors.white : AppColors.lightText,
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -571,7 +489,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   description,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 13,
+                    fontSize: 13.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w400,
                     color: isDark
                         ? AppColors.darkTextSecondary
                         : AppColors.lightTextSecondary,
@@ -591,24 +511,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     required String description,
     required bool isGranted,
     required bool isDark,
-    bool isLocationAssurance = false,
+    bool isLast = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isGranted
-              ? AppColors.positive.withValues(alpha: 0.4)
-              : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-        ),
-      ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(9),
+            margin: const EdgeInsets.only(top: 2),
             decoration: BoxDecoration(
               color: (isGranted ? AppColors.positive : AppColors.primaryTeal)
                   .withValues(alpha: 0.12),
@@ -616,11 +528,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             child: Icon(
               icon,
-              size: 20,
+              size: 22,
               color: isGranted ? AppColors.positive : AppColors.primaryTeal,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -632,9 +544,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         title,
                         style: TextStyle(
                           fontFamily: 'Outfit',
-                          fontSize: 14.5,
+                          fontSize: 16.5,
                           fontWeight: FontWeight.w700,
                           color: isDark ? Colors.white : AppColors.lightText,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
@@ -642,17 +555,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       const Icon(
                         Icons.check_circle_rounded,
                         color: AppColors.positive,
-                        size: 18,
+                        size: 20,
                       ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   description,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 12.5,
-                    height: 1.35,
+                    fontSize: 13.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w400,
                     color: isDark
                         ? AppColors.darkTextSecondary
                         : AppColors.lightTextSecondary,

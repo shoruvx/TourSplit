@@ -307,19 +307,29 @@ class _BottomProfileNavItem extends StatelessWidget {
                   width: isSelected ? 2.0 : 1.5,
                 ),
               ),
-              child: MemberAvatar(
-                initials: currentUser?.initials?.isNotEmpty == true
-                    ? currentUser!.initials!
-                    : 'U',
-                photoUrl: currentUser?.photoUrl,
-                userId: currentUser?.uid,
-                radius: 11,
-                enableTap: false,
-              ),
+              child: currentUser != null
+                  ? MemberAvatar(
+                      initials: currentUser?.initials?.isNotEmpty == true
+                          ? currentUser!.initials!
+                          : 'U',
+                      photoUrl: currentUser?.photoUrl,
+                      userId: currentUser?.uid,
+                      radius: 11,
+                      enableTap: false,
+                    )
+                  : const CircleAvatar(
+                      radius: 11,
+                      backgroundColor: Colors.transparent,
+                      child: Icon(
+                        Icons.person_outline_rounded,
+                        size: 16,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
             ),
             const SizedBox(height: 3),
             Text(
-              'Profile',
+              currentUser != null ? 'Profile' : 'Profile',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

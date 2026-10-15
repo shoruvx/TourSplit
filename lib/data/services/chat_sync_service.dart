@@ -197,6 +197,10 @@ class ChatSyncService {
               .doc(msg.id)
               .set(msg.toFirestoreMap(), SetOptions(merge: true))
               .timeout(const Duration(seconds: 4));
+
+          _firestore.collection('tours').doc(msg.tourId).update({
+            'lastActivityAt': FieldValue.serverTimestamp(),
+          }).catchError((_) {});
         }
 
         // On success, update local Hive state to syncedToServer = true

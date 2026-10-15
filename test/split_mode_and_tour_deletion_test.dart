@@ -137,12 +137,12 @@ void main() {
   });
 
   group('WhatsNewDialog Feature Standard Tests', () {
-    test('contains Unified Navigation Bar feature with emoji formatting', () {
-      final navBarFeature = WhatsNewDialog.features.firstWhere(
-        (f) => f.title == 'Unified Navigation Bar',
+    test('contains Centered Onboarding feature with proper description', () {
+      final onboardingFeature = WhatsNewDialog.features.firstWhere(
+        (f) => f.title == 'Centered Onboarding',
       );
-      expect(navBarFeature.description, contains('bottom navigation bar'));
-      expect(WhatsNewDialog.features.length, 7);
+      expect(onboardingFeature.description, contains('Clean, easy-to-read'));
+      expect(WhatsNewDialog.features.length, 5);
     });
   });
 }

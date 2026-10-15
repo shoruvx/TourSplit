@@ -14,6 +14,7 @@ class TourModel {
   final DateTime startDate;
   final DateTime? endDate;
   final DateTime createdAt;
+  final DateTime? lastActivityAt;
   final double? budget;
   final String? coverImageUrl;
   final List<String> memberIds;
@@ -33,6 +34,7 @@ class TourModel {
     required this.startDate,
     this.endDate,
     required this.createdAt,
+    this.lastActivityAt,
     required this.memberIds,
     this.pastMemberIds = const [],
     this.adminIds = const [],
@@ -48,6 +50,13 @@ class TourModel {
   bool isPastMember(String userId) => pastMemberIds.contains(userId);
   bool isMemberOrPast(String userId) =>
       memberIds.contains(userId) || pastMemberIds.contains(userId);
+
+  DateTime get effectiveLastActivity => lastActivityAt ?? createdAt;
+  Duration get inactiveDuration => DateTime.now().difference(effectiveLastActivity);
+  int get inactiveDays => inactiveDuration.inDays;
+  bool get isPendingAutoDeletion => inactiveDays >= 23 && inactiveDays < 30 && !isDeleted;
+  int get daysUntilAutoDeletion => (30 - inactiveDays).clamp(0, 30);
+  bool get isExpiredByInactivity => inactiveDays >= 30 && !isDeleted;
 
   factory TourModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -92,6 +101,11 @@ class TourModel {
       startDate: parseDate(data['startDate']),
       endDate: data['endDate'] != null ? parseDate(data['endDate'], null) : null,
       createdAt: parseDate(data['createdAt']),
+      lastActivityAt: data['lastActivityAt'] != null
+          ? parseDate(data['lastActivityAt'])
+          : (data['updatedAt'] != null
+              ? parseDate(data['updatedAt'])
+              : parseDate(data['createdAt'])),
       memberIds: List<String>.from(data['members'] ?? []),
       pastMemberIds: List<String>.from(data['pastMembers'] ?? []),
       adminIds: rawAdminIds,
@@ -113,6 +127,7 @@ class TourModel {
         'startDate': Timestamp.fromDate(startDate),
         'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
         'createdAt': Timestamp.fromDate(createdAt),
+        'lastActivityAt': Timestamp.fromDate(effectiveLastActivity),
         'members': memberIds,
         'pastMembers': pastMemberIds,
         'budget': budget,
@@ -133,6 +148,7 @@ class TourModel {
         'startDate': startDate.millisecondsSinceEpoch,
         'endDate': endDate?.millisecondsSinceEpoch,
         'createdAt': createdAt.millisecondsSinceEpoch,
+        'lastActivityAt': effectiveLastActivity.millisecondsSinceEpoch,
         'members': memberIds,
         'pastMembers': pastMemberIds,
         'budget': budget,
@@ -147,6 +163,7 @@ class TourModel {
     String? currencySymbol,
     TourStatus? status,
     DateTime? endDate,
+    DateTime? lastActivityAt,
     List<String>? memberIds,
     List<String>? pastMemberIds,
     bool? isDeleted,
@@ -163,6 +180,7 @@ class TourModel {
       startDate: startDate,
       endDate: endDate ?? this.endDate,
       createdAt: createdAt,
+      lastActivityAt: lastActivityAt ?? this.lastActivityAt,
       memberIds: memberIds ?? this.memberIds,
       pastMemberIds: pastMemberIds ?? this.pastMemberIds,
       isDeleted: isDeleted ?? this.isDeleted,

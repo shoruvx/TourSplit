@@ -79,6 +79,23 @@ class MainActivity : FlutterActivity() {
                         result.error("CLEANUP_ERROR", e.localizedMessage, null)
                     }
                 }
+                "clearAppCache" -> {
+                    try {
+                        var freedBytes = 0L
+                        val threshold = System.currentTimeMillis() - (24 * 60 * 60 * 1000L)
+                        context.cacheDir?.let { cacheDir ->
+                            cacheDir.walkBottomUp().forEach { file ->
+                                if (file.isFile && file.lastModified() < threshold) {
+                                    freedBytes += file.length()
+                                    file.delete()
+                                }
+                            }
+                        }
+                        result.success(freedBytes)
+                    } catch (e: Exception) {
+                        result.error("CACHE_ERROR", e.localizedMessage, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

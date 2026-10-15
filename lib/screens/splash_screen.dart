@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -87,14 +86,11 @@ class _SplashScreenState extends State<SplashScreen>
                   .get('has_completed_onboarding_guide', defaultValue: false)
               as bool)
           : false;
-      final isLoggedIn = FirebaseAuth.instance.currentUser != null;
 
       if (!seenGuide) {
         context.go('/onboarding');
-      } else if (isLoggedIn) {
-        context.go('/home');
       } else {
-        context.go('/login');
+        context.go('/home');
       }
     } catch (_) {
       try {

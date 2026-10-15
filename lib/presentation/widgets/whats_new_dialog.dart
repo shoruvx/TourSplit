@@ -82,46 +82,33 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
+      icon: Icons.explore_rounded,
+      title: 'Guest Mode',
+      description: 'You can now explore the app without logging in.',
+    ),
+    (
+      icon: Icons.timer_outlined,
+      title: 'Storage Cleanup',
+      description:
+          'Inactive tours get deleted after 30 days of inactivity, but reminds you 7 days before.',
+    ),
+    (
       icon: Icons.calculate_rounded,
-      title: 'In-App Expense Math Calculator',
+      title: 'Expense Calculator',
       description:
-          'Evaluate mathematical expressions with live results and instant calculation directly inside the expense amount field.',
+          'Calculate expenses with quick math directly in the amount field.',
     ),
     (
-      icon: Icons.rounded_corner_rounded,
-      title: 'Symmetric & Unified UI Buttons',
+      icon: Icons.auto_awesome_rounded,
+      title: 'Centered Onboarding',
       description:
-          'Standardized corner radius, elevation, and border stroke width across all screen actions and dialogs.',
+          'Clean, easy-to-read introduction to core features.',
     ),
     (
-      icon: Icons.forum_rounded,
-      title: 'Peer-to-Peer Chat & Reactions',
+      icon: Icons.palette_rounded,
+      title: 'Refreshed Brand',
       description:
-          'Coordinate with companions and react to messages in real time or offline nearby.',
-    ),
-    (
-      icon: Icons.cloud_off_rounded,
-      title: 'Pure Offline Host Mode',
-      description:
-          'Create tours and record expenses completely offline with automatic local caching.',
-    ),
-    (
-      icon: Icons.verified_user_rounded,
-      title: 'Settlement Deduplication',
-      description:
-          'Prevents duplicate settlements with automated guards and queue protection.',
-    ),
-    (
-      icon: Icons.navigation_rounded,
-      title: 'Unified Navigation Bar',
-      description:
-          'Seamless bottom navigation bar across all tour views, eliminating header clutter and duplicate back buttons.',
-    ),
-    (
-      icon: Icons.dark_mode_rounded,
-      title: 'Pure OLED Pitch Black Theme',
-      description:
-          'High-contrast true black mode optimized for battery savings and readability.',
+          'Freshly optimized texts, buttons, and a modern clean logo.',
     ),
   ];
 

@@ -59,6 +59,7 @@ class TourRepository {
       'budget': budget,
       'coverImageUrl': coverImageUrl,
       'createdAt': FieldValue.serverTimestamp(),
+      'lastActivityAt': FieldValue.serverTimestamp(),
       'members': [adminId],
     };
 
@@ -72,6 +73,15 @@ class TourRepository {
         .update({'activeTourId': docRef.id});
 
     return tour;
+  }
+
+  Future<void> touchTourActivity(String tourId) async {
+    try {
+      if (tourId.startsWith('local_')) return;
+      await _tours.doc(tourId).update({
+        'lastActivityAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
   }
 
   Future<TourModel?> getTourByInviteCode(String code) async {

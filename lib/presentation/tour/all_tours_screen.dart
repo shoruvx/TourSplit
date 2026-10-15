@@ -16,6 +16,8 @@ import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_expense_queue_service.dart';
 import 'widgets/tour_qr_dialog.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../../data/services/tour_lifecycle_service.dart';
+import '../widgets/login_required_dialog.dart';
 
 class AllToursScreen extends ConsumerStatefulWidget {
   const AllToursScreen({super.key});
@@ -216,7 +218,136 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (user == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          _navigateBackToMain();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            toolbarHeight: 64,
+            titleSpacing: 20,
+            title: const Text(
+              'Tours',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+                color: AppColors.primaryTeal,
+                height: 1.1,
+              ),
+            ),
+            actions: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.qr_code_scanner_rounded,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                        tooltip: 'Join Tour',
+                        onPressed: () => showLoginRequiredDialog(context,
+                            action: 'join a tour'),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.add_rounded,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                        tooltip: 'Create Tour',
+                        onPressed: () => showLoginRequiredDialog(context,
+                            action: 'create a tour'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          body: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.luggage_outlined,
+                      color: AppColors.primaryTeal,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Explore Tours on TourSplit',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.darkText : AppColors.lightText,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'You are currently exploring TourSplit in guest mode. Sign in or create an account to start tours, invite friends with QR codes, and sync expenses seamlessly.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      height: 1.5,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: 220,
+                    child: ElevatedButton(
+                      onPressed: () => context.push('/login'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Sign In or Register',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          bottomNavigationBar: HomeBottomNavigationBar(
+            currentIndex: 1,
+            activeToursCount: 0,
+            currentUser: null,
+            onHomeTap: _navigateBackToMain,
+            onToursTap: () {},
+            onProfileTap: () => showLoginRequiredDialog(context,
+                action: 'view your profile'),
+          ),
+        ),
+      );
     }
 
     final toursStream = ref.watch(userToursStreamProvider(user.uid));
@@ -286,6 +417,7 @@ class _AllToursScreenState extends ConsumerState<AllToursScreen> {
             return Center(child: Text('$e'));
           },
           data: (tours) {
+            TourLifecycleService.instance.checkOncePerSession(tours);
             // Merge Firestore tours with any locally-queued offline tours
             final localTours = _getLocalOnlyTours(user.uid);
             final merged = <String, TourModel>{};
@@ -714,6 +846,26 @@ class _TourCard extends ConsumerWidget {
                     ),
                   ),
                 ],
+                if (tour.isPendingAutoDeletion) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Deletes in ${tour.daysUntilAutoDeletion}d',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 4),
                 IconButton(
                   visualDensity: VisualDensity.compact,
@@ -917,6 +1069,56 @@ class _TourCard extends ConsumerWidget {
                 isLoading:
                     expensesAsync.isLoading && expensesAsync.value == null,
               ),
+              if (tour.isPendingAutoDeletion) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_outlined,
+                          color: AppColors.danger, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'No activity for ${tour.inactiveDays}d. Auto-deletes in ${tour.daysUntilAutoDeletion} days.',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.danger,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            context.push('/reports?tourId=${tour.id}'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                        ),
+                        child: const Text(
+                          'Export',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -33,6 +33,10 @@ class ExpenseRepository {
 
     await docRef.set(data, SetOptions(merge: true));
 
+    _db.collection(AppConstants.toursCollection).doc(expense.tourId).update({
+      'lastActivityAt': FieldValue.serverTimestamp(),
+    }).catchError((_) {});
+
     return expense.copyWith(id: expenseId, createdAt: createdNow);
   }
 

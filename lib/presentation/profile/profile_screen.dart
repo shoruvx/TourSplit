@@ -1345,7 +1345,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: Image.asset(
-                                    'assets/images/logo.png',
+                                    'assets/brand/app_icon.png',
                                     width: 38,
                                     height: 38,
                                     fit: BoxFit.cover,
@@ -1538,6 +1538,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     ? AppColors.darkBorder
                                     : AppColors.lightBorder,
                               ),
+
                               ListTile(
                                 onTap: () =>
                                     context.push('/profile/contact-us'),

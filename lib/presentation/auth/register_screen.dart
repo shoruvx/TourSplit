@@ -128,7 +128,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
                       child: Image.asset(
-                        'assets/images/logo.png',
+                        'assets/brand/app_icon.png',
                         fit: BoxFit.cover,
                       ),
                     ),

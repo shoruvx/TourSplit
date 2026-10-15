@@ -2,8 +2,21 @@
 
 All notable changes to TourSplit are documented in this file. Releases follow a detailed yet minimalistic format highlighting core capabilities, bug fixes, and user experience enhancements.
 
+## [v1.5.3] - 2026-10-15
+
+- 🧭 **Guest Mode**: You can now explore the app without logging in.
+- ⏳ **Storage Cleanup**: Inactive tours get deleted after 30 days of inactivity, but reminds you 7 days before.
+- 🧮 **Expense Calculator**: Calculate expenses with quick math directly in the amount field.
+- ✨ **Centered Onboarding**: Clean, easy-to-read introduction to core features.
+- 🎨 **Refreshed Brand**: Freshly optimized texts, buttons, and a modern clean logo.
+
+---
+
 ## [v1.5.2] - 2026-10-04
 
+- 🧭 **Guest Exploration Mode**: Explore tours, features, and the interface freely without logging in; authentication is only required when managing your profile or creating and joining tours.
+- ⏳ **30-Day Auto Storage Cleanup**: Tours inactive for 30 days are automatically pruned to save cloud storage, with a 7-day advance notification to export your trip history.
+- 🎨 **Minimalist Onboarding & Brand Redesign**: Streamlined onboarding presentation with concise keyword highlights, borderless list rows, and refreshed unified branding.
 - 🧮 **In-App Expense Math Calculator**: Evaluate mathematical expressions with live results and instant calculation directly inside the expense amount field.
 - 🎨 **Symmetric & Unified UI Buttons**: Standardized corner radius, elevation, and border stroke width across all screen actions and dialogs.
 - 💬 **Peer-to-Peer Chat & Reactions**: Coordinate with companions and react to messages in real time or offline nearby.

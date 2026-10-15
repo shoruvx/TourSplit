@@ -269,6 +269,36 @@ class NotificationService {
     } catch (_) {}
   }
 
+  static Future<void> showTourInactivityWarningNotification({
+    required String tourId,
+    required String tourName,
+    required int daysRemaining,
+  }) async {
+    try {
+      final notifId = ('inactivity_$tourId').hashCode;
+      await _localNotifications.show(
+        id: notifId,
+        title: 'Export Tour: $tourName',
+        body:
+            'No activity for 23+ days. "$tourName" will be deleted in $daysRemaining day${daysRemaining == 1 ? '' : 's'} to save storage. Tap to export tour history.',
+        payload: '/reports?tourId=$tourId',
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channel.id,
+            _channel.name,
+            channelDescription: _channel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+          ),
+          iOS: const DarwinNotificationDetails(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[NOTIFICATION] Error showing inactivity warning: $e');
+    }
+  }
+
   static Future<String?> getFcmToken() async {
     return await FirebaseMessaging.instance.getToken();
   }

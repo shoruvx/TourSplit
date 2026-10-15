@@ -7,11 +7,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ota_update/ota_update.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../presentation/widgets/app_notification_sheet.dart';
 import '../models/app_update_model.dart';
 import 'notification_service.dart';
 
@@ -361,12 +361,12 @@ class AppUpdateService {
 
     if (isAppStorePackage(packageInfo.installerStore)) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Updates are managed automatically by your app store.'),
-          backgroundColor: AppColors.primaryTeal,
-        ),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.storefront_rounded,
+        title: 'Managed by App Store',
+        message:
+            'Updates for TourSplit are managed automatically by your app store.',
       );
       return;
     }
@@ -379,12 +379,13 @@ class AppUpdateService {
       notifyIfNewUpdate(updateInfo, currentVer);
       showUpdateDialog(context, info: updateInfo, currentVersion: currentVer);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'You are on the latest version of TourSplit (v$currentVer).'),
-          backgroundColor: AppColors.positive,
-        ),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: AppColors.positive,
+        title: "You're Up to Date",
+        message:
+            'TourSplit v$currentVer is the latest version. You are enjoying all the latest features and improvements.',
       );
     }
   }
@@ -450,9 +451,12 @@ class AppUpdateService {
     if (!context.mounted) return;
     if (isUpdateDialogShowing) return;
     isUpdateDialogShowing = true;
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: !info.forceUpdate,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      isDismissible: !info.forceUpdate,
+      enableDrag: !info.forceUpdate,
       builder: (ctx) => _UpdateDialogWidget(
         info: info,
         currentVersion: currentVersion,
@@ -669,86 +673,80 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
 
     return PopScope(
       canPop: !widget.info.forceUpdate && _step != _UpdateStep.downloading,
-      child: Dialog(
-        backgroundColor: isDark ? AppColors.darkBg : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: isDark
-              ? BorderSide(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  width: 1.0,
-                )
-              : BorderSide.none,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryTeal.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.asset('assets/images/logo.png',
-                            fit: BoxFit.cover),
-                      ),
-                    ),
-                    Positioned(
-                      right: -2,
-                      bottom: -2,
-                      child: Container(
-                        padding: const EdgeInsets.all(3.5),
-                        decoration: const BoxDecoration(
-                          color: AppColors.primaryTeal,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.rocket_launch_rounded,
-                            color: Colors.white, size: 12),
-                      ),
-                    ),
-                  ],
-                ).animate().scale(duration: 350.ms, curve: Curves.easeOutBack),
-                const SizedBox(height: 12),
+                // Pull bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                // Icon badge
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.system_update_rounded,
+                    color: AppColors.primaryTeal,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Title
                 const Text(
                   'Update Available',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 8),
+
+                // Subtitle
                 Text(
                   _isDownloaded
-                      ? 'Version v${widget.info.latestVersion} is downloaded & ready'
-                      : 'Version v${widget.info.latestVersion} is available',
+                      ? 'Version v${widget.info.latestVersion} is downloaded & ready to install.'
+                      : 'Version v${widget.info.latestVersion} is ready to install (Current: v${widget.currentVersion}).',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    height: 1.4,
                     color: isDark
-                        ? const Color(0xFF5EEAD4)
-                        : AppColors.primaryTeal,
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 18),
 
                 // Step View
                 if (_step == _UpdateStep.idle) ...[
@@ -756,8 +754,8 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      margin: const EdgeInsets.only(bottom: 12),
+                          horizontal: 14, vertical: 10),
+                      margin: const EdgeInsets.only(bottom: 14),
                       decoration: BoxDecoration(
                         color: AppColors.positive.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
@@ -768,14 +766,14 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                       child: const Row(
                         children: [
                           Icon(Icons.check_circle_rounded,
-                              color: AppColors.positive, size: 16),
+                              color: AppColors.positive, size: 18),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'APK is already downloaded! Tap below to install.',
+                              'Update is already downloaded! Tap below to install.',
                               style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 11.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.positive,
                               ),
@@ -788,94 +786,85 @@ class _UpdateDialogWidgetState extends State<_UpdateDialogWidget> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                        horizontal: 16, vertical: 14),
+                    margin: const EdgeInsets.only(bottom: 20),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? AppColors.darkBg
+                          ? Colors.white.withValues(alpha: 0.05)
                           : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withValues(alpha: 0.15)
-                            : const Color(0xFFCBD5E1),
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : const Color(0xFFE2E8F0),
                       ),
                     ),
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 110),
+                      constraints: const BoxConstraints(maxHeight: 120),
                       child: SingleChildScrollView(
                         child: Text(
                           _cleanNotes(widget.info.releaseNotes),
                           style: TextStyle(
                             fontFamily: 'Outfit',
-                            fontSize: 12,
+                            fontSize: 13,
                             height: 1.45,
-                            color: isDark ? Colors.white70 : Colors.black87,
+                            color: isDark
+                                ? AppColors.darkText
+                                : AppColors.lightText,
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      if (!widget.info.forceUpdate) ...[
-                        Expanded(
-                          flex: 4,
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 11),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: const Text(
-                              'Later',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
+
+                  // Full-width Action Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed:
+                          _isDownloaded ? _triggerInstall : _startOtaUpdate,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
                         ),
-                        const SizedBox(width: 10),
-                      ],
-                      Expanded(
-                        flex: 6,
-                        child: ElevatedButton.icon(
-                          onPressed: _isDownloaded ? _triggerInstall : _startOtaUpdate,
-                          icon: Icon(
-                            _isDownloaded
-                                ? Icons.system_update_rounded
-                                : Icons.bolt_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: Text(
-                            _isDownloaded ? 'Install Now' : 'Update Now',
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              fontSize: 13,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryTeal,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 11),
-                            shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.button)),
-                            elevation: 0,
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        _isDownloaded ? 'Install Update' : 'Update Now',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!widget.info.forceUpdate) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(
+                          'Maybe Later',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                   if (_isDownloaded) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     TextButton.icon(
                       onPressed: _startOtaUpdate,
                       icon: const Icon(Icons.refresh_rounded, size: 14),

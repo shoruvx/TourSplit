@@ -20,6 +20,7 @@ import '../../data/services/welcome_greeting_service.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_expense_queue_service.dart';
 import '../../data/services/offline_tour_queue_service.dart';
+import '../../data/services/tour_lifecycle_service.dart';
 import '../../data/repositories/settlement_repository.dart';
 import '../../data/services/chat_sync_service.dart';
 import '../widgets/member_avatar.dart';
@@ -33,6 +34,7 @@ import '../settlement/widgets/manual_settlement_dialog.dart';
 import '../settlement/widgets/receiver_payment_accounts_view.dart';
 import '../chat/widgets/messenger_chat_head.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../widgets/login_required_dialog.dart';
 
 export '../../data/services/active_tour_cache_service.dart'
     show localMembersRefreshProvider, localSettlementsRefreshProvider;
@@ -56,6 +58,13 @@ class HomeScreen extends ConsumerWidget {
 
     final currentUser = ref.watch(currentUserProvider);
     final authUser = ref.watch(authServiceProvider).currentUser;
+    if (authUser != null) {
+      final toursAsync = ref.watch(userToursStreamProvider(authUser.uid));
+      final userTours = toursAsync.value;
+      if (userTours != null && userTours.isNotEmpty) {
+        TourLifecycleService.instance.checkOncePerSession(userTours);
+      }
+    }
     final activeTourId = ref.watch(activeTourIdProvider);
 
     return currentUser.when(
@@ -76,8 +85,8 @@ class HomeScreen extends ConsumerWidget {
             displayName: name.isNotEmpty ? name : 'Explorer',
           );
         }
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+        return const _NoActiveTourScreen(
+          displayName: 'Explorer',
         );
       },
       error: (e, _) {
@@ -95,7 +104,9 @@ class HomeScreen extends ConsumerWidget {
             displayName: name.isNotEmpty ? name : 'Explorer',
           );
         }
-        return Scaffold(body: Center(child: Text('Error: $e')));
+        return const _NoActiveTourScreen(
+          displayName: 'Explorer',
+        );
       },
       data: (user) {
         if (user == null) {
@@ -113,25 +124,8 @@ class HomeScreen extends ConsumerWidget {
               displayName: name.isNotEmpty ? name : 'Explorer',
             );
           }
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 20),
-                    const Text('Setting up your account...'),
-                    const SizedBox(height: 24),
-                    TextButton(
-                      onPressed: () => ref.read(authServiceProvider).signOut(),
-                      child: const Text('Back to Login'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          return const _NoActiveTourScreen(
+            displayName: 'Explorer',
           );
         }
 
@@ -258,6 +252,55 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                   ),
                 ),
               ],
+              if (currentUser == null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.explore_outlined,
+                          color: AppColors.primaryTeal, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Guest Mode • Explore features freely. Sign in to save and sync tours.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12.5,
+                            color: isDark ? Colors.white : AppColors.lightText,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.push('/login'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                        ),
+                        child: const Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.primaryTeal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -326,7 +369,14 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                     SizedBox(
                       width: 220,
                       child: ElevatedButton.icon(
-                        onPressed: () => context.push('/tour/create'),
+                        onPressed: () {
+                          if (currentUser == null) {
+                            showLoginRequiredDialog(context,
+                                action: 'create a tour');
+                          } else {
+                            context.push('/tour/create');
+                          }
+                        },
                         icon: const Icon(Icons.add_rounded,
                             color: Colors.white, size: 20),
                         label: const Text(
@@ -354,7 +404,14 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                     SizedBox(
                       width: 220,
                       child: OutlinedButton.icon(
-                        onPressed: () => context.push('/tour/join'),
+                        onPressed: () {
+                          if (currentUser == null) {
+                            showLoginRequiredDialog(context,
+                                action: 'join a tour');
+                          } else {
+                            context.push('/tour/join');
+                          }
+                        },
                         icon:
                             const Icon(Icons.qr_code_scanner_rounded, size: 20),
                         label: const Text(
@@ -423,7 +480,13 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
         currentUser: currentUser,
         onHomeTap: () {},
         onToursTap: () => context.push('/tours'),
-        onProfileTap: () => context.push('/profile'),
+        onProfileTap: () {
+          if (currentUser == null) {
+            showLoginRequiredDialog(context, action: 'view your profile');
+          } else {
+            context.push('/profile');
+          }
+        },
       ),
     );
   }
@@ -1022,6 +1085,73 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                             requests: requests,
                           );
                         },
+                      ),
+                    ],
+                    if (tour.isPendingAutoDeletion) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.danger.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.timer_outlined,
+                                color: AppColors.danger, size: 26),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Auto-deletion in ${tour.daysUntilAutoDeletion} days',
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: AppColors.danger,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'This tour has had no activity for ${tour.inactiveDays} days. Tours inactive for 30 days are automatically deleted to save cloud storage. Please download or export your history before then.',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11.5,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => context
+                                        .push('/reports?tourId=${tour.id}'),
+                                    icon: const Icon(Icons.download_rounded,
+                                        size: 16),
+                                    label: const Text('Export Tour History'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.danger,
+                                      side: const BorderSide(
+                                          color: AppColors.danger),
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                     if (isReadOnly) ...[

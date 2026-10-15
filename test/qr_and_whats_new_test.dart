@@ -74,14 +74,12 @@ void main() {
 
   group('WhatsNewDialog Features Tests', () {
     test('static features list contains the updated features', () {
-      expect(WhatsNewDialog.features.length, 7);
-      expect(WhatsNewDialog.features[0].title, 'In-App Expense Math Calculator');
-      expect(WhatsNewDialog.features[1].title, 'Symmetric & Unified UI Buttons');
-      expect(WhatsNewDialog.features[2].title, 'Peer-to-Peer Chat & Reactions');
-      expect(WhatsNewDialog.features[3].title, 'Pure Offline Host Mode');
-      expect(WhatsNewDialog.features[4].title, 'Settlement Deduplication');
-      expect(WhatsNewDialog.features[5].title, 'Unified Navigation Bar');
-      expect(WhatsNewDialog.features[6].title, 'Pure OLED Pitch Black Theme');
+      expect(WhatsNewDialog.features.length, 5);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Guest Mode'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Storage Cleanup'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Expense Calculator'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Centered Onboarding'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Refreshed Brand'), isTrue);
     });
   });
 

@@ -38,19 +38,41 @@ class StorageOptimizationService {
     }
   }
 
+  /// Clean up native application cache directory
+  static Future<int> clearAppCache() async {
+    try {
+      final freedBytes =
+          await _installerChannel.invokeMethod<int>('clearAppCache') ?? 0;
+      if (freedBytes > 0) {
+        debugPrint(
+            '[STORAGE] Cleared ${(freedBytes / (1024 * 1024)).toStringAsFixed(2)} MB of cached files');
+      }
+      return freedBytes;
+    } catch (e) {
+      debugPrint('[STORAGE] clearAppCache error: $e');
+      return 0;
+    }
+  }
+
   /// Run comprehensive storage optimization on app launch
   static Future<void> runStartupStorageOptimization() async {
     try {
       // 1. Purge old OTA APK downloads
       await clearDownloadedApks();
 
-      // 2. Prune any stale tour data so only the latest active tour is kept
+      // 2. Clean image disk cache (cached network images)
+      await cleanupImageCache();
+
+      // 3. Clean native app cache directory
+      await clearAppCache();
+
+      // 4. Prune any stale tour data so only the latest active tour is kept
       await ActiveTourCacheService.pruneStaleToursCache();
 
-      // 3. Prune orphaned local member records
+      // 5. Prune orphaned local member records
       await OfflineTourQueueService.pruneOrphanedLocalData();
 
-      // 2. Clean temporary directory if accessible
+      // 6. Clean temporary directory if accessible
       final tempDir = Directory.systemTemp;
       if (tempDir.existsSync()) {
         final now = DateTime.now();

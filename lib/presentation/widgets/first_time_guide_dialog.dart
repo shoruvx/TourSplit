@@ -5,6 +5,22 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/app_theme.dart';
 
+class GuideFeatureItem {
+  final IconData icon;
+  final String title;
+  final String description;
+  final String badge;
+  final Color accentColor;
+
+  const GuideFeatureItem({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.badge,
+    required this.accentColor,
+  });
+}
+
 class FirstTimeGuideDialog extends StatelessWidget {
   const FirstTimeGuideDialog({super.key});
 
@@ -50,178 +66,371 @@ class FirstTimeGuideDialog extends StatelessWidget {
     );
   }
 
-  static const List<({IconData icon, String title, String description})> _steps =
-      [
-    (
-      icon: Icons.travel_explore_rounded,
-      title: 'Create & Join Tours',
+  static const List<GuideFeatureItem> features = [
+    GuideFeatureItem(
+      icon: Icons.qr_code_scanner_rounded,
+      title: 'Create & Join Tours with QR',
       description:
-          'Create a trip or join instantly with a 6-digit code or QR scan.',
+          'Create private or group tours in seconds. Join companions instantly by scanning a Tour QR code or entering a tour code.',
+      badge: 'QR & Code',
+      accentColor: AppColors.primaryTeal,
     ),
-    (
+    GuideFeatureItem(
+      icon: Icons.person_add_alt_1_rounded,
+      title: 'Add Members with Code or QR',
+      description:
+          'Invite travel companions via a 6-digit invite code or scannable QR card so everyone stays connected on the go.',
+      badge: 'Easy Invites',
+      accentColor: Color(0xFF0284C7),
+    ),
+    GuideFeatureItem(
       icon: Icons.receipt_long_rounded,
-      title: 'Track Expenses',
+      title: 'Add Expenses & Split Custom / Equally',
       description:
-          'Log spending with custom split ratios, multiple payers, and offline support.',
+          'Log spending with multiple payers and built-in math calculation. Split evenly among everyone or customize individual shares.',
+      badge: 'Flexible Split',
+      accentColor: Color(0xFFF59E0B),
     ),
-    (
-      icon: Icons.handshake_rounded,
-      title: 'Simplified Settlements',
+    GuideFeatureItem(
+      icon: Icons.account_balance_wallet_rounded,
+      title: 'Live Transparent Balance Sheet',
       description:
-          'Clear balances with minimized transactions and saved payment accounts.',
+          'See real-time balance sheets and daily expense summaries. Track who paid what, who owes whom, and total tour costs.',
+      badge: 'Balance Sheet',
+      accentColor: Color(0xFF10B981),
     ),
-    (
+    GuideFeatureItem(
       icon: Icons.forum_rounded,
-      title: 'Peer-to-Peer Chat',
+      title: 'Chat in Both Online & Offline',
       description:
-          'Coordinate with companions and react in real-time or offline nearby.',
+          'Coordinate seamlessly with companions. Send messages and reactions online via cloud, or offline nearby via Bluetooth mesh.',
+      badge: 'Online & Mesh',
+      accentColor: Color(0xFF14B8A6),
+    ),
+    GuideFeatureItem(
+      icon: Icons.handshake_rounded,
+      title: 'Export Chat & Settle Effortlessly',
+      description:
+          'Export complete chat history and expense receipts, then clear debts with minimum transactions and 1-tap payout accounts.',
+      badge: '1-Tap Settle',
+      accentColor: Color(0xFF8B5CF6),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       body: SafeArea(
         child: Column(
           children: [
+            // Top App Bar with Close Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 16, 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.travel_explore_rounded,
+                          color: AppColors.primaryTeal,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'TourSplit',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          letterSpacing: -0.3,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.of(context).pop();
+                    },
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                      size: 22,
+                    ),
+                    tooltip: 'Close Guide',
+                  ),
+                ],
+              ),
+            ),
+
+            // Scrollable Content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    // Centered top title (matching screenshot layout)
-                    Text(
-                      'TourSplit',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : AppColors.lightText,
-                        letterSpacing: -0.5,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Split the costs, keep the memories.',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 14,
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 10),
 
-                    // Minimalist feature highlights
-                    ..._steps.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final step = entry.value;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 30),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    // Guide Pill & Header
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.primaryTeal.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(9),
-                              margin: const EdgeInsets.only(top: 2),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.06)
-                                    : Colors.black.withValues(alpha: 0.04),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                step.icon,
-                                size: 22,
-                                color: AppColors.primaryTeal,
-                              ),
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 14,
+                              color: AppColors.primaryTeal,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    step.title,
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark ? Colors.white : AppColors.lightText,
-                                      letterSpacing: -0.2,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    step.description,
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 14,
-                                      height: 1.42,
-                                      color: isDark
-                                          ? AppColors.darkTextSecondary
-                                          : AppColors.lightTextSecondary,
-                                    ),
-                                  ),
-                                ],
+                            SizedBox(width: 6),
+                            Text(
+                              'WELCOME GUIDE',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: AppColors.primaryTeal,
                               ),
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    Center(
+                      child: Text(
+                        'Split Costs, Keep Memories',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: isDark ? Colors.white : AppColors.lightText,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Everything you need for transparent shared travel: instant tour setup, flexible expense splits, offline mesh chat, and effortless settlements.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13.5,
+                            height: 1.45,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Feature Cards
+                    ...features.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkCard : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.lightBorder,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: item.accentColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  item.icon,
+                                  color: item.accentColor,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item.title,
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 15.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : AppColors.lightText,
+                                              letterSpacing: -0.2,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 2.5),
+                                          decoration: BoxDecoration(
+                                            color: item.accentColor
+                                                .withValues(alpha: 0.12),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            item.badge,
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: item.accentColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      item.description,
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 13,
+                                        height: 1.4,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       )
                           .animate()
                           .fadeIn(
-                            delay: Duration(milliseconds: 60 * index),
-                            duration: 350.ms,
+                            delay: Duration(milliseconds: 50 * index),
+                            duration: 300.ms,
                           )
                           .slideY(
-                            begin: 0.1,
+                            begin: 0.08,
                             end: 0,
                             curve: Curves.easeOutCubic,
                           );
                     }),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
             ),
 
-            // Modern Pill Bottom Action Button
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.of(context).pop();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryTeal,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                    ),
-                  ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
+            // Bottom Sticky Action Button
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBg : AppColors.lightBg,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    width: 0.5,
                   ),
                 ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Got It & Explore',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Icon(Icons.arrow_forward_rounded, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You can revisit this guide anytime under Profile → Welcome Guide',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11.5,
+                      color: isDark
+                          ? AppColors.darkTextSecondary.withValues(alpha: 0.8)
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -230,3 +439,5 @@ class FirstTimeGuideDialog extends StatelessWidget {
     );
   }
 }
+
+typedef WelcomeGuideScreen = FirstTimeGuideDialog;
