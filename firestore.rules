@@ -43,7 +43,7 @@ service cloud.firestore {
 
       match /expenses/{expenseId} {
         allow read, create, update: if isLoggedIn();
-        allow delete: if isTourAdmin(tourId);
+        allow delete: if isTourAdmin(tourId) || isOwner(resource.data.addedByUserId);
       }
 
       match /settlements/{settlementId} {

@@ -103,25 +103,13 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                       ],
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Text(
-                      '${widget.currencySymbol}${_dayTotal.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                  Text(
+                    '${widget.currencySymbol}${_dayTotal.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -313,34 +301,18 @@ class _DaySummaryTableState extends State<DaySummaryTable> {
                             flex: 3,
                             child: Align(
                               alignment: Alignment.centerRight,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(
+                              child: Text(
+                                '${widget.currencySymbol}${exp.amount % 1 == 0 ? exp.amount.toStringAsFixed(0) : exp.amount.toStringAsFixed(2)}',
+                                maxLines: 1,
+                                softWrap: false,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
                                   color: isDark
-                                      ? const Color(0xFF0F2E28)
-                                      : const Color(0xFFECFDF5),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: isDark
-                                        ? const Color(0xFF10B981)
-                                            .withValues(alpha: 0.45)
-                                        : const Color(0xFFA7F3D0),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Text(
-                                  '${widget.currencySymbol}${exp.amount % 1 == 0 ? exp.amount.toStringAsFixed(0) : exp.amount.toStringAsFixed(2)}',
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDark
-                                        ? const Color(0xFF34D399)
-                                        : const Color(0xFF065F46),
-                                  ),
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
                                 ),
                               ),
                             ),

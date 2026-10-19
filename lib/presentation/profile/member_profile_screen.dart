@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/tour_model.dart';
+import '../../data/models/settlement_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/user_cache_service.dart';
 import '../../data/services/balance_service.dart';
@@ -277,8 +278,11 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
     if (tour != null && allMembers.isNotEmpty && expensesAsync?.value != null) {
       final approvedExpenses =
           expensesAsync!.value!.where((e) => e.isApproved).toList();
+      final approvedSettlements = settlementsAsync?.value != null
+          ? settlementsAsync!.value!.where((s) => s.isApproved).toList()
+          : <SettlementModel>[];
       final paidMap =
-          BalanceService.calculateTotalPaid(allMembers, approvedExpenses);
+          BalanceService.calculateTotalPaid(allMembers, approvedExpenses, approvedSettlements);
       final spentMap =
           BalanceService.calculateTotalSpent(allMembers, approvedExpenses);
 
@@ -286,11 +290,7 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
       totalSpent = spentMap[widget.userId] ?? 0.0;
 
       var bals = BalanceService.calculateBalances(allMembers, approvedExpenses);
-      if (settlementsAsync?.value != null) {
-        final approvedSettlements =
-            settlementsAsync!.value!.where((s) => s.isApproved).toList();
-        bals = BalanceService.applySettlements(bals, approvedSettlements);
-      }
+      bals = BalanceService.applySettlements(bals, approvedSettlements);
       netBalance = bals[widget.userId] ?? 0.0;
     }
 

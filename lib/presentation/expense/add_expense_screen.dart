@@ -19,6 +19,7 @@ import '../../data/models/tour_model.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/member_avatar.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class LastExpenseDateNotifier extends Notifier<DateTime?> {
   @override
@@ -50,6 +51,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _amountFocusNode = FocusNode();
 
   bool _isLoading = false;
+  bool _submitted = false;
 
   int _splitMode = 0;
   DateTime _selectedDateTime = DateTime.now();
@@ -106,10 +108,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           );
         }
       } else if (exp.splitType == SplitType.selected) {
-        _splitMode = 2;
+        _splitMode = 0;
         _selectedMemberIds = List.from(exp.splitAmong);
       } else {
         _splitMode = 0;
+        _selectedMemberIds = List.from(exp.splitAmong);
       }
     } else {
       final remembered = ref.read(lastExpenseDateProvider);
@@ -206,16 +209,93 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     return (sum * 100).round() / 100;
   }
 
+  Future<void> _confirmDeleteExpense(
+      String tourId, ExpenseModel expense) async {
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.delete_outline_rounded,
+      iconColor: AppColors.danger,
+      title: 'Delete Expense?',
+      message:
+          'Are you sure you want to delete "${expense.title}"? This cannot be undone.',
+      confirmText: 'Delete',
+      confirmColor: AppColors.danger,
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await ref
+            .read(expenseRepositoryProvider)
+            .deleteExpense(tourId, expense.id);
+        ref.invalidate(tourExpensesStreamProvider(tourId));
+        ref.invalidate(approvedExpensesStreamProvider(tourId));
+        ref.invalidate(singleExpenseStreamProvider((tourId: tourId, expenseId: expense.id)));
+        ref.read(localExpensesRefreshProvider.notifier).bump();
+        if (mounted) {
+          await showAppNotificationSheet(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: AppColors.positive,
+            title: 'Expense Deleted',
+            message: 'Expense "${expense.title}" was deleted successfully.',
+            primaryButtonText: 'Done',
+          );
+          if (mounted) {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          showAppNotificationSheet(
+            context,
+            icon: Icons.error_outline_rounded,
+            iconColor: AppColors.danger,
+            title: 'Delete Failed',
+            message: 'Failed to delete expense: $e',
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
   Future<void> _submit(
       TourModel tour, String currentUserId, String currentUserName, bool isAdmin) async {
+    if (tour.isLockedForDeletion) {
+      showAppNotificationSheet(
+        context,
+        icon: Icons.timer_outlined,
+        iconColor: AppColors.danger,
+        title: 'Tour Scheduled for Deletion',
+        message:
+            'This tour has been inactive and is scheduled for automatic permanent deletion. Adding expenses is strictly disabled.',
+        primaryButtonText: 'Download PDF',
+        onPrimaryPressed: () => context.push('/reports?tourId=${tour.id}'),
+        secondaryButtonText: 'Close',
+      );
+      return;
+    }
     _evaluateAmount();
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
 
     final eval = MathExpressionEvaluator.tryEvaluate(_amountCtrl.text.trim());
     final totalAmount = eval ?? (double.tryParse(_amountCtrl.text.trim()) ?? 0.0);
     if (totalAmount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount')),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.warning_amber_rounded,
+        iconColor: AppColors.warning,
+        title: 'Invalid Amount',
+        message: 'Please enter a valid expense amount.',
       );
       return;
     }
@@ -227,13 +307,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (_isMultiContributor) {
       final currentContributedTotal = _totalContributions;
       if ((currentContributedTotal - totalAmount).abs() > 0.05) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Sum of contributions (${tour.currencySymbol}${currentContributedTotal.toStringAsFixed(0)}) must equal total expense (${tour.currencySymbol}${totalAmount.toStringAsFixed(0)})',
-            ),
-            backgroundColor: AppColors.danger,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.warning_amber_rounded,
+          iconColor: AppColors.warning,
+          title: 'Contribution Mismatch',
+          message:
+              'Sum of contributions (${tour.currencySymbol}${currentContributedTotal.toStringAsFixed(0)}) must equal total expense (${tour.currencySymbol}${totalAmount.toStringAsFixed(0)}).',
         );
         return;
       }
@@ -248,9 +328,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       }
 
       if (payersMap.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Please enter at least one contribution')),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.warning_amber_rounded,
+          iconColor: AppColors.warning,
+          title: 'No Contributions',
+          message: 'Please enter at least one contribution.',
         );
         return;
       }
@@ -275,8 +358,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       }
     } else {
       if (_paidByUserId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select who paid')),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.warning_amber_rounded,
+          iconColor: AppColors.warning,
+          title: 'Select Payer',
+          message: 'Please select who paid for this expense.',
         );
         return;
       }
@@ -292,10 +379,25 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     SplitType splitType;
 
     if (_splitMode == 0) {
-      splitType = SplitType.equal;
-      splitMembers = _members.map((m) => m.userId).toList();
+      if (_selectedMemberIds.length < _members.length && _selectedMemberIds.isNotEmpty) {
+        splitType = SplitType.selected;
+        splitMembers = _selectedMemberIds;
+      } else {
+        splitType = SplitType.equal;
+        splitMembers = _members.map((m) => m.userId).toList();
+      }
       customSplitsMap = null;
-    } else if (_splitMode == 1) {
+      if (splitMembers.isEmpty) {
+        showAppNotificationSheet(
+          context,
+          icon: Icons.warning_amber_rounded,
+          iconColor: AppColors.warning,
+          title: 'Select Members',
+          message: 'Select at least one member to share this expense.',
+        );
+        return;
+      }
+    } else {
       splitType = SplitType.custom;
       final parsedSplits = <String, double>{};
       for (final m in _members) {
@@ -308,28 +410,18 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       final totalCustom =
           parsedSplits.values.fold<double>(0.0, (sum, v) => sum + v);
       if ((totalCustom - totalAmount).abs() > 0.05) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Custom split total (${tour.currencySymbol}${totalCustom.toStringAsFixed(2)}) must equal expense amount (${tour.currencySymbol}${totalAmount.toStringAsFixed(2)})'),
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.warning_amber_rounded,
+          iconColor: AppColors.warning,
+          title: 'Split Mismatch',
+          message:
+              'Custom split total (${tour.currencySymbol}${totalCustom.toStringAsFixed(2)}) must equal expense amount (${tour.currencySymbol}${totalAmount.toStringAsFixed(2)}).',
         );
         return;
       }
       splitMembers = parsedSplits.keys.toList();
       customSplitsMap = parsedSplits;
-    } else {
-      splitType = SplitType.selected;
-      splitMembers = _selectedMemberIds;
-      customSplitsMap = null;
-      if (splitMembers.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Select at least one member to share this expense')),
-        );
-        return;
-      }
     }
 
     setState(() => _isLoading = true);
@@ -389,13 +481,15 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         ref.read(lastExpenseDateProvider.notifier).setDate(_selectedDateTime);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Expense updated successfully.'),
-              backgroundColor: AppColors.positive,
-            ),
+          await showAppNotificationSheet(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: AppColors.positive,
+            title: 'Expense Updated',
+            message: 'Expense "${_titleCtrl.text.trim().isNotEmpty ? _titleCtrl.text.trim() : 'Expense'}" updated successfully.',
+            primaryButtonText: 'Done',
           );
-          context.pop();
+          if (mounted) context.pop();
         }
         return;
       }
@@ -459,27 +553,137 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             : (isAdmin
                 ? 'Expense saved successfully!'
                 : 'Expense submitted for admin approval');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.accent,
-          ),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: isAdmin ? 'Expense Saved!' : 'Expense Submitted',
+          message: message,
+          primaryButtonText: 'Done',
         );
-        context.pop();
+        if (mounted) context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to add expense: $e'),
-            backgroundColor: AppColors.danger,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Expense Failed',
+          message: 'Failed to add expense: $e',
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year && date.month == now.month && date.day == now.day;
+  }
+
+  void _showPayerPickerSheet(
+      BuildContext context, List<TourMemberModel> members, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? Colors.black : Colors.white,
+      barrierColor: Colors.black54,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        side: isDark
+            ? const BorderSide(color: AppColors.darkBorder, width: 1)
+            : BorderSide.none,
+      ),
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Select Payer',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : AppColors.lightText,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                  Flexible(
+                    child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: members.length,
+                    itemBuilder: (ctx, i) {
+                      final m = members[i];
+                      final isSelected = m.userId == _paidByUserId;
+                      return ListTile(
+                        leading: MemberAvatar(
+                          initials: m.initials,
+                          photoUrl: m.photoUrl,
+                          userId: m.userId,
+                          tourMember: m,
+                          radius: 18,
+                          enableTap: false,
+                        ),
+                        title: Text(
+                          '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isDark ? Colors.white : AppColors.lightText,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded,
+                                color: AppColors.primaryTeal)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _paidByUserId = m.userId;
+                            _paidByName = m.displayName;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -611,12 +815,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         _paidByName = defaultPayer.displayName;
       }
       if (_selectedMemberIds.isEmpty) {
-        final defaultTarget = _paidByUserId!;
-        final targetMember = members.firstWhere(
-          (m) => m.userId == defaultTarget,
-          orElse: () => members.first,
-        );
-        _selectedMemberIds = [targetMember.userId];
+        _selectedMemberIds = members.map((m) => m.userId).toList();
       }
     }
 
@@ -629,1219 +828,1216 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       }
     }
 
-            return PopScope(
-              canPop: false,
-              onPopInvokedWithResult: (didPop, _) {
-                if (didPop) return;
+    final currentPayerMember = members.firstWhereOrNull((m) => m.userId == _paidByUserId) ??
+        (members.isNotEmpty ? members.first : null);
+
+    final canDelete = widget.existingExpense != null &&
+        (isAdmin ||
+            widget.existingExpense!.addedByUserId == currentUserId ||
+            widget.existingExpense!.paidByUserId == currentUserId);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      },
+      child: LoadingOverlay(
+        isLoading: _isLoading,
+        child: Scaffold(
+          backgroundColor: isDark ? Colors.black : const Color(0xFFF8FAFC),
+          appBar: AppBar(
+            backgroundColor: isDark ? Colors.black : const Color(0xFFF8FAFC),
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'Cancel',
+              onPressed: () {
                 if (context.canPop()) {
                   context.pop();
                 } else {
                   context.go('/home');
                 }
               },
-              child: LoadingOverlay(
-                isLoading: _isLoading,
-                child: Scaffold(
-                  appBar: AppBar(
-                    leading: IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      tooltip: 'Cancel',
-                      onPressed: () {
-                        if (context.canPop()) {
-                          context.pop();
-                        } else {
-                          context.go('/home');
-                        }
-                      },
-                    ),
-                    title: Text(widget.existingExpense != null
-                        ? 'Edit Expense'
-                        : 'Add Expense'),
-                    centerTitle: true,
-                  ),
-                body: Form(
-                  key: _formKey,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionLabel(title: 'Amount *'),
-                        const SizedBox(height: 8),
-                        Builder(
-                          builder: (context) {
-                            final expressionText = _amountCtrl.text.trim();
-                            final hasMath = MathExpressionEvaluator.hasMathOperators(expressionText);
-                            final previewVal = hasMath ? MathExpressionEvaluator.tryEvaluate(expressionText) : null;
-                            final currentAmountNum = previewVal ?? MathExpressionEvaluator.tryEvaluate(expressionText) ?? 0.0;
-                            final isFocused = _amountFocusNode.hasFocus;
-
-                            return Column(
+            ),
+            title: Text(
+              widget.existingExpense != null ? 'Edit Expense' : 'Add Expense',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : AppColors.lightText,
+              ),
+            ),
+            centerTitle: true,
+            actions: [
+              if (canDelete)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
+                  tooltip: 'Delete Expense',
+                  onPressed: () => _confirmDeleteExpense(tour.id, widget.existingExpense!),
+                ),
+            ],
+          ),
+          body: Form(
+            key: _formKey,
+            autovalidateMode: _submitted
+                ? AutovalidateMode.onUserInteraction
+                : AutovalidateMode.disabled,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (tour.isLockedForDeletion) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.danger.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.timer_outlined,
+                              color: AppColors.danger, size: 24),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Minimal Amount Input Card
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? AppColors.darkSurface
-                                        : const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: isFocused
-                                          ? AppColors.primaryTeal
-                                          : (isDark
-                                              ? AppColors.darkBorder
-                                              : AppColors.lightBorder),
-                                      width: isFocused ? 1.5 : 1.0,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        tour.currencySymbol,
-                                        style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.w900,
-                                          color: AppColors.primaryTeal,
-                                          height: 1.0,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: _amountCtrl,
-                                          focusNode: _amountFocusNode,
-                                          keyboardType: TextInputType.text,
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter.allow(
-                                                RegExp(r'[0-9\.\+\-\*\/\(\)\s\×\÷xX,]')),
-                                          ],
-                                          style: TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 28,
-                                            fontWeight: FontWeight.w800,
-                                            color: isDark
-                                                ? Colors.white
-                                                : const Color(0xFF0F172A),
-                                            letterSpacing: -0.5,
-                                          ),
-                                          decoration: InputDecoration(
-                                            hintText: '0.00',
-                                            hintStyle: TextStyle(
-                                              color: isDark
-                                                  ? const Color(0xFF475569)
-                                                  : const Color(0xFF94A3B8),
-                                              fontSize: 28,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            border: InputBorder.none,
-                                            enabledBorder: InputBorder.none,
-                                            focusedBorder: InputBorder.none,
-                                            errorBorder: InputBorder.none,
-                                            focusedErrorBorder: InputBorder.none,
-                                            disabledBorder: InputBorder.none,
-                                            filled: false,
-                                            isDense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                          ),
-                                          onChanged: (val) {
-                                            setState(() {});
-                                          },
-                                          validator: (v) {
-                                            if (v == null || v.trim().isEmpty) {
-                                              return 'Enter amount';
-                                            }
-                                            final val =
-                                                MathExpressionEvaluator.tryEvaluate(v);
-                                            if (val == null || val <= 0) {
-                                              return 'Invalid amount or expression';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  'Tour Auto-Deletes in ${tour.daysUntilAutoDeletion} days',
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: AppColors.danger,
                                   ),
                                 ),
-                                // Calculations Outside the Card
-                                if (hasMath && previewVal != null) ...[
-                                  const SizedBox(height: 8),
-                                  InkWell(
-                                    onTap: _evaluateAmount,
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryTeal
-                                            .withValues(alpha: isDark ? 0.15 : 0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: AppColors.primaryTeal
-                                              .withValues(alpha: 0.35),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.calculate_rounded,
-                                              size: 15,
-                                              color: AppColors.primaryTeal),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            '= ${tour.currencySymbol}${MathExpressionEvaluator.formatResult(previewVal)}',
-                                            style: const TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w800,
-                                              color: AppColors.primaryTeal,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          const Text(
-                                            '• tap to apply',
-                                            style: TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.primaryTeal,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'This tour is inactive and scheduled for deletion. Adding or editing expenses is disabled.',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11.5,
                                   ),
-                                ],
-                                const SizedBox(height: 8),
-                                // Quick Math Toolbar
-                                Row(
-                                  children: [
-                                    for (final op in ['+', '−', '×', '÷', '(', ')', '='])
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 2),
-                                          child: InkWell(
-                                            onTap: () => _insertOperator(op),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            child: Container(
-                                              height: 32,
-                                              decoration: BoxDecoration(
-                                                color: op == '='
-                                                    ? AppColors.primaryTeal
-                                                    : (isDark
-                                                        ? Colors.white.withValues(
-                                                            alpha: 0.06)
-                                                        : Colors.black.withValues(
-                                                            alpha: 0.04)),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: op == '='
-                                                      ? AppColors.primaryTeal
-                                                      : (isDark
-                                                          ? AppColors.darkBorder
-                                                          : AppColors.lightBorder),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: Text(
-                                                op,
-                                                style: TextStyle(
-                                                  fontFamily: 'Outfit',
-                                                  fontSize: op == '=' ? 14 : 15,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: op == '='
-                                                      ? Colors.white
-                                                      : (isDark
-                                                          ? Colors.white70
-                                                          : AppColors.lightText),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
                                 ),
-                                if (currentAmountNum > 0 &&
-                                    members.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.people_alt_outlined,
-                                        size: 14,
-                                        color: isDark
-                                            ? AppColors.darkTextSecondary
-                                            : AppColors.lightTextSecondary,
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Text(
-                                        '≈ ${tour.currencySymbol}${(currentAmountNum / members.length).toStringAsFixed(2)} / person (${members.length} members)',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark
-                                              ? AppColors.darkTextSecondary
-                                              : AppColors.lightTextSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
                               ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        _SectionLabel(title: 'Expense Item *'),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _titleCtrl,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: InputDecoration(
-                            hintText: 'Title (e.g. Lunch)',
-                            filled: true,
-                            fillColor: isDark
-                                ? AppColors.darkSurface
-                                : const Color(0xFFF1F5F9),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
                             ),
                           ),
-                          validator: (val) => val == null || val.trim().isEmpty
-                              ? 'Enter item name'
-                              : null,
-                        ),
-                        const SizedBox(height: 20),
-                        const _SectionLabel(title: 'Expense Date *'),
-                        const SizedBox(height: 8),
-                        Builder(
-                          builder: (context) {
-                            final baseDate = DateTime(tour.startDate.year,
-                                tour.startDate.month, tour.startDate.day);
-                            final expDate = DateTime(
-                                _selectedDateTime.year,
-                                _selectedDateTime.month,
-                                _selectedDateTime.day);
-                            final diffDays =
-                                expDate.difference(baseDate).inDays;
-                            final dayNumber =
-                                diffDays >= 0 ? diffDays + 1 : 1;
-
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.darkSurface
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                        Icons.chevron_left_rounded,
-                                        size: 24),
-                                    tooltip: 'Previous Day',
-                                    color: AppColors.primaryTeal,
-                                    onPressed: () {
-                                      HapticFeedback.selectionClick();
-                                      final prevDay = _selectedDateTime
-                                          .subtract(const Duration(days: 1));
-                                      setState(
-                                          () => _selectedDateTime = prevDay);
-                                      ref
-                                          .read(
-                                              lastExpenseDateProvider.notifier)
-                                          .setDate(prevDay);
-                                    },
-                                  ),
-                                  Expanded(
-                                    child: InkWell(
-                                      onTap: _pickDate,
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 12),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primaryTeal,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                'Day $dayNumber',
-                                                style: const TextStyle(
-                                                  fontFamily: 'Outfit',
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Icon(
-                                                Icons.calendar_month_rounded,
-                                                size: 18,
-                                                color: AppColors.primaryTeal),
-                                            const SizedBox(width: 6),
-                                            Flexible(
-                                              child: Text(
-                                                DateFormat('EEE, MMM d, yyyy')
-                                                    .format(_selectedDateTime),
-                                                style: const TextStyle(
-                                                  fontFamily: 'Outfit',
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
-                                                ),
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                        Icons.chevron_right_rounded,
-                                        size: 24),
-                                    tooltip: 'Next Day',
-                                    color: AppColors.primaryTeal,
-                                    onPressed: () {
-                                      HapticFeedback.selectionClick();
-                                      final nextDay = _selectedDateTime
-                                          .add(const Duration(days: 1));
-                                      setState(
-                                          () => _selectedDateTime = nextDay);
-                                      ref
-                                          .read(
-                                              lastExpenseDateProvider.notifier)
-                                          .setDate(nextDay);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
+                  ],
+                  // --- HERO AMOUNT & MATH & DATE SECTION ---
+                  Center(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
                           children: [
-                            _SectionLabel(title: 'Paid By *'),
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.darkSurface
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder,
-                                ),
+                            Text(
+                              tour.currencySymbol,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primaryTeal,
                               ),
-                              child: Row(
-                                children: [
-                                  GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () => setState(
-                                        () => _isMultiContributor = false),
-                                    child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 150),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 7),
-                                      decoration: BoxDecoration(
-                                        color: !_isMultiContributor
-                                            ? AppColors.primaryTeal
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(9),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.person_rounded,
-                                            size: 14.5,
-                                            color: !_isMultiContributor
-                                                ? Colors.white
-                                                : (isDark
-                                                    ? Colors.white60
-                                                    : Colors.black54),
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            'Single',
-                                            style: TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w700,
-                                              color: !_isMultiContributor
-                                                  ? Colors.white
-                                                  : (isDark
-                                                      ? Colors.white60
-                                                      : Colors.black54),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                            ),
+                            const SizedBox(width: 6),
+                            IntrinsicWidth(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                    minWidth: 80, maxWidth: 260),
+                                child: TextFormField(
+                                  controller: _amountCtrl,
+                                  focusNode: _amountFocusNode,
+                                  keyboardType: TextInputType.text,
+                                  textAlign: TextAlign.center,
+                                  autovalidateMode: _submitted
+                                      ? AutovalidateMode.onUserInteraction
+                                      : AutovalidateMode.disabled,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'[0-9\.\+\-\*\/\(\)\s\×\÷xX,]')),
+                                  ],
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 44,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -1.0,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
                                   ),
-                                  GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () {
-                                      setState(() {
-                                        _isMultiContributor = true;
-                                        if (_totalContributions <= 0 &&
-                                            _paidByUserId != null) {
-                                          _contributorControllers[
-                                                  _paidByUserId!]
-                                              ?.text = _amountCtrl.text.trim();
-                                        }
-                                      });
-                                    },
-                                    child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 150),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 7),
-                                      decoration: BoxDecoration(
-                                        color: _isMultiContributor
-                                            ? AppColors.primaryTeal
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(9),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.group_rounded,
-                                            size: 14.5,
-                                            color: _isMultiContributor
-                                                ? Colors.white
-                                                : (isDark
-                                                    ? Colors.white60
-                                                    : Colors.black54),
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            'Multiple',
-                                            style: TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w700,
-                                              color: _isMultiContributor
-                                                  ? Colors.white
-                                                  : (isDark
-                                                      ? Colors.white60
-                                                      : Colors.black54),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                  decoration: InputDecoration(
+                                    hintText: '0',
+                                    hintStyle: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 44,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.0,
+                                      color: isDark
+                                          ? const Color(0xFF334155)
+                                          : const Color(0xFFCBD5E1),
                                     ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    errorBorder: InputBorder.none,
+                                    focusedErrorBorder: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
                                   ),
-                                ],
+                                  onChanged: (_) {
+                                    if (_submitted) {
+                                      _formKey.currentState?.validate();
+                                    }
+                                    setState(() {});
+                                  },
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Enter amount';
+                                    }
+                                    final val =
+                                        MathExpressionEvaluator.tryEvaluate(v);
+                                    if (val == null || val <= 0) {
+                                      return 'Invalid amount';
+                                    }
+                                    return null;
+                                  },
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        if (!_isMultiContributor) ...[
-                          Container(
+                        const SizedBox(height: 12),
+                        // Quick Math Bar: [ + ] [ − ] [ × ] [ ÷ ] [ = ]
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final op in ['+', '−', '×', '÷', '=']) ...[
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                                child: InkWell(
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    _insertOperator(op);
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    width: 36,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: op == '='
+                                          ? AppColors.primaryTeal
+                                          : (isDark
+                                              ? Colors.black
+                                              : const Color(0xFFF1F5F9)),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: op == '='
+                                            ? AppColors.primaryTeal
+                                            : (isDark
+                                                ? AppColors.darkBorder
+                                                : AppColors.lightBorder),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      op,
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: op == '=' ? 14 : 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: op == '='
+                                            ? Colors.white
+                                            : (isDark
+                                                ? Colors.white70
+                                                : AppColors.lightText),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Date Pill with clean vector outline icon
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            _pickDate();
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 4),
+                                horizontal: 14, vertical: 7),
                             decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppColors.darkSurface
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(16),
+                              color: isDark ? Colors.black : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isDark
                                     ? AppColors.darkBorder
                                     : AppColors.lightBorder,
+                                width: 1,
                               ),
                             ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                value: members.any((m) => m.userId == _paidByUserId)
-                                    ? _paidByUserId
-                                    : (members.isNotEmpty
-                                        ? members.first.userId
-                                        : null),
-                                icon: const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: AppColors.primaryTeal,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 13,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
                                 ),
-                                dropdownColor:
-                                    isDark ? AppColors.darkCard : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                items: members.map((m) {
-                                  return DropdownMenuItem<String>(
-                                    value: m.userId,
-                                    child: Row(
-                                      children: [
-                                        MemberAvatar(
-                                          initials: m.initials,
-                                          photoUrl: m.photoUrl,
-                                          userId: m.userId,
-                                          tourMember: m,
-                                          radius: 14,
-                                          enableTap: false,
+                                const SizedBox(width: 7),
+                                Text(
+                                  _isToday(_selectedDateTime)
+                                      ? 'Today, ${DateFormat('MMM d').format(_selectedDateTime)}'
+                                      : DateFormat('EEE, MMM d')
+                                          .format(_selectedDateTime),
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white
+                                        : AppColors.lightText,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 16,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // --- EXPENSE ITEM TITLE ---
+                  TextFormField(
+                    controller: _titleCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    autovalidateMode: _submitted
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white : AppColors.lightText,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Expense description (e.g. Lunch at Sea Gull)',
+                      hintStyle: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 14,
+                        color: isDark
+                            ? const Color(0xFF64748B)
+                            : const Color(0xFF94A3B8),
+                      ),
+                      filled: true,
+                      fillColor: isDark ? Colors.black : Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryTeal,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    onChanged: (_) {
+                      if (_submitted) {
+                        _formKey.currentState?.validate();
+                      }
+                      setState(() {});
+                    },
+                    validator: (val) =>
+                        val == null || val.trim().isEmpty ? 'Enter description' : null,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // --- PAID BY SECTION ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'PAID BY',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF475569),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _isMultiContributor = !_isMultiContributor;
+                            if (_isMultiContributor &&
+                                _totalContributions <= 0 &&
+                                _paidByUserId != null) {
+                              _contributorControllers[_paidByUserId!]?.text =
+                                  _amountCtrl.text.trim();
+                            }
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          child: Text(
+                            _isMultiContributor
+                                ? 'Single Payer'
+                                : '+ Multiple Payers',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryTeal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: !_isMultiContributor
+                        ? InkWell(
+                            onTap: () => _showPayerPickerSheet(
+                                context, members, isDark),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Row(
+                              children: [
+                                MemberAvatar(
+                                  initials: currentPayerMember?.initials ?? '?',
+                                  photoUrl: currentPayerMember?.photoUrl,
+                                  userId: currentPayerMember?.userId ?? '',
+                                  tourMember: currentPayerMember,
+                                  radius: 20,
+                                  enableTap: false,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${currentPayerMember?.displayName ?? 'Select Payer'}${currentPayerMember?.isOffline ?? false ? ' (Offline)' : ''}',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark
+                                              ? Colors.white
+                                              : AppColors.lightText,
                                         ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Paid 100% of the bill',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: isDark
+                                              ? const Color(0xFF94A3B8)
+                                              : const Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: AppColors.primaryTeal,
+                                  size: 22,
+                                ),
+                              ],
+                            ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Member Contributions',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : AppColors.lightText,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${tour.currencySymbol}${_totalContributions.toStringAsFixed(0)} / ${tour.currencySymbol}${_amountCtrl.text.trim().isEmpty ? '0' : _amountCtrl.text.trim()}',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: (_totalContributions -
+                                                      (double.tryParse(_amountCtrl
+                                                              .text
+                                                              .trim()) ??
+                                                          0.0))
+                                                  .abs() <
+                                              0.05
+                                          ? AppColors.positive
+                                          : AppColors.danger,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 18),
+                              ...members.map((m) {
+                                final ctrl =
+                                    _contributorControllers[m.userId]!;
+                                final totalAmt = double.tryParse(
+                                        _amountCtrl.text.trim()) ??
+                                    0.0;
+                                final otherSum = _contributorControllers.entries
+                                    .where((e) => e.key != m.userId)
+                                    .fold<double>(
+                                        0.0,
+                                        (sum, e) =>
+                                            sum +
+                                            (double.tryParse(
+                                                    e.value.text.trim()) ??
+                                                0.0));
+                                final remainingForMember = totalAmt - otherSum;
+
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      MemberAvatar(
+                                        initials: m.initials,
+                                        photoUrl: m.photoUrl,
+                                        userId: m.userId,
+                                        tourMember: m,
+                                        radius: 16,
+                                        enableTap: false,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : AppColors.lightText,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            if (remainingForMember > 0.01) ...[
+                                              const SizedBox(height: 2),
+                                              InkWell(
+                                                onTap: () {
+                                                  HapticFeedback.lightImpact();
+                                                  setState(() {
+                                                    ctrl.text = remainingForMember %
+                                                                1 ==
+                                                            0
+                                                        ? remainingForMember
+                                                            .toStringAsFixed(0)
+                                                        : remainingForMember
+                                                            .toStringAsFixed(2);
+                                                  });
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                child: Text(
+                                                  '+ Fill Rest (${tour.currencySymbol}${remainingForMember.toStringAsFixed(remainingForMember % 1 == 0 ? 0 : 2)})',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Outfit',
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.primaryTeal,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 95,
+                                        height: 38,
+                                        child: TextFormField(
+                                          controller: ctrl,
+                                          keyboardType: const TextInputType
+                                              .numberWithOptions(
+                                              decimal: true),
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark
+                                                ? Colors.white
+                                                : AppColors.lightText,
+                                          ),
+                                          decoration: InputDecoration(
+                                            prefixText:
+                                                '${tour.currencySymbol} ',
+                                            prefixStyle: const TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primaryTeal,
+                                            ),
+                                            filled: true,
+                                            fillColor: isDark
+                                                ? const Color(0xFF0F172A)
+                                                : const Color(0xFFF8FAFC),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 8, vertical: 8),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: BorderSide(
+                                                color: isDark
+                                                    ? AppColors.darkBorder
+                                                    : AppColors.lightBorder,
+                                              ),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: BorderSide(
+                                                color: isDark
+                                                    ? AppColors.darkBorder
+                                                    : AppColors.lightBorder,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: const BorderSide(
+                                                color: AppColors.primaryTeal,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                          ),
+                                          onChanged: (_) => setState(() {}),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // --- SPLIT WITH SECTION ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'SPLIT WITH',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF475569),
+                        ),
+                      ),
+                      if (_splitMode == 0 &&
+                          _selectedMemberIds.length < members.length)
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _selectedMemberIds =
+                                  members.map((m) => m.userId).toList();
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            child: Text(
+                              'Select All',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryTeal,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Split Mode Toggle Buttons (Teal solid background with white text when selected)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _splitMode = 0);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: BoxDecoration(
+                              color: _splitMode == 0
+                                  ? AppColors.primaryTeal
+                                  : (isDark ? Colors.black : Colors.white),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _splitMode == 0
+                                    ? AppColors.primaryTeal
+                                    : (isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.lightBorder),
+                                width: 1.0,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Split Equally (All)',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _splitMode == 0
+                                    ? Colors.white
+                                    : (isDark
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _splitMode = 1;
+                              for (final m in members) {
+                                _customSplitControllers.putIfAbsent(
+                                    m.userId, () => TextEditingController());
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: BoxDecoration(
+                              color: _splitMode == 1
+                                  ? AppColors.primaryTeal
+                                  : (isDark ? Colors.black : Colors.white),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _splitMode == 1
+                                    ? AppColors.primaryTeal
+                                    : (isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.lightBorder),
+                                width: 1.0,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Custom Split',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _splitMode == 1
+                                    ? Colors.white
+                                    : (isDark
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: _splitMode == 0
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.people_alt_outlined,
+                                    size: 15,
+                                    color: AppColors.primaryTeal,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Builder(
+                                      builder: (context) {
+                                        final expVal =
+                                            MathExpressionEvaluator.tryEvaluate(
+                                                    _amountCtrl.text.trim()) ??
+                                                0.0;
+                                        final count = _selectedMemberIds.isEmpty
+                                            ? members.length
+                                            : _selectedMemberIds.length;
+                                        final perPerson = count > 0
+                                            ? (expVal / count)
+                                            : 0.0;
+                                        return Text(
+                                          '≈ ${tour.currencySymbol}${perPerson.toStringAsFixed(perPerson % 1 == 0 ? 0 : 2)} / person  (${_selectedMemberIds.length} of ${members.length} members)',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark
+                                                ? const Color(0xFFCBD5E1)
+                                                : const Color(0xFF334155),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              // Avatar Grid/Wrap for Selecting/Deselecting members
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: members.map((m) {
+                                  final isSelected =
+                                      _selectedMemberIds.contains(m.userId);
+                                  return InkWell(
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      setState(() {
+                                        if (isSelected) {
+                                          if (_selectedMemberIds.length > 1) {
+                                            _selectedMemberIds.remove(m.userId);
+                                          }
+                                        } else {
+                                          _selectedMemberIds.add(m.userId);
+                                        }
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            Opacity(
+                                              opacity: isSelected ? 1.0 : 0.35,
+                                              child: MemberAvatar(
+                                                initials: m.initials,
+                                                photoUrl: m.photoUrl,
+                                                userId: m.userId,
+                                                tourMember: m,
+                                                radius: 20,
+                                                enableTap: false,
+                                              ),
+                                            ),
+                                            if (isSelected)
+                                              Positioned(
+                                                right: -2,
+                                                bottom: -2,
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.all(2),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.primaryTeal,
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: isDark
+                                                          ? Colors.black
+                                                          : Colors.white,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.check,
+                                                    size: 10,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 5),
+                                        SizedBox(
+                                          width: 52,
                                           child: Text(
-                                            '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
+                                            m.displayName.split(' ').first,
+                                            textAlign: TextAlign.center,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               fontFamily: 'Outfit',
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                              color: isDark
-                                                  ? AppColors.darkText
-                                                  : AppColors.lightText,
+                                              fontSize: 11,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                              color: isSelected
+                                                  ? (isDark
+                                                      ? Colors.white
+                                                      : AppColors.lightText)
+                                                  : (isDark
+                                                      ? const Color(0xFF64748B)
+                                                      : const Color(
+                                                          0xFF94A3B8)),
                                             ),
-                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                       ],
                                     ),
                                   );
                                 }).toList(),
-                                onChanged: (selectedId) {
-                                  if (selectedId != null) {
-                                    final m = members.firstWhereOrNull(
-                                        (mem) => mem.userId == selectedId);
-                                    if (m != null) {
-                                      setState(() {
-                                        _paidByUserId = m.userId;
-                                        _paidByName = m.displayName;
-                                      });
-                                    }
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color:
-                                  isDark ? AppColors.darkSurface : Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Contributed Amounts',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13)),
-                                    Text(
-                                      '${tour.currencySymbol}${_totalContributions.toStringAsFixed(0)} / ${tour.currencySymbol}${_amountCtrl.text.trim().isEmpty ? '0' : _amountCtrl.text.trim()}',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontWeight: FontWeight.w700,
-                                        color: (_totalContributions -
-                                                        (double.tryParse(
-                                                                _amountCtrl.text
-                                                                    .trim()) ??
-                                                            0.0))
-                                                    .abs() <
-                                                0.05
-                                            ? AppColors.positive
-                                            : AppColors.danger,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Divider(height: 16),
-                                ...members.map((m) {
-                                  final ctrl =
-                                      _contributorControllers[m.userId]!;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        MemberAvatar(
-                                          initials: m.initials,
-                                          photoUrl: m.photoUrl,
-                                          userId: m.userId,
-                                          tourMember: m,
-                                          radius: 14,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () {
-                                            final totalAmt = double.tryParse(
-                                                    _amountCtrl.text.trim()) ??
-                                                0.0;
-                                            double othersSum = 0.0;
-                                            for (final entry
-                                                in _contributorControllers
-                                                    .entries) {
-                                              if (entry.key != m.userId) {
-                                                othersSum += double.tryParse(
-                                                        entry.value.text
-                                                            .trim()) ??
-                                                    0.0;
-                                              }
-                                            }
-                                            final rest = totalAmt - othersSum;
-                                            setState(() {
-                                              ctrl.text = rest > 0
-                                                  ? (rest % 1 == 0
-                                                      ? rest.toStringAsFixed(0)
-                                                      : rest.toStringAsFixed(2))
-                                                  : '0';
-                                            });
-                                          },
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 8),
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                          child: const Text('Fill Rest',
-                                              style: TextStyle(fontSize: 11)),
-                                        ),
-                                        SizedBox(
-                                          width: 100,
-                                          height: 40,
-                                          child: TextFormField(
-                                            controller: ctrl,
-                                            keyboardType: const TextInputType
-                                                .numberWithOptions(
-                                                decimal: true),
-                                            textAlign: TextAlign.right,
-                                            decoration: InputDecoration(
-                                              prefixText:
-                                                  '${tour.currencySymbol} ',
-                                              isDense: true,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 8),
-                                              border: OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          10)),
-                                            ),
-                                            onChanged: (_) => setState(() {}),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        _SectionLabel(title: 'Split Options'),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.darkSurface
-                                : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              _SplitModeTab(
-                                label: 'Equally (All)',
-                                isSelected: _splitMode == 0,
-                                onTap: () => setState(() => _splitMode = 0),
-                              ),
-                              _SplitModeTab(
-                                label: 'Custom Split',
-                                isSelected: _splitMode == 1,
-                                onTap: () {
-                                  setState(() {
-                                    _splitMode = 1;
-                                    for (final m in members) {
-                                      _customSplitControllers.putIfAbsent(
-                                          m.userId, () => TextEditingController());
-                                    }
-                                  });
-                                },
-                              ),
-                              _SplitModeTab(
-                                label: 'Specific Member',
-                                isSelected: _splitMode == 2,
-                                onTap: () {
-                                  setState(() {
-                                    _splitMode = 2;
-                                    if (_selectedMemberIds.isEmpty) {
-                                      final defaultTarget = _paidByUserId ??
-                                          members.first.userId;
-                                      final targetMember = members.firstWhere(
-                                        (m) => m.userId == defaultTarget,
-                                        orElse: () => members.first,
-                                      );
-                                      _selectedMemberIds = [targetMember.userId];
-                                    }
-                                  });
-                                },
                               ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (_splitMode == 0) ...[
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color:
-                                  isDark ? AppColors.darkSurface : Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.people_outline,
-                                    color: AppColors.primaryTeal, size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    members.isNotEmpty
-                                        ? 'Split equally among all ${members.length} members (~${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / members.length).toStringAsFixed(0)} each)'
-                                        : 'All members',
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else if (_splitMode == 1) ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color:
-                                  isDark ? AppColors.darkSurface : Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Assign Exact Amounts',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13)),
-                                    Text(
-                                      '${tour.currencySymbol}$_totalCustomSplit / ${tour.currencySymbol}${_amountCtrl.text.trim().isEmpty ? '0' : _amountCtrl.text.trim()}',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontWeight: FontWeight.w700,
-                                        color: (_totalCustomSplit -
-                                                        (double.tryParse(
-                                                                _amountCtrl.text
-                                                                    .trim()) ??
-                                                            0.0))
-                                                    .abs() <
-                                                0.05
-                                            ? AppColors.positive
-                                            : AppColors.danger,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Divider(height: 16),
-                                ...members.map((m) {
-                                  final ctrl =
-                                      _customSplitControllers[m.userId]!;
-                                  final totalExp =
-                                      double.tryParse(_amountCtrl.text.trim()) ??
-                                          0.0;
-                                  final otherSum = _customSplitControllers
-                                      .entries
-                                      .where((e) => e.key != m.userId)
-                                      .fold(
-                                          0.0,
-                                          (sum, e) =>
-                                              sum +
-                                              (double.tryParse(
-                                                      e.value.text.trim()) ??
-                                                  0.0));
-                                  final remainingForMember = totalExp - otherSum;
-                                  final currentMemberVal =
-                                      double.tryParse(ctrl.text.trim()) ?? 0.0;
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              if (remainingForMember > 0.009 &&
-                                                  (remainingForMember - currentMemberVal).abs() > 0.009) ...[
-                                                const SizedBox(height: 3),
-                                                InkWell(
-                                                  onTap: () {
-                                                    HapticFeedback.lightImpact();
-                                                    setState(() {
-                                                      ctrl.text = remainingForMember.toStringAsFixed(
-                                                          remainingForMember.truncateToDouble() ==
-                                                                  remainingForMember
-                                                              ? 0
-                                                              : 2);
-                                                    });
-                                                  },
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.primaryTeal
-                                                          .withValues(
-                                                              alpha: isDark
-                                                                  ? 0.20
-                                                                  : 0.10),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              6),
-                                                      border: Border.all(
-                                                        color: AppColors
-                                                            .primaryTeal
-                                                            .withValues(
-                                                                alpha: 0.35),
-                                                        width: 0.8,
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        const Icon(
-                                                          Icons
-                                                              .auto_fix_high_rounded,
-                                                          size: 11,
-                                                          color: AppColors
-                                                              .primaryTeal,
-                                                        ),
-                                                        const SizedBox(
-                                                            width: 4),
-                                                        Text(
-                                                          'Fill Rest (${tour.currencySymbol}${remainingForMember.toStringAsFixed(remainingForMember.truncateToDouble() == remainingForMember ? 0 : 2)})',
-                                                          style: const TextStyle(
-                                                            fontFamily:
-                                                                'Outfit',
-                                                            fontSize: 10.5,
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                            color: AppColors
-                                                                .primaryTeal,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        SizedBox(
-                                          width: 110,
-                                          height: 42,
-                                          child: TextFormField(
-                                            controller: ctrl,
-                                            keyboardType: const TextInputType
-                                                .numberWithOptions(
-                                                decimal: true),
-                                            textAlign: TextAlign.right,
-                                            decoration: InputDecoration(
-                                              prefixText:
-                                                  '${tour.currencySymbol} ',
-                                              isDense: true,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 10),
-                                              border: OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          10)),
-                                            ),
-                                            onChanged: (_) => setState(() {}),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                        ] else ...[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Select Member(s)',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.darkTextSecondary
-                                        : AppColors.lightTextSecondary),
-                              ),
-                              if (members.length > 1)
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      if (_selectedMemberIds.length == 1) {
-                                        _selectedMemberIds = members
-                                            .map((m) => m.userId)
-                                            .toList();
-                                      } else {
-                                        final defaultTarget = _paidByUserId ??
-                                            members.first.userId;
-                                        _selectedMemberIds = [defaultTarget];
-                                      }
-                                    });
-                                  },
-                                  child: Text(
-                                    _selectedMemberIds.length == 1
-                                        ? 'Select All'
-                                        : 'Reset to Single',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.primaryTeal,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: members.map((m) {
-                              final isIncluded =
-                                  _selectedMemberIds.contains(m.userId);
-                              return FilterChip(
-                                label: Text(
-                                    '${m.displayName}${m.isOffline ? ' (Offline)' : ''}'),
-                                selected: isIncluded,
-                                selectedColor: AppColors.primaryTeal
-                                    .withValues(alpha: 0.2),
-                                checkmarkColor: AppColors.primaryTeal,
-                                onSelected: (selected) {
-                                  setState(() {
-                                    if (selected) {
-                                      _selectedMemberIds.add(m.userId);
-                                    } else if (_selectedMemberIds.length > 1) {
-                                      _selectedMemberIds.remove(m.userId);
-                                    }
-                                  });
-                                },
-                              );
-                            }).toList(),
-                          ),
-                          if (_selectedMemberIds.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryTeal.withValues(
-                                    alpha: isDark ? 0.15 : 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: AppColors.primaryTeal
-                                      .withValues(alpha: 0.25),
-                                ),
-                              ),
-                              child: Row(
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(Icons.person_rounded,
-                                      size: 16,
-                                      color: AppColors.primaryTeal),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _selectedMemberIds.length == 1
-                                          ? '100% assigned to ${members.firstWhere((m) => m.userId == _selectedMemberIds.first, orElse: () => members.first).displayName} (${tour.currencySymbol}${_amountCtrl.text.trim().isEmpty ? '0' : _amountCtrl.text.trim()})'
-                                          : '${_selectedMemberIds.length} members selected (~${tour.currencySymbol}${((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) / _selectedMemberIds.length).toStringAsFixed(0)} each)',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark
-                                            ? AppColors.darkText
-                                            : AppColors.lightText,
-                                      ),
+                                  Text(
+                                    'Assign Custom Amounts',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : AppColors.lightText,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${tour.currencySymbol}$_totalCustomSplit / ${tour.currencySymbol}${_amountCtrl.text.trim().isEmpty ? '0' : _amountCtrl.text.trim()}',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: (_totalCustomSplit -
+                                                      (double.tryParse(_amountCtrl
+                                                              .text
+                                                              .trim()) ??
+                                                          0.0))
+                                                  .abs() <
+                                              0.05
+                                          ? AppColors.positive
+                                          : AppColors.danger,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ],
-                        const SizedBox(height: 32),
-                        GradientButton(
-                          onPressed: () => _submit(tour, currentUserId, currentUserName, isAdmin),
-                          label: widget.existingExpense != null
-                              ? 'Update Expense'
-                              : 'Save Expense',
-                          icon: Icons.check_circle_rounded,
-                          gradient: AppColors.primaryGradient,
-                        ),
-                      ],
-                    ),
+                              const Divider(height: 18),
+                              ...members.map((m) {
+                                final ctrl =
+                                    _customSplitControllers[m.userId]!;
+                                final totalAmt = double.tryParse(
+                                        _amountCtrl.text.trim()) ??
+                                    0.0;
+                                final otherSum = _customSplitControllers.entries
+                                    .where((e) => e.key != m.userId)
+                                    .fold<double>(
+                                        0.0,
+                                        (sum, e) =>
+                                            sum +
+                                            (double.tryParse(
+                                                    e.value.text.trim()) ??
+                                                0.0));
+                                final remainingForMember = totalAmt - otherSum;
+
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      MemberAvatar(
+                                        initials: m.initials,
+                                        photoUrl: m.photoUrl,
+                                        userId: m.userId,
+                                        tourMember: m,
+                                        radius: 16,
+                                        enableTap: false,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${m.displayName}${m.isOffline ? ' (Offline)' : ''}',
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : AppColors.lightText,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            if (remainingForMember > 0.01) ...[
+                                              const SizedBox(height: 2),
+                                              InkWell(
+                                                onTap: () {
+                                                  HapticFeedback.lightImpact();
+                                                  setState(() {
+                                                    ctrl.text = remainingForMember %
+                                                                1 ==
+                                                            0
+                                                        ? remainingForMember
+                                                            .toStringAsFixed(0)
+                                                        : remainingForMember
+                                                            .toStringAsFixed(2);
+                                                  });
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                child: Text(
+                                                  '+ Fill Rest (${tour.currencySymbol}${remainingForMember.toStringAsFixed(remainingForMember % 1 == 0 ? 0 : 2)})',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Outfit',
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.primaryTeal,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 95,
+                                        height: 38,
+                                        child: TextFormField(
+                                          controller: ctrl,
+                                          keyboardType: const TextInputType
+                                              .numberWithOptions(
+                                              decimal: true),
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark
+                                                ? Colors.white
+                                                : AppColors.lightText,
+                                          ),
+                                          decoration: InputDecoration(
+                                            prefixText:
+                                                '${tour.currencySymbol} ',
+                                            prefixStyle: const TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primaryTeal,
+                                            ),
+                                            filled: true,
+                                            fillColor: isDark
+                                                ? const Color(0xFF0F172A)
+                                                : const Color(0xFFF8FAFC),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 8, vertical: 8),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: BorderSide(
+                                                color: isDark
+                                                    ? AppColors.darkBorder
+                                                    : AppColors.lightBorder,
+                                              ),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: BorderSide(
+                                                color: isDark
+                                                    ? AppColors.darkBorder
+                                                    : AppColors.lightBorder,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: const BorderSide(
+                                                color: AppColors.primaryTeal,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                          ),
+                                          onChanged: (_) => setState(() {}),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
                   ),
-                ),
+
+                  const SizedBox(height: 28),
+
+                  // --- BOTTOM ACTION BUTTON ---
+                  Builder(
+                    builder: (context) {
+                      final amtText = _amountCtrl.text.trim();
+                      final amt = MathExpressionEvaluator.tryEvaluate(amtText);
+                      final displayAmt = (amt != null && amt > 0)
+                          ? ' • ${tour.currencySymbol}${MathExpressionEvaluator.formatResult(amt)}'
+                          : (amtText.isNotEmpty
+                              ? ' • ${tour.currencySymbol}$amtText'
+                              : '');
+
+                      return GradientButton(
+                        onPressed: tour.isLockedForDeletion
+                            ? () {
+                                showAppNotificationSheet(
+                                  context,
+                                  icon: Icons.timer_outlined,
+                                  iconColor: AppColors.danger,
+                                  title: 'Tour Scheduled for Deletion',
+                                  message:
+                                      'This tour is scheduled for deletion due to inactivity. Adding or editing expenses is disabled.',
+                                  primaryButtonText: 'Download PDF',
+                                  onPrimaryPressed: () => context
+                                      .push('/reports?tourId=${tour.id}'),
+                                  secondaryButtonText: 'Close',
+                                );
+                              }
+                            : () => _submit(
+                                tour, currentUserId, currentUserName, isAdmin),
+                        label: tour.isLockedForDeletion
+                            ? 'Tour Locked (Pending Deletion)'
+                            : (widget.existingExpense != null
+                                ? 'Update Expense$displayAmt'
+                                : 'Save Expense$displayAmt'),
+                        icon: tour.isLockedForDeletion
+                            ? Icons.lock_clock_rounded
+                            : Icons.check_circle_rounded,
+                        gradient: tour.isLockedForDeletion
+                            ? const LinearGradient(
+                                colors: [Color(0xFF64748B), Color(0xFF475569)])
+                            : AppColors.primaryGradient,
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
               ),
-            ),
-          );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String title;
-  const _SectionLabel({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontFamily: 'Outfit',
-        fontWeight: FontWeight.w700,
-        fontSize: 14,
-      ),
-    );
-  }
-}
-
-class _SplitModeTab extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _SplitModeTab({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          onTap();
-          HapticFeedback.selectionClick();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10.5, horizontal: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryTeal : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 12.5,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary),
             ),
           ),
         ),

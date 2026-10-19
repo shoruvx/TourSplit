@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../presentation/widgets/app_notification_sheet.dart';
+import '../theme/app_theme.dart';
 import 'bluetooth_helper.dart';
 
 class MeshPermissionHelper {
@@ -61,27 +63,16 @@ class MeshPermissionHelper {
   }
 
   static void _showSettingsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Permissions Required'),
-        content: const Text(
+    showAppNotificationSheet(
+      context,
+      icon: Icons.security_rounded,
+      iconColor: AppColors.warning,
+      title: 'Permissions Required',
+      message:
           'Offline P2P Mesh requires Bluetooth, Nearby Devices, Location, and Notification permissions to discover peers and sync expenses, balances, settlements, and chat instantly without internet.\n\nPlease enable them in App Settings.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              openAppSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
+      primaryButtonText: 'Open Settings',
+      onPrimaryPressed: () => openAppSettings(),
+      secondaryButtonText: 'Cancel',
     );
   }
 }

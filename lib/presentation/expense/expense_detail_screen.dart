@@ -14,6 +14,7 @@ import '../../data/models/expense_model.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/services/offline_expense_queue_service.dart';
 import '../../data/services/user_cache_service.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class ExpenseDetailScreen extends ConsumerWidget {
   final String expenseId;
@@ -152,7 +153,7 @@ class ExpenseDetailScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                      if (isAdmin)
+                      if (canEdit)
                         IconButton(
                           icon: const Icon(Icons.delete_outline_rounded,
                               color: AppColors.negative),
@@ -332,34 +333,66 @@ class ExpenseDetailScreen extends ConsumerWidget {
                         ],
                         if (canEdit) ...[
                           const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () =>
-                                  context.push('/expense/edit', extra: expense),
-                              icon: const Icon(Icons.edit_rounded,
-                                  color: Colors.white, size: 20),
-                              label: Text(
-                                isAdmin
-                                    ? 'Edit Expense (Admin)'
-                                    : 'Edit My Expense',
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: ElevatedButton.icon(
+                                  onPressed: () =>
+                                      context.push('/expense/edit', extra: expense),
+                                  icon: const Icon(Icons.edit_rounded,
+                                      color: Colors.white, size: 19),
+                                  label: Text(
+                                    isAdmin
+                                        ? 'Edit (Admin)'
+                                        : 'Edit My Expense',
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primaryTeal,
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                            AppRadius.button)),
+                                    elevation: 0,
+                                  ),
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryTeal,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        AppRadius.button)),
-                                elevation: 0,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                flex: 2,
+                                child: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _confirmDelete(context, ref, tourId, expense),
+                                  icon: const Icon(Icons.delete_outline_rounded,
+                                      color: AppColors.negative, size: 19),
+                                  label: const Text(
+                                    'Delete',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.negative,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(
+                                        color: AppColors.negative, width: 1.2),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                            AppRadius.button)),
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                         const SizedBox(height: 24),
@@ -389,24 +422,15 @@ class ExpenseDetailScreen extends ConsumerWidget {
 
   void _confirmDelete(BuildContext context, WidgetRef ref, String tourId,
       ExpenseModel expense) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Expense?'),
-        content: Text(
-            'Are you sure you want to delete "${expense.title}"? This cannot be undone.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: AppColors.negative),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.delete_outline_rounded,
+      iconColor: AppColors.danger,
+      title: 'Delete Expense?',
+      message:
+          'Are you sure you want to delete "${expense.title}"? This cannot be undone.',
+      confirmText: 'Delete',
+      confirmColor: AppColors.danger,
     );
     if (confirm == true) {
       await ref
@@ -417,20 +441,26 @@ class ExpenseDetailScreen extends ConsumerWidget {
       ref.invalidate(singleExpenseStreamProvider((tourId: tourId, expenseId: expense.id)));
       ref.read(localExpensesRefreshProvider.notifier).bump();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Expense deleted successfully'),
-              backgroundColor: AppColors.negative),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Expense Deleted',
+          message: 'Expense "${expense.title}" was deleted successfully.',
+          primaryButtonText: 'Done',
         );
-        context.pop();
+        if (context.mounted) {
+          context.pop();
+        }
       }
     }
   }
 
   void _handleAction(BuildContext context, WidgetRef ref, String tourId,
       ExpenseModel expense, String action) async {
+    final isApprove = action == 'approve';
     final status =
-        action == 'approve' ? ExpenseStatus.approved : ExpenseStatus.rejected;
+        isApprove ? ExpenseStatus.approved : ExpenseStatus.rejected;
     await ref
         .read(expenseRepositoryProvider)
         .updateExpenseStatus(tourId, expense.id, status);
@@ -439,15 +469,21 @@ class ExpenseDetailScreen extends ConsumerWidget {
     ref.invalidate(singleExpenseStreamProvider((tourId: tourId, expenseId: expense.id)));
     ref.read(localExpensesRefreshProvider.notifier).bump();
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              action == 'approve' ? 'Expense approved!' : 'Expense rejected.'),
-          backgroundColor:
-              action == 'approve' ? AppColors.positive : AppColors.negative,
-        ),
+      await showAppNotificationSheet(
+        context,
+        icon: isApprove
+            ? Icons.check_circle_outline_rounded
+            : Icons.cancel_outlined,
+        iconColor: isApprove ? AppColors.positive : AppColors.negative,
+        title: isApprove ? 'Expense Approved' : 'Expense Rejected',
+        message: isApprove
+            ? 'Expense "${expense.title}" has been approved.'
+            : 'Expense "${expense.title}" has been rejected.',
+        primaryButtonText: 'Done',
       );
-      context.pop();
+      if (context.mounted) {
+        context.pop();
+      }
     }
   }
 }

@@ -82,15 +82,52 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
-      icon: Icons.explore_rounded,
-      title: 'Guest Mode',
-      description: 'You can now explore the app without logging in.',
+      icon: Icons.receipt_long_rounded,
+      title: 'Redesigned Add Expense Screen',
+      description:
+          'Streamlined expense creation with inline math calculation, live amount previews, and clean member split options.',
     ),
     (
-      icon: Icons.timer_outlined,
-      title: 'Storage Cleanup',
+      icon: Icons.download_rounded,
+      title: 'Direct PDF File Downloads',
       description:
-          'Inactive tours get deleted after 30 days of inactivity, but reminds you 7 days before.',
+          'PDF expense reports now download directly to your phone files without forcing external app sharing.',
+    ),
+    (
+      icon: Icons.notifications_active_rounded,
+      title: 'Unified Alert Sheets',
+      description:
+          'Standardized universal modal bottom sheets for alerts, confirmations, and warnings across the entire app.',
+    ),
+    (
+      icon: Icons.dashboard_customize_rounded,
+      title: 'Refined Homescreen & Balances',
+      description:
+          'Balanced layout with responsive typography, intuitive button positioning, and improved spacing in tour balance summaries.',
+    ),
+    (
+      icon: Icons.qr_code_2_rounded,
+      title: 'Compact Share TourSplit',
+      description:
+          'Streamlined QR code sharing bottom sheet with minimal vertical footprint.',
+    ),
+    (
+      icon: Icons.lock_clock_rounded,
+      title: 'Strict Inactivity Lockout',
+      description:
+          'Inactive tours entering the 7-day reminder are strictly locked from edits or reactivation until deletion.',
+    ),
+    (
+      icon: Icons.ondemand_video_rounded,
+      title: 'Video User Manual',
+      description:
+          'Quick video walkthrough directly accessible from the home screen via the new How to use guide.',
+    ),
+    (
+      icon: Icons.explore_rounded,
+      title: 'Guest Mode',
+      description:
+          'Explore tours, features, and interface freely without logging in.',
     ),
     (
       icon: Icons.calculate_rounded,
@@ -98,38 +135,84 @@ class WhatsNewDialog extends ConsumerWidget {
       description:
           'Calculate expenses with quick math directly in the amount field.',
     ),
-    (
-      icon: Icons.auto_awesome_rounded,
-      title: 'Centered Onboarding',
-      description:
-          'Clean, easy-to-read introduction to core features.',
-    ),
-    (
-      icon: Icons.palette_rounded,
-      title: 'Refreshed Brand',
-      description:
-          'Freshly optimized texts, buttons, and a modern clean logo.',
-    ),
   ];
 
   static IconData _iconForEmoji(String emoji) {
+    if (emoji.contains('📄') || emoji.contains('📥') || emoji.contains('💾')) {
+      return Icons.download_rounded;
+    }
+    if (emoji.contains('🔒') || emoji.contains('🔐')) {
+      return Icons.lock_clock_rounded;
+    }
+    if (emoji.contains('🎬') || emoji.contains('🎥') || emoji.contains('▶️')) {
+      return Icons.ondemand_video_rounded;
+    }
+    if (emoji.contains('🔔') || emoji.contains('📢') || emoji.contains('💬')) {
+      return Icons.notifications_active_rounded;
+    }
     if (emoji.contains('🧭') || emoji.contains('🗺️') || emoji.contains('📍')) {
       return Icons.navigation_rounded;
     }
     if (emoji.contains('📡') || emoji.contains('📶') || emoji.contains('🔵')) {
       return Icons.bluetooth_searching_rounded;
     }
-    if (emoji.contains('💬') || emoji.contains('✨') || emoji.contains('❤️')) {
-      return Icons.add_reaction_rounded;
-    }
     if (emoji.contains('⚡') || emoji.contains('🛡️') || emoji.contains('✅')) {
       return Icons.verified_user_rounded;
     }
     if (emoji.contains('🎨') || emoji.contains('🖤') || emoji.contains('🌙')) {
-      return Icons.dark_mode_rounded;
+      return Icons.palette_rounded;
     }
     if (emoji.contains('🧾') || emoji.contains('💳')) {
       return Icons.receipt_long_rounded;
+    }
+    if (emoji.contains('🧮')) {
+      return Icons.calculate_rounded;
+    }
+    if (emoji.contains('⏳') || emoji.contains('⏱️')) {
+      return Icons.timer_outlined;
+    }
+    return Icons.auto_awesome_rounded;
+  }
+
+  static IconData _iconForTitleOrEmoji(String title, String? emoji) {
+    if (emoji != null && emoji.isNotEmpty && emoji != '✨') {
+      final fromEmoji = _iconForEmoji(emoji);
+      if (fromEmoji != Icons.auto_awesome_rounded) {
+        return fromEmoji;
+      }
+    }
+    final lowerTitle = title.toLowerCase();
+    if (lowerTitle.contains('pdf') || lowerTitle.contains('download')) {
+      return Icons.download_rounded;
+    }
+    if (lowerTitle.contains('expense') || lowerTitle.contains('receipt')) {
+      return Icons.receipt_long_rounded;
+    }
+    if (lowerTitle.contains('sheet') ||
+        lowerTitle.contains('popup') ||
+        lowerTitle.contains('alert') ||
+        lowerTitle.contains('notification')) {
+      return Icons.notifications_active_rounded;
+    }
+    if (lowerTitle.contains('share') || lowerTitle.contains('qr')) {
+      return Icons.qr_code_2_rounded;
+    }
+    if (lowerTitle.contains('home') ||
+        lowerTitle.contains('balance') ||
+        lowerTitle.contains('action')) {
+      return Icons.dashboard_customize_rounded;
+    }
+    if (lowerTitle.contains('lock') || lowerTitle.contains('inactivity')) {
+      return Icons.lock_clock_rounded;
+    }
+    if (lowerTitle.contains('video') || lowerTitle.contains('manual')) {
+      return Icons.ondemand_video_rounded;
+    }
+    if (lowerTitle.contains('guest')) {
+      return Icons.explore_rounded;
+    }
+    if (lowerTitle.contains('calculator') || lowerTitle.contains('math')) {
+      return Icons.calculate_rounded;
     }
     return Icons.auto_awesome_rounded;
   }
@@ -144,14 +227,14 @@ class WhatsNewDialog extends ConsumerWidget {
       if (!line.startsWith('-') && !line.startsWith('*')) continue;
 
       final match = RegExp(
-              r'^[-*]\s*(?:([^\w\s]+)\s*)?\*\*(.*?)\*\*:\s*(.*)$')
+              r'^[-*]\s*(?:([^\w\s*]+)\s*)?\*\*(.*?)\*\*:\s*(.*)$')
           .firstMatch(line);
       if (match != null) {
-        final emoji = match.group(1) ?? '✨';
+        final emoji = match.group(1);
         final title = match.group(2)!.trim();
         final desc = match.group(3)!.trim();
         items.add((
-          icon: _iconForEmoji(emoji),
+          icon: _iconForTitleOrEmoji(title, emoji),
           title: title,
           description: desc,
         ));

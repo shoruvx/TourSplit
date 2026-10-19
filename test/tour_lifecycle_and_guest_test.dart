@@ -27,6 +27,7 @@ void main() {
       expect(tour.inactiveDays, 4);
       expect(tour.isPendingAutoDeletion, isFalse);
       expect(tour.isExpiredByInactivity, isFalse);
+      expect(tour.isLockedForDeletion, isFalse);
     });
 
     test('tour with 25 days inactivity is pending auto-deletion with 5 days remaining', () {
@@ -49,6 +50,7 @@ void main() {
       expect(tour.isPendingAutoDeletion, isTrue);
       expect(tour.daysUntilAutoDeletion, 5);
       expect(tour.isExpiredByInactivity, isFalse);
+      expect(tour.isLockedForDeletion, isTrue);
     });
 
     test('tour with >= 30 days inactivity is expired for auto-deletion', () {
@@ -70,6 +72,7 @@ void main() {
       expect(tour.inactiveDays, 31);
       expect(tour.isPendingAutoDeletion, isFalse);
       expect(tour.isExpiredByInactivity, isTrue);
+      expect(tour.isLockedForDeletion, isTrue);
     });
 
     test('tour without lastActivityAt falls back to createdAt', () {

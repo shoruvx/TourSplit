@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +20,7 @@ import '../../data/services/user_cache_service.dart';
 import 'widgets/manual_settlement_dialog.dart';
 import 'widgets/receiver_payment_accounts_view.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class SettlementScreen extends ConsumerWidget {
   final String? tourId;
@@ -164,10 +164,10 @@ class SettlementScreen extends ConsumerWidget {
                     final cachedSets = ActiveTourCacheService.getCachedSettlements(effectiveTourId);
                     final streamSets = settlementsStream.value ?? [];
                     final Map<String, SettlementModel> setsMap = {};
-                    for (final s in cachedSets) {
+                    for (final s in streamSets) {
                       setsMap[s.id] = s;
                     }
-                    for (final s in streamSets) {
+                    for (final s in cachedSets) {
                       setsMap[s.id] = s;
                     }
                     final approvedSets = setsMap.values.where((s) => s.isApproved).toList();
@@ -276,84 +276,87 @@ class SettlementScreen extends ConsumerWidget {
                   children: [
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryTeal.withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        color: isDark ? AppColors.darkSurface : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : AppColors.lightBorder,
+                          width: 1.0,
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.swap_horiz_rounded,
-                                    color: Colors.white, size: 22),
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+                              border: Border.all(
+                                color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
                               ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
+                            ),
+                            child: const Icon(Icons.swap_horiz_rounded,
+                                color: AppColors.primaryTeal, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
                                   'Manual Settlement',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16,
-                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    letterSpacing: -0.2,
                                   ),
                                 ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: AppColors.primaryTeal,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
-                                  minimumSize: const Size(0, 34),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.button),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                onPressed: () => ManualSettlementDialog.show(
-                                  context,
-                                  ref: ref,
-                                  tour: tour,
-                                  members: members,
-                                  computedBalances: balances,
-                                  currentUserId: currentUserId,
-                                ),
-                                child: const Text(
-                                  'Record',
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Record any custom or full payment',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary,
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Pay full due to one person or record any custom payment.',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 12,
-                              color: Colors.white70,
-                              height: 1.3,
+                          const SizedBox(width: 10),
+                          InkWell(
+                            onTap: () => ManualSettlementDialog.show(
+                              context,
+                              ref: ref,
+                              tour: tour,
+                              members: members,
+                              computedBalances: balances,
+                              currentUserId: currentUserId,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryTeal,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Record',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -458,12 +461,13 @@ class SettlementScreen extends ConsumerWidget {
         s.toUserId == debt.toUserId &&
         s.status == SettlementStatus.requested);
     if (isAlreadyPending) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'A settlement between ${debt.fromUserName} and ${debt.toUserName} is already in processing.'),
-          backgroundColor: AppColors.warning,
-        ),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.hourglass_top_rounded,
+        iconColor: AppColors.warning,
+        title: 'Settlement In Progress',
+        message:
+            'A settlement between ${debt.fromUserName} and ${debt.toUserName} is already being processed.',
       );
       return;
     }
@@ -560,13 +564,8 @@ class SettlementScreen extends ConsumerWidget {
 
     if (confirmed == true) {
       try {
-        final members = ref.read(tourMembersStreamProvider(tour.id)).value ?? [];
-        final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
-        final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
         final currentUid = ref.read(currentUserProvider).value?.uid;
-        final isReceiver = currentUid == debt.toUserId;
-        final isAdmin = tour.isAdmin(currentUid ?? '');
-        final shouldAutoApprove = isReceiver || isOfflineReceiver || isAdmin;
+        const shouldAutoApprove = true;
 
         final repo = ref.read(settlementRepositoryProvider);
         await repo.requestSettlement(
@@ -584,14 +583,9 @@ class SettlementScreen extends ConsumerWidget {
         ref.read(localSettlementsRefreshProvider.notifier).bump();
 
         if (context.mounted) {
-          final message = isOfflineReceiver
-              ? 'Settlement recorded and auto-approved for offline member.'
-              : (isReceiver || isAdmin
-                  ? 'Settlement recorded and approved!'
-                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
+            const SnackBar(
+              content: Text('Settlement recorded and approved! Balances adjusted.'),
               backgroundColor: AppColors.positive,
             ),
           );
@@ -768,7 +762,7 @@ class _SuggestedDebtCard extends StatelessWidget {
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
-                            color: AppColors.positive,
+                            color: AppColors.primaryTeal,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -962,7 +956,7 @@ class _SettlementCard extends StatelessWidget {
                                 settlement.toUserName,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.positive,
+                                  color: AppColors.primaryTeal,
                                   fontFamily: 'Outfit',
                                   fontSize: 14,
                                 ),

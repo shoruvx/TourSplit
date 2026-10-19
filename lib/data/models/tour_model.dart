@@ -57,6 +57,7 @@ class TourModel {
   bool get isPendingAutoDeletion => inactiveDays >= 23 && inactiveDays < 30 && !isDeleted;
   int get daysUntilAutoDeletion => (30 - inactiveDays).clamp(0, 30);
   bool get isExpiredByInactivity => inactiveDays >= 30 && !isDeleted;
+  bool get isLockedForDeletion => isPendingAutoDeletion || isExpiredByInactivity;
 
   factory TourModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};

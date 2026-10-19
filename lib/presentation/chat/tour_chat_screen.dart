@@ -4,10 +4,13 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/bluetooth_helper.dart';
 import '../../core/utils/mesh_permission_helper.dart';
+import '../widgets/app_notification_sheet.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/tour_repository.dart';
@@ -141,57 +144,19 @@ class _TourChatScreenState extends ConsumerState<TourChatScreen> {
 
   Future<bool> _showBluetoothRequiredDialog() async {
     if (!mounted) return false;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: isDark ? AppColors.darkCard : Colors.white,
-        title: const Row(
-          children: [
-            Icon(Icons.bluetooth_searching_rounded,
-                color: AppColors.primaryTeal, size: 28),
-            SizedBox(width: 10),
-            Text(
-              'Bluetooth Required',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
+    final result = await showAppNotificationSheet<bool>(
+      context,
+      icon: Icons.bluetooth_searching_rounded,
+      iconColor: AppColors.primaryTeal,
+      title: 'Bluetooth Required',
+      message:
           'Offline P2P Mesh chat requires Bluetooth to discover and communicate with nearby tour members.\n\nPlease turn on Bluetooth to connect offline.',
-          style: TextStyle(fontSize: 14, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Use Internet Mode',
-              style: TextStyle(
-                color: isDark ? Colors.white60 : Colors.black54,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryTeal,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button)),
-            ),
-            icon: const Icon(Icons.bluetooth_rounded, size: 18),
-            label: const Text('Turn On Bluetooth'),
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
+      primaryButtonText: 'Turn On Bluetooth',
+      primaryResult: true,
+      secondaryButtonText: 'Use Internet Mode',
+      secondaryResult: false,
+      isDismissible: false,
     );
 
     return result ?? false;
@@ -221,13 +186,13 @@ class _TourChatScreenState extends ConsumerState<TourChatScreen> {
           }
           if (!isBtOn) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                      'Bluetooth was not enabled. Switched to Internet mode.'),
-                  backgroundColor: AppColors.warning,
-                  duration: Duration(seconds: 3),
-                ),
+              showAppNotificationSheet(
+                context,
+                icon: Icons.bluetooth_disabled_rounded,
+                iconColor: AppColors.warning,
+                title: 'Bluetooth Disabled',
+                message:
+                    'Bluetooth was not enabled. Switched back to Internet mode.',
               );
             }
             await _saveConnectionMode('cloud');
@@ -242,13 +207,16 @@ class _TourChatScreenState extends ConsumerState<TourChatScreen> {
           await MeshPermissionHelper.requestMeshPermissions(context);
       if (!hasPermissions) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Bluetooth, Nearby Devices, Location, and Notification permissions are required for offline P2P mesh.'),
-              backgroundColor: AppColors.danger,
-              duration: Duration(seconds: 3),
-            ),
+          showAppNotificationSheet(
+            context,
+            icon: Icons.security_rounded,
+            iconColor: AppColors.danger,
+            title: 'Permissions Required',
+            message:
+                'Bluetooth, Nearby Devices, Location, and Notification permissions are required for offline P2P mesh.',
+            primaryButtonText: 'Open Settings',
+            onPrimaryPressed: () => openAppSettings(),
+            secondaryButtonText: 'Cancel',
           );
         }
         await _saveConnectionMode('cloud');
@@ -281,14 +249,17 @@ class _TourChatScreenState extends ConsumerState<TourChatScreen> {
         } else {
           await _saveConnectionMode('cloud');
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Could not start offline mesh. Please ensure Bluetooth and Location (GPS) are turned on.'),
-              backgroundColor: AppColors.danger,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          if (!isAutoRestore) {
+            showAppNotificationSheet(
+              context,
+              icon: Icons.bluetooth_disabled_rounded,
+              iconColor: AppColors.danger,
+              title: 'Mesh Mode Failed',
+              message:
+                  'Could not start offline mesh. Please ensure Bluetooth and Location (GPS) are turned on, then try again.',
+              primaryButtonText: 'Got It',
+            );
+          }
         }
       }
     } else {
@@ -647,19 +618,65 @@ class _TourChatScreenState extends ConsumerState<TourChatScreen> {
             ),
           ),
 
-          // Input field with reply and mention support
-          ChatInputField(
-            tourId: widget.tourId,
-            currentUserId: currentUserId,
-            replyingTo: _replyingToMessage,
-            onCancelReply: () => setState(() => _replyingToMessage = null),
-            onMessageSent: (_) {
-              // Trigger background sync when a message is sent
-              ref
-                  .read(chatSyncServiceProvider)
-                  .triggerSync(tourId: widget.tourId);
-            },
-          ),
+          // Input field with reply and mention support (or locked banner if scheduled for deletion)
+          if (tourAsync.value?.isLockedForDeletion ?? false)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              color: isDark ? AppColors.darkCard : const Color(0xFFF8FAFC),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_clock_rounded,
+                        color: AppColors.danger, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This tour auto-deletes in ${tourAsync.value?.daysUntilAutoDeletion ?? 0} days. Messaging is disabled.',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () =>
+                          context.push('/reports?tourId=${widget.tourId}'),
+                      icon: const Icon(Icons.download_rounded,
+                          size: 16, color: Colors.white),
+                      label: const Text('PDF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                        foregroundColor: Colors.white,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ChatInputField(
+              tourId: widget.tourId,
+              currentUserId: currentUserId,
+              replyingTo: _replyingToMessage,
+              onCancelReply: () => setState(() => _replyingToMessage = null),
+              onMessageSent: (_) {
+                // Trigger background sync when a message is sent
+                ref
+                    .read(chatSyncServiceProvider)
+                    .triggerSync(tourId: widget.tourId);
+              },
+            ),
         ],
       ),
     );

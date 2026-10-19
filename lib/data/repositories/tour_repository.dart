@@ -78,6 +78,10 @@ class TourRepository {
   Future<void> touchTourActivity(String tourId) async {
     try {
       if (tourId.startsWith('local_')) return;
+      final doc = await _tours.doc(tourId).get();
+      if (!doc.exists) return;
+      final tour = TourModel.fromFirestore(doc);
+      if (tour.isLockedForDeletion) return;
       await _tours.doc(tourId).update({
         'lastActivityAt': FieldValue.serverTimestamp(),
       });

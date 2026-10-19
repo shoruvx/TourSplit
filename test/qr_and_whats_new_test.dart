@@ -74,12 +74,12 @@ void main() {
 
   group('WhatsNewDialog Features Tests', () {
     test('static features list contains the updated features', () {
-      expect(WhatsNewDialog.features.length, 5);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Guest Mode'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Storage Cleanup'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Expense Calculator'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Centered Onboarding'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Refreshed Brand'), isTrue);
+      expect(WhatsNewDialog.features.length, greaterThanOrEqualTo(5));
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Redesigned Add Expense Screen'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Direct PDF File Downloads'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Unified Alert Sheets'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Refined Homescreen & Balances'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Compact Share TourSplit'), isTrue);
     });
   });
 

@@ -1106,7 +1106,7 @@ class _TourCard extends ConsumerWidget {
                               horizontal: 8, vertical: 2),
                         ),
                         child: const Text(
-                          'Export',
+                          'Download PDF',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 11.5,

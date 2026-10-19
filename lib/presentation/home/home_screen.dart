@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +34,9 @@ import '../settlement/widgets/receiver_payment_accounts_view.dart';
 import '../chat/widgets/messenger_chat_head.dart';
 import '../widgets/app_bottom_nav_bar.dart';
 import '../widgets/login_required_dialog.dart';
+import '../widgets/app_notification_sheet.dart';
+import '../../core/constants/app_constants.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 export '../../data/services/active_tour_cache_service.dart'
     show localMembersRefreshProvider, localSettlementsRefreshProvider;
@@ -217,6 +219,19 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
     final greetings = _getGreetings(widget.displayName);
     final currentGreeting = greetings[_greetingIndex % greetings.length];
 
+    final screenSize = MediaQuery.sizeOf(context);
+    final screenWidth = screenSize.width;
+    final screenHeight = screenSize.height;
+
+    // Responsive sizing tokens for cross-device symmetry
+    final greetingFontSize = (screenWidth * 0.066).clamp(23.0, 29.0);
+    final buttonWidth = (screenWidth * 0.60).clamp(216.0, 310.0);
+    final buttonVerticalPadding = (screenHeight * 0.016).clamp(12.0, 16.0);
+    final buttonFontSize = (screenWidth * 0.041).clamp(14.5, 17.5);
+    final buttonIconSize = (screenWidth * 0.052).clamp(19.0, 22.0);
+    final greetingButtonGap = (screenHeight * 0.031).clamp(20.0, 32.0);
+    final buttonGap = (screenHeight * 0.015).clamp(10.0, 14.0);
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -348,26 +363,16 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                           key: ValueKey<String>(currentGreeting),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.headlineSmall?.copyWith(
+                            fontSize: greetingFontSize,
                             fontWeight: FontWeight.w800,
                             fontFamily: 'Outfit',
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Split expenses easily and keep the memories.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
-                        height: 1.4,
-                      ),
-                    ).animate().fadeIn(delay: 200.ms),
-                    const SizedBox(height: 28),
+                    SizedBox(height: greetingButtonGap),
                     SizedBox(
-                      width: 220,
+                      width: buttonWidth,
                       child: ElevatedButton.icon(
                         onPressed: () {
                           if (currentUser == null) {
@@ -377,21 +382,24 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                             context.push('/tour/create');
                           }
                         },
-                        icon: const Icon(Icons.add_rounded,
-                            color: Colors.white, size: 20),
-                        label: const Text(
+                        icon: Icon(Icons.add_rounded,
+                            color: Colors.white, size: buttonIconSize),
+                        label: Text(
                           'Create Tour',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                            fontSize: buttonFontSize,
                             color: Colors.white,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryTeal,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(
+                              vertical: buttonVerticalPadding),
                           shape: RoundedRectangleBorder(
                             borderRadius:
                                 BorderRadius.circular(AppRadius.button),
@@ -400,10 +408,10 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                         ),
                       ),
                     ).animate().fadeIn(delay: 250.ms),
-                    const SizedBox(height: 14),
+                    SizedBox(height: buttonGap),
                     SizedBox(
-                      width: 220,
-                      child: OutlinedButton.icon(
+                      width: buttonWidth,
+                      child: ElevatedButton.icon(
                         onPressed: () {
                           if (currentUser == null) {
                             showLoginRequiredDialog(context,
@@ -412,55 +420,82 @@ class _NoActiveTourScreenState extends ConsumerState<_NoActiveTourScreen> {
                             context.push('/tour/join');
                           }
                         },
-                        icon:
-                            const Icon(Icons.qr_code_scanner_rounded, size: 20),
-                        label: const Text(
+                        icon: Icon(Icons.qr_code_scanner_rounded,
+                            color: Colors.white, size: buttonIconSize),
+                        label: Text(
                           'Join Tour',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                            fontSize: buttonFontSize,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryTeal,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                              vertical: buttonVerticalPadding),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.button),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ).animate().fadeIn(delay: 300.ms),
+                    SizedBox(height: buttonGap),
+                    SizedBox(
+                      width: buttonWidth,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final uri = Uri.parse(AppConstants.howToUseVideoUrl);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          } else {
+                            if (context.mounted) {
+                              showAppNotificationSheet(
+                                context,
+                                icon: Icons.ondemand_video_rounded,
+                                iconColor: AppColors.primaryTeal,
+                                title: 'User Manual',
+                                message:
+                                    'How to use video manual is opening or will be available shortly.',
+                              );
+                            }
+                          }
+                        },
+                        icon: Icon(Icons.play_circle_outline_rounded,
+                            color: AppColors.primaryTeal, size: buttonIconSize),
+                        label: Text(
+                          'How to use',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: buttonFontSize,
+                            color: AppColors.primaryTeal,
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
+                          backgroundColor: isDark
+                              ? AppColors.primaryTeal.withValues(alpha: 0.08)
+                              : AppColors.primaryTeal.withValues(alpha: 0.04),
                           foregroundColor: AppColors.primaryTeal,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(
+                              vertical: buttonVerticalPadding),
                           shape: RoundedRectangleBorder(
                             borderRadius:
                                 BorderRadius.circular(AppRadius.button),
                           ),
                           side: const BorderSide(
-                              color: AppColors.primaryTeal, width: 1.5),
-                        ),
-                      ),
-                    ).animate().fadeIn(delay: 300.ms),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: 220,
-                      child: OutlinedButton.icon(
-                        onPressed: () => context.push('/tours'),
-                        icon: const Icon(Icons.luggage_rounded, size: 20),
-                        label: const Text(
-                          'View All Tours',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: isDark
-                              ? AppColors.darkText
-                              : AppColors.lightText,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.button),
-                          ),
-                          side: BorderSide(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: AppColors.primaryTeal,
                             width: 1.5,
                           ),
                         ),
@@ -861,7 +896,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                   members.any((m) => m.userId == widget.userId),
               orElse: () => false,
             ));
-    final isReadOnly = !isMember && isPastMember;
+    final isReadOnly =
+        (!isMember && isPastMember) || tour.isLockedForDeletion;
 
     if (!isMember && !isPastMember) {
       if (tourStream.value != null && !membersStream.isLoading) {
@@ -972,19 +1008,32 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final streamExpenses = expensesStream.value ?? [];
 
     final Map<String, ExpenseModel> allExpensesMap = {};
-    for (final e in queuedExpenses) {
-      if (!deletedIds.contains(e.id)) {
-        allExpensesMap[e.id] = e;
+    if (expensesStream.hasValue && streamExpenses.isNotEmpty) {
+      for (final e in streamExpenses) {
+        if (!deletedIds.contains(e.id)) {
+          allExpensesMap[e.id] = e;
+        }
       }
-    }
-    for (final e in cachedExpenses) {
-      if (!deletedIds.contains(e.id)) {
-        allExpensesMap.putIfAbsent(e.id, () => e);
+      for (final e in queuedExpenses) {
+        if (!deletedIds.contains(e.id)) {
+          allExpensesMap[e.id] = e;
+        }
       }
-    }
-    for (final e in streamExpenses) {
-      if (!deletedIds.contains(e.id)) {
-        allExpensesMap[e.id] = e;
+    } else {
+      for (final e in queuedExpenses) {
+        if (!deletedIds.contains(e.id)) {
+          allExpensesMap[e.id] = e;
+        }
+      }
+      for (final e in cachedExpenses) {
+        if (!deletedIds.contains(e.id)) {
+          allExpensesMap.putIfAbsent(e.id, () => e);
+        }
+      }
+      for (final e in streamExpenses) {
+        if (!deletedIds.contains(e.id)) {
+          allExpensesMap[e.id] = e;
+        }
       }
     }
     final allExpenses = allExpensesMap.values.toList()
@@ -1005,10 +1054,10 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final cachedSettlements = ActiveTourCacheService.getCachedSettlements(widget.tourId);
     final streamSettlements = settlementsStream.value ?? cachedSettlements;
     final Map<String, SettlementModel> settlementsMap = {};
-    for (final s in cachedSettlements) {
+    for (final s in streamSettlements) {
       settlementsMap[s.id] = s;
     }
-    for (final s in streamSettlements) {
+    for (final s in cachedSettlements) {
       settlementsMap[s.id] = s;
     }
     final approvedSettlements = settlementsMap.values.where((s) => s.isApproved).toList();
@@ -1043,11 +1092,22 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         final totalSpent =
             approvedExpenses.fold(0.0, (sum, e) => sum + e.amount);
         final memberCount = membersList.length;
-        final expenseCount = allExpenses.length;
-        final mySpending = approvedExpenses.fold(
+        final myShare = approvedExpenses.fold(
           0.0,
           (sum, e) => sum + (e.splits[widget.userId] ?? 0.0),
         );
+        final myExpensePaid = approvedExpenses.fold(
+          0.0,
+          (sum, e) => sum + (e.contributions[widget.userId] ?? 0.0),
+        );
+        final mySettlementsPaid = approvedSettlements
+            .where((s) => s.fromUserId == widget.userId)
+            .fold(0.0, (sum, s) => sum + s.amount);
+        final mySettlementsReceived = approvedSettlements
+            .where((s) => s.toUserId == widget.userId)
+            .fold(0.0, (sum, s) => sum + s.amount);
+        final myTotalPaid =
+            myExpensePaid + mySettlementsPaid - mySettlementsReceived;
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return PopScope(
@@ -1070,8 +1130,12 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       isAdmin: isAdmin,
                     ),
               SliverPadding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 4,
+                  bottom: 12,
+                ),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     if (isAdmin) ...[
@@ -1109,7 +1173,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Auto-deletion in ${tour.daysUntilAutoDeletion} days',
+                                    'Auto-deletion in ${tour.daysUntilAutoDeletion} days (Locked)',
                                     style: const TextStyle(
                                       fontFamily: 'Outfit',
                                       fontWeight: FontWeight.w700,
@@ -1119,7 +1183,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    'This tour has had no activity for ${tour.inactiveDays} days. Tours inactive for 30 days are automatically deleted to save cloud storage. Please download or export your history before then.',
+                                    'This tour has had no activity for ${tour.inactiveDays} days and will be permanently deleted. Expenses, messages, and modifications are strictly disabled. The only option is to download the PDF report before deletion.',
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
                                       fontSize: 11.5,
@@ -1128,20 +1192,19 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                           : Colors.black87,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  OutlinedButton.icon(
+                                  const SizedBox(height: 10),
+                                  ElevatedButton.icon(
                                     onPressed: () => context
                                         .push('/reports?tourId=${tour.id}'),
                                     icon: const Icon(Icons.download_rounded,
-                                        size: 16),
-                                    label: const Text('Export Tour History'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppColors.danger,
-                                      side: const BorderSide(
-                                          color: AppColors.danger),
+                                        size: 16, color: Colors.white),
+                                    label: const Text('Download PDF Report'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.danger,
+                                      foregroundColor: Colors.white,
                                       visualDensity: VisualDensity.compact,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
+                                          horizontal: 14, vertical: 8),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -1154,7 +1217,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ),
                       ),
                     ],
-                    if (isReadOnly) ...[
+                    if (isReadOnly && !tour.isPendingAutoDeletion) ...[
                       Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
@@ -1200,29 +1263,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                             const SizedBox(width: 8),
                             ElevatedButton(
                               onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Delete Tour from List?'),
-                                    content: Text(
-                                        'Remove "${tour.name}" from your trips? You will no longer see this tour.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.danger),
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        child: const Text('Delete',
-                                            style: TextStyle(
-                                                color: Colors.white)),
-                                      ),
-                                    ],
-                                  ),
+                                final confirm = await showAppConfirmationSheet(
+                                  context,
+                                  icon: Icons.delete_outline_rounded,
+                                  iconColor: AppColors.danger,
+                                  title: 'Delete Tour from List?',
+                                  message:
+                                      'Remove "${tour.name}" from your trips? You will no longer see this tour.',
+                                  confirmText: 'Delete',
+                                  confirmColor: AppColors.danger,
                                 );
                                 if (confirm == true) {
                                   await ref
@@ -1262,16 +1311,17 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       tourId: tour.id,
                       currencySymbol: tour.currencySymbol,
                       totalSpent: totalSpent,
-                      yourSpending: mySpending,
+                      yourSpending: myTotalPaid,
+                      yourShare: myShare,
                       memberCount: memberCount,
-                      expenseCount: expenseCount,
+                      onTap: () => setState(() => _selectedPillTab = 1),
                     ).animate().fadeIn(delay: 100.ms),
                     const SizedBox(height: 10),
                     _MyBalanceCard(
                       balance: myNetBalance,
                       currencySymbol: tour.currencySymbol,
                       onSettleUp: () =>
-                          context.push('/settlement?tourId=${tour.id}'),
+                          setState(() => _selectedPillTab = 2),
                     ).animate().fadeIn(delay: 120.ms),
                     if (tour.budget != null && tour.budget! > 0) ...[
                       const SizedBox(height: 12),
@@ -1284,24 +1334,80 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        _SquareActionButton(
-                          icon: Icons.description_outlined,
-                          tooltip: 'Reports & PDF',
+                        InkWell(
                           onTap: () =>
                               context.push('/reports?tourId=${tour.id}'),
-                        ),
-                        const SizedBox(width: 8),
-                        _SquareActionButton(
-                          icon: Icons.qr_code_rounded,
-                          tooltip: 'Tour QR',
-                          onTap: () => TourQrDialog.show(
-                            context,
-                            tourName: tour.name,
-                            inviteCode: tour.inviteCode,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.button),
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.darkSurface : Colors.white,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.button),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.description_outlined,
+                                  size: 19,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Reports',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
-                        if (isReadOnly)
+                        if (tour.isPendingAutoDeletion)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  context.push('/reports?tourId=${tour.id}'),
+                              icon: const Icon(Icons.download_rounded,
+                                  color: Colors.white, size: 20),
+                              label: const Text(
+                                'Download PDF',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.danger,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.button),
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (isReadOnly)
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1384,7 +1490,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                           isLoading: expensesStream.isLoading && allExpenses.isEmpty),
                     ] else if (_selectedPillTab == 1) ...[
                       _buildBalancesTab(membersList, computedBalances,
-                          tour.currencySymbol, approvedExpenses),
+                          tour.currencySymbol, approvedExpenses, approvedSettlements),
                     ] else ...[
                       _buildSettlementsTab(membersList, computedBalances,
                           tour.currencySymbol, tour,
@@ -1545,23 +1651,23 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     Map<String, double> computedBalances,
     String currencySymbol,
     List<ExpenseModel> approvedExpenses,
+    List<SettlementModel> approvedSettlements,
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final totalPaidMap =
-        BalanceService.calculateTotalPaid(list, approvedExpenses);
-    final totalSpentMap =
-        BalanceService.calculateTotalSpent(list, approvedExpenses);
+        BalanceService.calculateTotalPaid(list, approvedExpenses, approvedSettlements);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
+              ? Colors.white.withValues(alpha: 0.08)
               : AppColors.lightBorder,
+          width: 1.0,
         ),
       ),
       child: Column(
@@ -1570,164 +1676,236 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Member Balances',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+                style: TextStyle(
                   fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 ),
               ),
-              TextButton(
-                onPressed: () =>
+              InkWell(
+                onTap: () =>
                     context.push('/tour/members?tourId=${widget.tourId}'),
-                child: const Text('Manage'),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Manage',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
+                      SizedBox(width: 3),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 13,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            'Format: Total Paid (±Net Balance). Negative (-) owes, positive (+) gets back.',
-            style: TextStyle(
-              fontSize: 11.5,
-              color: isDark ? Colors.white60 : Colors.black54,
-              fontFamily: 'Outfit',
-            ),
-          ),
-          const Divider(height: 20),
-          ...list.map((m) {
-            final totalPaid = totalPaidMap[m.userId] ?? 0.0;
-            final totalSpent = totalSpentMap[m.userId] ?? 0.0;
-            final balance = computedBalances[m.userId] ?? 0.0;
-            final isPositive = balance > 0.01;
-            final isNegative = balance < -0.01;
-            final color = isPositive
-                ? AppColors.positive
-                : (isNegative
-                    ? AppColors.negative
-                    : (isDark ? Colors.white70 : Colors.black54));
-
-            final balanceSign = isNegative ? '-' : (isPositive ? '+' : '');
-            final balanceAbsFormatted = balance.abs().toStringAsFixed(0);
-            final formattedPaid = totalPaid.toStringAsFixed(0);
-            final formattedSpent = totalSpent.toStringAsFixed(0);
-
-            final liveProfile = !m.isOffline
-                ? ref.watch(userProfileProvider(m.userId)).value
-                : null;
-            final cached =
-                !m.isOffline ? ref.watch(userBoxProvider(m.userId)) : null;
-
-            final name = liveProfile?.displayName.isNotEmpty == true
-                ? liveProfile!.displayName
-                : (m.displayName.isNotEmpty
-                    ? m.displayName
-                    : (cached?.displayName ?? 'Member'));
-
-            final photo =
-                liveProfile?.photoUrl ?? m.photoUrl ?? cached?.photoUrl;
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color:
-                    isDark ? AppColors.darkCard : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.12)
-                      : const Color(0xFFE2E8F0),
-                ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < list.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : const Color(0xFFF1F5F9),
               ),
-              child: Row(
-                children: [
-                  MemberAvatar(
-                    initials: m.initials,
-                    photoUrl: photo,
-                    radius: 20,
-                    userId: m.userId,
-                    tourMember: m.copyWith(
-                      displayName: name,
+            Builder(builder: (context) {
+              final m = list[i];
+              final totalPaid = totalPaidMap[m.userId] ?? 0.0;
+              final balance = computedBalances[m.userId] ?? 0.0;
+              final isPositive = balance > 0.01;
+              final isNegative = balance < -0.01;
+              final isSettled = !isPositive && !isNegative;
+
+              final balanceAbsFormatted = balance.abs().toStringAsFixed(0);
+              final formattedPaid = totalPaid.toStringAsFixed(0);
+
+              final liveProfile = !m.isOffline
+                  ? ref.watch(userProfileProvider(m.userId)).value
+                  : null;
+              final cached =
+                  !m.isOffline ? ref.watch(userBoxProvider(m.userId)) : null;
+
+              final name = liveProfile?.displayName.isNotEmpty == true
+                  ? liveProfile!.displayName
+                  : (m.displayName.isNotEmpty
+                      ? m.displayName
+                      : (cached?.displayName ?? 'Member'));
+
+              final photo =
+                  liveProfile?.photoUrl ?? m.photoUrl ?? cached?.photoUrl;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                child: Row(
+                  children: [
+                    MemberAvatar(
+                      initials: m.initials,
+                      photoUrl: photo,
+                      radius: 19,
+                      userId: m.userId,
+                      tourMember: m.copyWith(
+                        displayName: name,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: m.userId == widget.userId
-                          ? () {
-                              HapticFeedback.lightImpact();
-                              context.push('/profile');
-                            }
-                          : null,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: m.userId == widget.userId
+                            ? () {
+                                HapticFeedback.lightImpact();
+                                context.push('/profile');
+                              }
+                            : null,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14.5,
+                                letterSpacing: -0.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Paid $currencySymbol$formattedPaid',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    if (isSettled)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.black.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.06),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isDark
+                                    ? Colors.white38
+                                    : Colors.black38,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Settled',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? Colors.white70
+                                    : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (isPositive)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            name,
+                            '+$currencySymbol$balanceAbsFormatted',
                             style: const TextStyle(
                               fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w700,
                               fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.positive,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Paid: $currencySymbol$formattedPaid • Spent: $currencySymbol$formattedSpent',
+                          const SizedBox(height: 2),
+                          const Text(
+                            'GETS BACK',
                             style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary,
+                              fontFamily: 'Outfit',
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                              color: AppColors.positive,
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '-$currencySymbol$balanceAbsFormatted',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.negative,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'OWES',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                              color: AppColors.negative,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '$currencySymbol$formattedPaid ($balanceSign$currencySymbol$balanceAbsFormatted)',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: color,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          isPositive
-                              ? 'Gets Back $currencySymbol$balanceAbsFormatted'
-                              : (isNegative
-                                  ? 'Owes $currencySymbol$balanceAbsFormatted'
-                                  : 'Settled'),
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
@@ -1749,14 +1927,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
+              ? Colors.white.withValues(alpha: 0.08)
               : AppColors.lightBorder,
+          width: 1.0,
         ),
       ),
       child: Column(
@@ -1766,34 +1945,15 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.handshake_outlined,
-                          size: 18, color: AppColors.primaryTeal),
-                    ),
-                    const SizedBox(width: 8),
-                    const Flexible(
-                      child: Text(
-                        'Settlements',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+              const Text(
+                'Settlements',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 ),
               ),
-              const SizedBox(width: 8),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1808,14 +1968,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         currentUserId: widget.userId,
                       ),
                       borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.add_rounded,
@@ -1825,8 +1980,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                               'Manual',
                               style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
                                 color: AppColors.primaryTeal,
                               ),
                             ),
@@ -1834,59 +1989,57 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                   ],
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () =>
+                  InkWell(
+                    onTap: () =>
                         context.push('/settlement?tourId=${tour.id}'),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'View All',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryTeal,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View All',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryTeal,
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 2),
-                        Icon(Icons.chevron_right_rounded,
-                            size: 15, color: AppColors.primaryTeal),
-                      ],
+                          SizedBox(width: 3),
+                          Icon(Icons.arrow_forward_rounded,
+                              size: 13, color: AppColors.primaryTeal),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const Divider(height: 24),
+          const SizedBox(height: 14),
           if (pendingSettlements.isNotEmpty) ...[
             InkWell(
-              onTap: () => context.push('/settlement'),
+              onTap: () => context.push('/settlement?tourId=${tour.id}'),
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(top: 4, bottom: 8),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 decoration: BoxDecoration(
                   color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.warning.withValues(alpha: 0.3),
+                    color: AppColors.warning.withValues(alpha: 0.25),
                   ),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.pending_actions_rounded,
-                        color: AppColors.warning, size: 18),
+                        color: AppColors.warning, size: 17),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1900,149 +2053,205 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       ),
                     ),
                     const Icon(Icons.arrow_forward_ios_rounded,
-                        size: 12, color: AppColors.warning),
+                        size: 11, color: AppColors.warning),
                   ],
                 ),
               ),
             ),
           ],
           if (debts.isEmpty) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.check_circle_rounded,
-                      color: AppColors.positive, size: 22),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'All debts settled up',
-                      style:
-                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 34,
+                      color: isDark ? Colors.white38 : Colors.black38,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    const Text(
+                      'All Settled Up',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'No outstanding debts between members',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ] else ...[
-            ...debts.map((d) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
+            for (int i = 0; i < debts.length; i++) ...[
+              if (i > 0)
+                Divider(
+                  height: 1,
+                  thickness: 1,
                   color: isDark
-                      ? AppColors.darkCard
-                      : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.12)
-                        : const Color(0xFFE2E8F0),
-                  ),
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : const Color(0xFFF1F5F9),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  d.fromUserName,
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13.5,
-                                    color: AppColors.negative,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 6),
-                                child: Icon(Icons.arrow_forward_rounded,
-                                    size: 13, color: Colors.grey),
-                              ),
-                              Flexible(
-                                child: Text(
-                                  d.toUserName,
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13.5,
-                                    color: AppColors.positive,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+              Builder(builder: (context) {
+                final d = debts[i];
+                final formattedAmt = d.amount % 1 == 0
+                    ? d.amount.toStringAsFixed(0)
+                    : d.amount.toStringAsFixed(2);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : const Color(0xFFF1F5F9),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : const Color(0xFFE2E8F0),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$currencySymbol${d.amount % 1 == 0 ? d.amount.toStringAsFixed(0) : d.amount.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w800,
+                        ),
+                        child: const Icon(Icons.swap_horiz_rounded,
+                            size: 20, color: AppColors.primaryTeal),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    d.fromUserName,
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      letterSpacing: -0.2,
+                                      color: AppColors.negative,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 5),
+                                  child: Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 12,
+                                    color: isDark ? Colors.white38 : Colors.black38,
+                                  ),
+                                ),
+                                Flexible(
+                                  child: Text(
+                                    d.toUserName,
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      letterSpacing: -0.2,
+                                      color: AppColors.primaryTeal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$currencySymbol$formattedAmt to settle',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      if (!isReadOnly)
+                        InkWell(
+                          onTap: () => _quickSettleDebt(d, currencySymbol),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
                               color: AppColors.primaryTeal,
-                              fontSize: 15,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Settle',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+            const SizedBox(height: 6),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFFF1F5F9),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => context.push('/settlement?tourId=${tour.id}'),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history_rounded,
+                        size: 15,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Settlement History & Approvals',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
                       ),
                     ),
-                    if (!isReadOnly) ...[
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: () => _quickSettleDebt(d, currencySymbol),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryTeal,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          minimumSize: const Size(68, 34),
-                          shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.button)),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Settle',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
-                ),
-              );
-            }),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => context.push('/settlement'),
-                icon: const Icon(Icons.sync_alt_rounded, size: 18),
-                label: const Text('Record or Approve Settlements'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryTeal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.button)),
-                  elevation: 0,
                 ),
               ),
             ),
@@ -2136,15 +2345,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     );
 
     if (confirmed == true) {
-      final members =
-          ref.read(tourMembersStreamProvider(widget.tourId)).value ?? [];
-      final toMember =
-          members.firstWhereOrNull((m) => m.userId == debt.toUserId);
-      final isOfflineReceiver =
-          toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
       final currentUid = ref.read(currentUserProvider).value?.uid;
-      final isReceiver = currentUid == debt.toUserId;
-      final shouldAutoApprove = isReceiver || isOfflineReceiver;
+      const shouldAutoApprove = true;
 
       final repo = ref.read(settlementRepositoryProvider);
       await repo.requestSettlement(
@@ -2162,14 +2364,9 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       ref.read(localSettlementsRefreshProvider.notifier).bump();
 
       if (mounted) {
-        final message = isOfflineReceiver
-            ? 'Settlement recorded and auto-approved for offline member.'
-            : (isReceiver
-                ? 'Settlement recorded and approved!'
-                : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
+          const SnackBar(
+            content: Text('Settlement recorded and approved! Balances updated.'),
             backgroundColor: AppColors.positive,
           ),
         );
@@ -2196,44 +2393,59 @@ class _MyBalanceCard extends StatelessWidget {
     final isNegative = balance < -0.01;
 
     final color = isPositive
-        ? AppColors.positive
-        : (isNegative ? AppColors.negative : AppColors.primaryTeal);
-
-    final statusText = isPositive
-        ? 'You are owed / To get back'
-        : (isNegative ? 'You owe others / To pay' : 'All Settled Up (৳0)');
-
-    final amountText = isPositive
-        ? '+$currencySymbol${balance.toStringAsFixed(0)}'
+        ? (isDark ? const Color(0xFF10B981) : AppColors.positive)
         : (isNegative
-            ? '-$currencySymbol${(-balance).toStringAsFixed(0)}'
-            : '${currencySymbol}0');
+            ? (isDark ? const Color(0xFFEF4444) : AppColors.negative)
+            : (isDark ? const Color(0xFF94A3B8) : AppColors.lightTextSecondary));
+
+    final balanceText = isPositive
+        ? '+$currencySymbol${balance.abs().toStringAsFixed(0)} (Gets back)'
+        : (isNegative
+            ? '-$currencySymbol${balance.abs().toStringAsFixed(0)} (You owe)'
+            : '${currencySymbol}0 (All settled)');
+
+    final Color cardBg;
+    final Color cardBorder;
+    final Color buttonBg;
+    final Color buttonFg;
+
+    if (isPositive) {
+      cardBg = isDark ? const Color(0xFF04201A) : const Color(0xFFF0FDFA);
+      cardBorder = isDark
+          ? const Color(0xFF00BFA5).withValues(alpha: 0.35)
+          : const Color(0xFF99F6E4);
+      buttonBg = const Color(0xFF00897B);
+      buttonFg = Colors.white;
+    } else if (isNegative) {
+      cardBg = isDark ? const Color(0xFF22080C) : const Color(0xFFFEF2F2);
+      cardBorder = isDark
+          ? const Color(0xFFEF4444).withValues(alpha: 0.35)
+          : const Color(0xFFFCA5A5);
+      buttonBg = const Color(0xFFEF4444);
+      buttonFg = Colors.white;
+    } else {
+      cardBg = isDark ? Colors.black : Colors.white;
+      cardBorder = isDark ? const Color(0xFF2A3447) : const Color(0xFFE2E8F0);
+      buttonBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+      buttonFg = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkBg : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
-              : color.withValues(alpha: 0.25),
+          color: cardBorder,
           width: 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: isDark ? 0.12 : 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
+              color: color.withValues(alpha: isDark ? 0.20 : 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -2250,43 +2462,53 @@ class _MyBalanceCard extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Your Net Balance',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white60 : Colors.black54,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: isDark
+                        ? const Color(0xFF94A3B8)
+                        : AppColors.lightTextSecondary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  statusText,
+                  balanceText,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
                     color: color,
                   ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: isDark ? 0.2 : 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withValues(alpha: 0.3)),
+          ElevatedButton(
+            onPressed: onSettleUp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: buttonBg,
+              foregroundColor: buttonFg,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 0,
             ),
             child: Text(
-              amountText,
+              'Settle Up',
               style: TextStyle(
                 fontFamily: 'Outfit',
-                fontSize: 16,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w800,
-                color: color,
+                color: buttonFg,
               ),
             ),
           ),
@@ -2301,31 +2523,34 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
   final String currencySymbol;
   final double totalSpent;
   final double yourSpending;
+  final double yourShare;
   final int memberCount;
-  final int expenseCount;
+  final VoidCallback? onTap;
 
   const _ConsolidatedMetricsCard({
     this.tourId,
     required this.currencySymbol,
     required this.totalSpent,
     required this.yourSpending,
+    required this.yourShare,
     required this.memberCount,
-    required this.expenseCount,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final avgPerPerson = memberCount > 0 ? totalSpent / memberCount : 0.0;
+    final formatter = NumberFormat('#,##0.##');
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
-              : AppColors.primaryTeal.withValues(alpha: 0.28),
+              ? const Color(0xFF2A3447)
+              : const Color(0xFFE2E8F0),
           width: 1.0,
         ),
         boxShadow: [
@@ -2342,142 +2567,119 @@ class _ConsolidatedMetricsCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          _MetricColumn(
-            value: '$currencySymbol${totalSpent.toStringAsFixed(0)}',
-            label: 'Total',
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-          _MetricDivider(isDark: isDark),
-          _MetricColumn(
-            value: '$currencySymbol${yourSpending.toStringAsFixed(0)}',
-            label: 'Your Spending',
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-          _MetricDivider(isDark: isDark),
-          _MetricColumn(
-            label: 'Members',
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-            onTap: () => context.push('/tour/members${tourId != null ? '?tourId=$tourId' : ''}'),
-            valueWidget: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+            child: Row(
               children: [
-                Icon(
-                  Icons.groups_rounded,
-                  size: 17,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                // Left Pillar: Total Spent
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Total Spent',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '$currencySymbol${formatter.format(totalSpent)}',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Avg $currencySymbol${formatter.format(avgPerPerson)} / person',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  '$memberCount',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                const SizedBox(width: 16),
+                // Right Pillar: Your Spending
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Your Spending',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '$currencySymbol${formatter.format(yourSpending)}',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Share: $currencySymbol${formatter.format(yourShare)}',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          _MetricDivider(isDark: isDark),
-          _MetricColumn(
-            value: '$expenseCount',
-            label: 'Expenses',
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _MetricColumn extends StatelessWidget {
-  final String? value;
-  final Widget? valueWidget;
-  final String label;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const _MetricColumn({
-    this.value,
-    this.valueWidget,
-    required this.label,
-    required this.color,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final content = Column(
-      children: [
-        if (valueWidget != null)
-          valueWidget!
-        else
-          Text(
-            value ?? '',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.lightTextSecondary,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-
-    if (onTap != null) {
-      return Expanded(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: content,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Expanded(child: content);
-  }
-}
-
-class _MetricDivider extends StatelessWidget {
-  final bool isDark;
-  const _MetricDivider({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 28,
-      width: 1,
-      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-    );
-  }
-}
 
 class _BudgetProgressBar extends StatelessWidget {
   final double budget;
@@ -2547,46 +2749,6 @@ class _BudgetProgressBar extends StatelessWidget {
   }
 }
 
-class _SquareActionButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _SquareActionButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.button),
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.button),
-            border: Border.all(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            ),
-          ),
-          child: Icon(
-            icon,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-            size: 22,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _PillTabBar extends StatelessWidget {
   final int selectedIndex;
@@ -2680,7 +2842,7 @@ class _TourDashboardAppBar extends ConsumerWidget {
       pinned: true,
       elevation: 0,
       automaticallyImplyLeading: false,
-      toolbarHeight: 64,
+      toolbarHeight: 56,
       titleSpacing: 16,
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       title: InkWell(

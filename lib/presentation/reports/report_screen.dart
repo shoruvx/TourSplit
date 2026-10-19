@@ -6,6 +6,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
@@ -22,6 +25,7 @@ import '../../data/services/user_cache_service.dart';
 import '../expense/widgets/day_summary_table.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class ReportScreen extends ConsumerWidget {
   final String? tourId;
@@ -125,10 +129,10 @@ class ReportScreen extends ConsumerWidget {
     final cachedSettlements = ActiveTourCacheService.getCachedSettlements(effectiveTourId);
     final streamSettlements = settlementsStream.value ?? [];
     final Map<String, SettlementModel> settlementsMap = {};
-    for (final s in cachedSettlements) {
+    for (final s in streamSettlements) {
       settlementsMap[s.id] = s;
     }
-    for (final s in streamSettlements) {
+    for (final s in cachedSettlements) {
       settlementsMap[s.id] = s;
     }
     final settlements = settlementsMap.values.toList();
@@ -238,18 +242,19 @@ class ReportScreen extends ConsumerWidget {
                         }),
                         const SizedBox(height: 32),
                         GradientButton(
-                          onPressed: () => _generateAndSharePdf(
-                              context,
-                              tour.name,
-                              tour.startDate,
-                              expenses,
-                              members,
-                              balances,
-                              debts,
-                              tour.currencySymbol,
-                              totalSpent),
-                          label: 'Export PDF Report',
-                          icon: Icons.picture_as_pdf_rounded,
+                          onPressed: () => _generateAndDownloadPdf(
+                            context,
+                            tour.name,
+                            tour.startDate,
+                            expenses,
+                            members,
+                            balances,
+                            debts,
+                            tour.currencySymbol,
+                            totalSpent,
+                          ),
+                          label: 'Download PDF Report',
+                          icon: Icons.download_rounded,
                         ).animate().fadeIn(delay: 200.ms),
                         const SizedBox(height: 24),
                       ],
@@ -304,7 +309,7 @@ class ReportScreen extends ConsumerWidget {
     return result;
   }
 
-  Future<void> _generateAndSharePdf(
+  Future<void> _generateAndDownloadPdf(
     BuildContext context,
     String tourName,
     DateTime tourStartDate,
@@ -313,8 +318,9 @@ class ReportScreen extends ConsumerWidget {
     Map<String, double> balances,
     List debts,
     String currencySymbol,
-    double totalSpent,
-  ) async {
+    double totalSpent, {
+    bool customLocation = false,
+  }) async {
     final pdf = pw.Document();
     final dayGroups = _groupExpensesByDay(expenses, tourStartDate);
     final pdfCurrency =
@@ -498,10 +504,90 @@ class ReportScreen extends ConsumerWidget {
       ],
     ));
 
-    await Printing.sharePdf(
-      bytes: await pdf.save(),
-      filename: '${tourName.replaceAll(' ', '_')}_report.pdf',
-    );
+    final bytes = await pdf.save();
+    final cleanName = tourName
+        .replaceAll(RegExp(r'[^\w\s-]'), '')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_');
+    final dateStr = DateFormat('yyyyMMdd').format(DateTime.now());
+    final filename =
+        '${cleanName.isNotEmpty ? cleanName : 'tour'}_report_$dateStr.pdf';
+
+    if (customLocation) {
+      await Printing.layoutPdf(
+        onLayout: (format) async => bytes,
+        name: filename,
+      );
+      return;
+    }
+
+    String? savedPath;
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.storage.status;
+        if (status.isDenied) {
+          await Permission.storage.request();
+        }
+      }
+
+      Directory? targetDir;
+      if (Platform.isAndroid) {
+        final downloadDir = Directory('/storage/emulated/0/Download');
+        if (await downloadDir.exists()) {
+          targetDir = downloadDir;
+        } else {
+          final extDirs = await getExternalStorageDirectories(
+              type: StorageDirectory.downloads);
+          if (extDirs != null && extDirs.isNotEmpty) {
+            targetDir = extDirs.first;
+          } else {
+            targetDir = await getExternalStorageDirectory();
+          }
+        }
+      } else if (Platform.isIOS) {
+        targetDir = await getApplicationDocumentsDirectory();
+      } else {
+        targetDir = await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+      }
+
+      if (targetDir != null) {
+        if (!await targetDir.exists()) {
+          await targetDir.create(recursive: true);
+        }
+        final file = File('${targetDir.path}/$filename');
+        await file.writeAsBytes(bytes, flush: true);
+        savedPath = file.path;
+      }
+    } catch (e) {
+      debugPrint('[PDF_EXPORT] Error writing to default files location: $e');
+    }
+
+    if (context.mounted) {
+      if (savedPath != null) {
+        showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_rounded,
+          iconColor: AppColors.positive,
+          title: 'PDF Downloaded',
+          message: 'Saved directly to your device storage:\n$savedPath',
+          primaryButtonText: 'Custom Location / Print',
+          onPrimaryPressed: () async {
+            await Printing.layoutPdf(
+              onLayout: (format) async => bytes,
+              name: filename,
+            );
+          },
+          secondaryButtonText: 'Done',
+        );
+      } else {
+        // Fallback to layoutPdf if direct file write was restricted
+        await Printing.layoutPdf(
+          onLayout: (format) async => bytes,
+          name: filename,
+        );
+      }
+    }
   }
 }
 

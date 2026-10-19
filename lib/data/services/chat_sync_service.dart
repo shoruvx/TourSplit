@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
+import '../models/tour_model.dart';
 import '../repositories/chat_repository.dart';
 import 'chat_active_tracker.dart';
 import 'notification_service.dart';
@@ -198,8 +199,19 @@ class ChatSyncService {
               .set(msg.toFirestoreMap(), SetOptions(merge: true))
               .timeout(const Duration(seconds: 4));
 
-          _firestore.collection('tours').doc(msg.tourId).update({
-            'lastActivityAt': FieldValue.serverTimestamp(),
+          _firestore
+              .collection('tours')
+              .doc(msg.tourId)
+              .get()
+              .then((doc) {
+            if (doc.exists) {
+              final t = TourModel.fromFirestore(doc);
+              if (!t.isLockedForDeletion) {
+                _firestore.collection('tours').doc(msg.tourId).update({
+                  'lastActivityAt': FieldValue.serverTimestamp(),
+                }).catchError((_) {});
+              }
+            }
           }).catchError((_) {});
         }
 

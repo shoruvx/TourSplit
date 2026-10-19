@@ -1,7 +1,7 @@
 name: toursplit
 description: "TourSplit: Split the costs, keep the memories."
 publish_to: 'none'
-version: 1.5.3+25
+version: 1.5.4+26
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -34,6 +34,7 @@ dependencies:
   # PDF Generation
   pdf: ^3.13.1
   printing: ^5.15.1
+  path_provider: ^2.1.6
 
   # Utilities
   intl: ^0.20.3

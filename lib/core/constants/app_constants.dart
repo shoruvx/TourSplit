@@ -41,6 +41,10 @@ class AppConstants {
   static const String allUsersTopic = 'all_users';
 
   static const String githubRepo = 'shoruvx/TourSplit';
+
+  /// URL redirecting to Facebook or YouTube user manual video
+  static const String howToUseVideoUrl =
+      'https://www.facebook.com/share/v/1EkmXAF9SY/';
 }
 
 class AppStrings {

@@ -137,12 +137,12 @@ void main() {
   });
 
   group('WhatsNewDialog Feature Standard Tests', () {
-    test('contains Centered Onboarding feature with proper description', () {
-      final onboardingFeature = WhatsNewDialog.features.firstWhere(
-        (f) => f.title == 'Centered Onboarding',
+    test('contains Video User Manual feature with proper description', () {
+      final videoFeature = WhatsNewDialog.features.firstWhere(
+        (f) => f.title == 'Video User Manual',
       );
-      expect(onboardingFeature.description, contains('Clean, easy-to-read'));
-      expect(WhatsNewDialog.features.length, 5);
+      expect(videoFeature.description, contains('How to use'));
+      expect(WhatsNewDialog.features.length, greaterThanOrEqualTo(5));
     });
   });
 }

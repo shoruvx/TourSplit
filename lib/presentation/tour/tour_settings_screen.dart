@@ -12,6 +12,7 @@ import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/theme_switch_toggle.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class TourSettingsScreen extends ConsumerStatefulWidget {
   final String? tourId;
@@ -57,23 +58,15 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
   }
 
   Future<void> _endTour(String tourId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('End Tour?'),
-        content: const Text(
-            'This will mark the tour as completed. Members won\'t be able to add new expenses.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('End Tour'),
-          ),
-        ],
-      ),
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.flag_rounded,
+      iconColor: AppColors.warning,
+      title: 'End Tour?',
+      message:
+          'This will mark the tour as completed. Members won\'t be able to add new expenses.',
+      confirmText: 'End Tour',
+      confirmColor: AppColors.danger,
     );
     if (confirm == true) {
       await ref.read(tourRepositoryProvider).completeTour(tourId);
@@ -82,32 +75,15 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
   }
 
   Future<void> _deleteTour(String tourId, String tourName) async {
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.delete_forever_rounded, color: AppColors.danger),
-            const SizedBox(width: 8),
-            const Text('Delete Tour?',
-                style: TextStyle(color: AppColors.danger)),
-          ],
-        ),
-        content: Text(
+    final proceed = await showAppConfirmationSheet(
+      context,
+      icon: Icons.delete_forever_rounded,
+      iconColor: AppColors.danger,
+      title: 'Delete Tour?',
+      message:
           'This will permanently delete "$tourName" including ALL expenses, settlements, and member data.\n\nThis CANNOT be undone!',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Proceed'),
-          ),
-        ],
-      ),
+      confirmText: 'Proceed',
+      confirmColor: AppColors.danger,
     );
     if (proceed != true || !mounted) return;
 
@@ -200,35 +176,18 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
   }
 
   Future<void> _leaveTour(String tourId, String tourName) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.logout_rounded, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('Leave Tour?'),
-          ],
-        ),
-        content: Text(
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.logout_rounded,
+      iconColor: AppColors.danger,
+      title: 'Leave Tour?',
+      message:
           'Are you sure you want to leave "$tourName"?\n\n'
           '• If you have 0 contribution and spending, you will be completely removed from everywhere in the tour.\n'
           '• If you have recorded expenses or splits, your history will stay intact for tour math and you will be listed as a left member.\n\n'
           'You can rejoin anytime using the tour invite code.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Leave Tour'),
-          ),
-        ],
-      ),
+      confirmText: 'Leave Tour',
+      confirmColor: AppColors.danger,
     );
 
     if (confirm != true || !mounted) return;
@@ -251,53 +210,40 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       ref.invalidate(currentUserProvider);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            preservedAsPast
-                ? 'You have left the tour. Financial records remain intact.'
-                : 'You have been completely removed from the tour.',
-          ),
-          backgroundColor: AppColors.accent,
-        ),
+      await showAppNotificationSheet(
+        context,
+        icon: Icons.info_outline_rounded,
+        iconColor: AppColors.primaryTeal,
+        title: 'Left Tour',
+        message: preservedAsPast
+            ? 'You have left the tour. Financial records remain intact.'
+            : 'You have been completely removed from the tour.',
+        primaryButtonText: 'Done',
       );
-      context.go('/home');
+      if (mounted) context.go('/home');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to leave tour: $e')),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Failed to Leave Tour',
+        message: 'Could not leave tour: $e',
       );
       setState(() => _isLoading = false);
     }
   }
 
   Future<void> _removeTourFromList(String tourId, String tourName) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.delete_outline_rounded, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('Remove Tour?'),
-          ],
-        ),
-        content: Text(
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.delete_outline_rounded,
+      iconColor: AppColors.danger,
+      title: 'Remove Tour?',
+      message:
           'Remove "$tourName" from your tour list? You will no longer see this tour in your list.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      confirmText: 'Remove',
+      confirmColor: AppColors.danger,
     );
 
     if (confirm != true || !mounted) return;
@@ -315,17 +261,23 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       ref.invalidate(currentUserProvider);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tour removed from your list.'),
-          backgroundColor: AppColors.accent,
-        ),
+      await showAppNotificationSheet(
+        context,
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: AppColors.positive,
+        title: 'Tour Removed',
+        message: 'Tour was removed from your list.',
+        primaryButtonText: 'Done',
       );
-      context.go('/home');
+      if (mounted) context.go('/home');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to remove tour: $e')),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Remove Failed',
+        message: 'Could not remove tour: $e',
       );
       setState(() => _isLoading = false);
     }

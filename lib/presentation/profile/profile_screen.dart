@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
@@ -23,6 +23,7 @@ import '../../data/repositories/tour_repository.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../widgets/theme_switch_toggle.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -924,176 +925,94 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void _showShareAppBottomSheet(BuildContext context) {
     const downloadUrl =
         'https://github.com/${AppConstants.githubRepo}/releases/latest';
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: isDark ? AppColors.darkCard : Colors.white,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 24),
-                  Text(
-                    'Share TourSplit',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Outfit',
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    onPressed: () => Navigator.pop(ctx),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Let your travel companions scan or download TourSplit to track and split expenses together.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
+    showAppNotificationSheet(
+      context,
+      title: 'Share TourSplit',
+      message:
+          'Scan or download TourSplit to track and split expenses together.',
+      additionalContent: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
                 ),
-                textAlign: TextAlign.center,
+              ],
+            ),
+            child: QrImageView(
+              data: downloadUrl,
+              version: QrVersions.auto,
+              size: 155,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Color(0xFF0F172A),
               ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 16,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: QrImageView(
-                  data: downloadUrl,
-                  version: QrVersions.auto,
-                  size: 190,
-                  backgroundColor: Colors.white,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: Color(0xFF0F172A),
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Color(0xFF0F172A),
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkSurface
-                      : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color:
-                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.link_rounded,
-                        size: 16, color: AppColors.primaryTeal),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'github.com/${AppConstants.githubRepo}/releases/latest',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Clipboard.setData(
-                            const ClipboardData(text: downloadUrl));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Download link copied to clipboard!'),
-                            backgroundColor: AppColors.accent,
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.copy_rounded, size: 18),
-                      label: const Text('Copy Link'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                          width: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.button),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Share.share(
-                          'Track and split tour expenses effortlessly with TourSplit!\n'
-                          'Download the latest release here: $downloadUrl',
-                        );
-                      },
-                      icon: const Icon(Icons.share_rounded, size: 18),
-                      label: const Text('Share App'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryTeal,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.button),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.link_rounded,
+                    size: 16, color: AppColors.primaryTeal),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'github.com/${AppConstants.githubRepo}/releases/latest',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
+      primaryButtonText: 'Share App',
+      onPrimaryPressed: () {
+        Share.share(
+          'Track and split tour expenses effortlessly with TourSplit!\n'
+          'Download the latest release here: $downloadUrl',
+        );
+      },
+      secondaryButtonText: 'Copy Link',
+      onSecondaryPressed: () {
+        Clipboard.setData(const ClipboardData(text: downloadUrl));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download link copied to clipboard!'),
+            backgroundColor: AppColors.accent,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
     );
   }
 
@@ -1648,23 +1567,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Sign Out?'),
-                            content: const Text(
-                                'You will be returned to the login screen.'),
-                            actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Cancel')),
-                              ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.danger),
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('Sign Out')),
-                            ],
-                          ),
+                        final confirm = await showAppConfirmationSheet(
+                          context,
+                          icon: Icons.logout_rounded,
+                          iconColor: AppColors.danger,
+                          title: 'Sign Out?',
+                          message:
+                              'You will be returned to the login screen.',
+                          confirmText: 'Sign Out',
+                          confirmColor: AppColors.danger,
                         );
                         if (confirm == true) {
                           await ref.read(authServiceProvider).signOut();

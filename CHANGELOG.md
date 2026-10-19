@@ -2,13 +2,28 @@
 
 All notable changes to TourSplit are documented in this file. Releases follow a detailed yet minimalistic format highlighting core capabilities, bug fixes, and user experience enhancements.
 
-## [v1.5.3] - 2026-10-15
+## [v1.5.4] - 2026-10-19
 
-- 🧭 **Guest Mode**: You can now explore the app without logging in.
-- ⏳ **Storage Cleanup**: Inactive tours get deleted after 30 days of inactivity, but reminds you 7 days before.
+- **Redesigned Add Expense Screen**: Streamlined expense creation with inline math calculation, live amount previews, and clean member split options.
+- **Direct PDF File Downloads**: PDF expense reports now download directly to your phone files without forcing external app sharing.
+- **Unified Alert Sheets**: Standardized universal modal bottom sheets for alerts, confirmations, and warnings across the entire app.
+- **Refined Homescreen & Balances**: Balanced layout with responsive typography, intuitive button positioning, and improved spacing in tour balance summaries.
+- **Compact Share TourSplit**: Streamlined QR code sharing bottom sheet with minimal vertical footprint.
+
+---
+
+## [v1.5.3] - 2026-10-19
+
+- 🧾 **Redesigned Add Expense Screen**: Streamlined expense creation with inline math calculation, live amount previews, and clean member split options.
+- 📄 **Direct PDF File Downloads**: PDF expense reports now download directly to your phone files without forcing external app sharing.
+- 🔒 **Strict Inactivity Lockout**: Inactive tours entering the 7-day reminder are strictly locked from edits or reactivation until deletion.
+- 🎬 **Video User Manual**: Quick video walkthrough directly accessible from the home screen via the new How to use guide.
+- 🔔 **Unified Popup Sheets**: All notifications, alerts, and confirmations across the app now share a consistent, modern bottom sheet design.
+- 🎨 **Symmetric Action Hub**: Refined homescreen action buttons with a balanced color palette and harmonious visual hierarchy.
+- 🧭 **Guest Mode**: You can now explore the app and preview features without logging in.
 - 🧮 **Expense Calculator**: Calculate expenses with quick math directly in the amount field.
+- ⏳ **Storage Cleanup**: Inactive tours get deleted after 30 days of inactivity, but reminds you 7 days before.
 - ✨ **Centered Onboarding**: Clean, easy-to-read introduction to core features.
-- 🎨 **Refreshed Brand**: Freshly optimized texts, buttons, and a modern clean logo.
 
 ---
 

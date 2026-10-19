@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/expense_model.dart';
+import '../models/tour_model.dart';
 import '../../core/constants/app_constants.dart';
 import '../services/active_tour_cache_service.dart';
 import '../services/offline_expense_queue_service.dart';
@@ -23,6 +24,32 @@ class ExpenseRepository {
   String generateExpenseId(String tourId) => _expenses(tourId).doc().id;
 
   Future<ExpenseModel> addExpense(ExpenseModel expense) async {
+    // Check if the tour is locked for auto-deletion
+    try {
+      final tourDoc = await _db
+          .collection(AppConstants.toursCollection)
+          .doc(expense.tourId)
+          .get();
+      if (tourDoc.exists) {
+        final tour = TourModel.fromFirestore(tourDoc);
+        if (tour.isLockedForDeletion) {
+          throw Exception(
+              'This tour is scheduled for deletion due to inactivity and cannot accept new expenses.');
+        }
+      }
+    } on FirebaseException catch (_) {
+      // Offline fallback: check cached tour
+      final cachedTour = ActiveTourCacheService.getCachedActiveTour();
+      if (cachedTour != null &&
+          cachedTour.id == expense.tourId &&
+          cachedTour.isLockedForDeletion) {
+        throw Exception(
+            'This tour is scheduled for deletion due to inactivity and cannot accept new expenses.');
+      }
+    } catch (e) {
+      if (e.toString().contains('scheduled for deletion')) rethrow;
+    }
+
     final docRef = expense.id.isNotEmpty
         ? _expenses(expense.tourId).doc(expense.id)
         : _expenses(expense.tourId).doc();
@@ -33,8 +60,20 @@ class ExpenseRepository {
 
     await docRef.set(data, SetOptions(merge: true));
 
-    _db.collection(AppConstants.toursCollection).doc(expense.tourId).update({
-      'lastActivityAt': FieldValue.serverTimestamp(),
+    // Only update lastActivityAt if tour is NOT locked for deletion
+    _db
+        .collection(AppConstants.toursCollection)
+        .doc(expense.tourId)
+        .get()
+        .then((doc) {
+      if (doc.exists) {
+        final t = TourModel.fromFirestore(doc);
+        if (!t.isLockedForDeletion) {
+          _db.collection(AppConstants.toursCollection).doc(expense.tourId).update({
+            'lastActivityAt': FieldValue.serverTimestamp(),
+          }).catchError((_) {});
+        }
+      }
     }).catchError((_) {});
 
     return expense.copyWith(id: expenseId, createdAt: createdNow);
@@ -101,11 +140,7 @@ class ExpenseRepository {
     // 3. Delete from Firestore if it's an online tour
     if (!tourId.startsWith('local_')) {
       try {
-        await _expenses(tourId).doc(expenseId).delete().timeout(const Duration(milliseconds: 1500));
-        // If Firestore delete succeeded, remove queued deletion entry
-        if (Hive.isBoxOpen(OfflineExpenseQueueService.boxName)) {
-          await Hive.box(OfflineExpenseQueueService.boxName).delete('del_$expenseId');
-        }
+        await _expenses(tourId).doc(expenseId).delete().timeout(const Duration(milliseconds: 2500));
       } catch (e) {
         debugPrint('[EXPENSE_REPO] Firestore delete offline/timeout: $e');
       }
@@ -182,14 +217,16 @@ class ExpenseRepository {
             cached.where((e) => !deletedIds.contains(e.id)).toList();
 
         final Map<String, ExpenseModel> map = {};
+        for (final e in validFirestore) {
+          map[e.id] = e;
+        }
         for (final e in validQueued) {
           map[e.id] = e;
         }
-        for (final e in validCached) {
-          map.putIfAbsent(e.id, () => e);
-        }
-        for (final e in validFirestore) {
-          map[e.id] = e;
+        if (firestoreList.isEmpty) {
+          for (final e in validCached) {
+            map.putIfAbsent(e.id, () => e);
+          }
         }
         final merged = map.values.toList();
         merged.sort((a, b) => b.date.compareTo(a.date));
@@ -241,14 +278,16 @@ class ExpenseRepository {
             cached.where((e) => !deletedIds.contains(e.id)).toList();
 
         final Map<String, ExpenseModel> map = {};
+        for (final e in validFirestore) {
+          map[e.id] = e;
+        }
         for (final e in validQueued) {
           map[e.id] = e;
         }
-        for (final e in validCached) {
-          map.putIfAbsent(e.id, () => e);
-        }
-        for (final e in validFirestore) {
-          map[e.id] = e;
+        if (firestoreList.isEmpty) {
+          for (final e in validCached) {
+            map.putIfAbsent(e.id, () => e);
+          }
         }
         final merged = map.values.toList();
         merged.sort((a, b) => b.date.compareTo(a.date));
@@ -337,14 +376,16 @@ class ExpenseRepository {
             cached.where((e) => !deletedIds.contains(e.id)).toList();
 
         final Map<String, ExpenseModel> map = {};
+        for (final e in validFirestore) {
+          map[e.id] = e;
+        }
         for (final e in validQueued) {
           map[e.id] = e;
         }
-        for (final e in validCached) {
-          map.putIfAbsent(e.id, () => e);
-        }
-        for (final e in validFirestore) {
-          map[e.id] = e;
+        if (firestoreList.isEmpty) {
+          for (final e in validCached) {
+            map.putIfAbsent(e.id, () => e);
+          }
         }
         final list = map.values.toList();
         list.sort((a, b) => b.createdAt.compareTo(a.createdAt));

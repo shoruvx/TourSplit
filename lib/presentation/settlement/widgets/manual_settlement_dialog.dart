@@ -419,10 +419,7 @@ class ManualSettlementDialog {
           ),
         );
 
-        final isAdmin = tour.isAdmin(currentUserId);
-        final isReceiver = currentUserId == toUid;
-        final isOfflineReceiver = toMember.isOffline || toUid.startsWith('offline_');
-        final shouldAutoApprove = isReceiver || isOfflineReceiver || isAdmin;
+        const shouldAutoApprove = true;
 
         final repo = ref.read(settlementRepositoryProvider);
         await repo.requestSettlement(
@@ -440,18 +437,10 @@ class ManualSettlementDialog {
         ref.read(localSettlementsRefreshProvider.notifier).bump();
 
         if (context.mounted) {
-          final String message;
-          if (isOfflineReceiver) {
-            message = 'Settlement recorded and auto-approved for offline member.';
-          } else if (isReceiver || isAdmin) {
-            message = 'Settlement recorded and approved! Balances adjusted.';
-          } else {
-            message = 'Settlement recorded. Waiting for ${toMember.displayName} to approve.';
-          }
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: shouldAutoApprove ? AppColors.positive : AppColors.warning,
+            const SnackBar(
+              content: Text('Settlement recorded and approved! Balances adjusted.'),
+              backgroundColor: AppColors.positive,
             ),
           );
         }
