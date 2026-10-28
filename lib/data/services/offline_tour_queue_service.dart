@@ -77,6 +77,7 @@ class OfflineTourQueueService {
     required String adminId,
     required DateTime startDate,
     required DateTime endDate,
+    double? budget,
     String? adminName,
     String? adminEmail,
   }) async {
@@ -95,6 +96,7 @@ class OfflineTourQueueService {
       'status': 'active',
       'startDate': startDate.millisecondsSinceEpoch,
       'endDate': endDate.millisecondsSinceEpoch,
+      'budget': budget,
       'members': [adminId],
       'createdAt': DateTime.now().millisecondsSinceEpoch,
       'isLocalOnly': true,
@@ -135,6 +137,7 @@ class OfflineTourQueueService {
       status: TourStatus.active,
       startDate: startDate,
       endDate: endDate,
+      budget: budget,
       memberIds: [adminId],
       createdAt: DateTime.now(),
     );
@@ -364,6 +367,7 @@ class OfflineTourQueueService {
               adminId: user.uid,
               startDate: DateTime.fromMillisecondsSinceEpoch(startMs),
               endDate: DateTime.fromMillisecondsSinceEpoch(endMs),
+              budget: (data['budget'] as num?)?.toDouble(),
             );
 
             await _tourRepo.addAdminAsMember(tourId: tour.id, admin: user);

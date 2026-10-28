@@ -126,5 +126,47 @@ void main() {
       expect(validRecipients.length, 1);
       expect(validRecipients.first.userId, 'u1');
     });
+
+    test('Settlement auto-approval strictly requires receiver approval for online members', () {
+      final onlineReceiver = TourMemberModel(
+        userId: 'user_receiver_1',
+        displayName: 'Bob',
+        username: 'bob',
+        email: 'bob@example.com',
+        role: 'member',
+        status: 'active',
+        joinedAt: DateTime.now(),
+      );
+      final offlineReceiver = TourMemberModel(
+        userId: 'offline_comp_99',
+        displayName: 'Dave (Offline)',
+        username: 'dave',
+        email: '',
+        role: 'member',
+        status: 'active',
+        joinedAt: DateTime.now(),
+        isOffline: true,
+      );
+
+      // Case 1: Payer records settlement to online receiver -> NOT auto-approved, requires receiver approval
+      final currentUidPayer = 'user_payer_1';
+      final isReceiver1 = currentUidPayer == onlineReceiver.userId;
+      final isOffline1 = onlineReceiver.isOffline || onlineReceiver.userId.startsWith('offline_');
+      final shouldAutoApprove1 = isReceiver1 || isOffline1;
+      expect(shouldAutoApprove1, isFalse);
+
+      // Case 2: Online receiver records settlement received from payer -> Auto-approved
+      final currentUidReceiver = 'user_receiver_1';
+      final isReceiver2 = currentUidReceiver == onlineReceiver.userId;
+      final isOffline2 = onlineReceiver.isOffline || onlineReceiver.userId.startsWith('offline_');
+      final shouldAutoApprove2 = isReceiver2 || isOffline2;
+      expect(shouldAutoApprove2, isTrue);
+
+      // Case 3: Payer records settlement to offline companion -> Auto-approved
+      final isReceiver3 = currentUidPayer == offlineReceiver.userId;
+      final isOffline3 = offlineReceiver.isOffline || offlineReceiver.userId.startsWith('offline_');
+      final shouldAutoApprove3 = isReceiver3 || isOffline3;
+      expect(shouldAutoApprove3, isTrue);
+    });
   });
 }

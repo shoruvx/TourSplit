@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -502,6 +503,10 @@ class BalanceScreen extends ConsumerWidget {
                                   ),
                                 Builder(builder: (context) {
                                   final d = debts[i];
+                                  final hasPending = settlements.any((s) =>
+                                      s.isPending &&
+                                      s.fromUserId == d.fromUserId &&
+                                      s.toUserId == d.toUserId);
                                   final formattedAmt = d.amount % 1 == 0
                                       ? d.amount.toStringAsFixed(0)
                                       : d.amount.toStringAsFixed(2);
@@ -585,28 +590,65 @@ class BalanceScreen extends ConsumerWidget {
                                           ),
                                         ),
                                         const SizedBox(width: 10),
-                                        InkWell(
-                                          onTap: () => _requestSettlement(
-                                              context, ref, effectiveTourId, d, tour.currency),
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 14, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primaryTeal,
-                                              borderRadius: BorderRadius.circular(12),
+                                        if (hasPending)
+                                          InkWell(
+                                            onTap: () {
+                                              HapticFeedback.lightImpact();
+                                              context.push('/settlement?tourId=$effectiveTourId');
+                                            },
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 10, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.warning.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: AppColors.warning.withValues(alpha: 0.4),
+                                                ),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.hourglass_top_rounded,
+                                                      size: 13, color: AppColors.warning),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'Processing',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Outfit',
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: AppColors.warning,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                            child: const Text(
-                                              'Settle',
-                                              style: TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
+                                          )
+                                        else
+                                          InkWell(
+                                            onTap: () => _requestSettlement(
+                                                context, ref, effectiveTourId, d, tour.currency),
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 14, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primaryTeal,
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: const Text(
+                                                'Settle',
+                                                style: TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white,
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
                                       ],
                                     ),
                                   );
@@ -660,6 +702,11 @@ class BalanceScreen extends ConsumerWidget {
     }
 
     final currentUid = ref.read(currentUserProvider).value?.uid;
+    final members = ref.read(tourMembersStreamProvider(tourId)).value ?? [];
+    final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+    final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
+    final isReceiver = currentUid == debt.toUserId;
+    final shouldAutoApprove = isReceiver || isOfflineReceiver;
 
     final confirm = await showAppConfirmationSheet(
       context,
@@ -672,7 +719,6 @@ class BalanceScreen extends ConsumerWidget {
     );
 
     if (confirm == true) {
-      const shouldAutoApprove = true;
       await ref.read(settlementRepositoryProvider).requestSettlement(
             tourId: tourId,
             fromUserId: debt.fromUserId,
@@ -682,16 +728,23 @@ class BalanceScreen extends ConsumerWidget {
             amount: debt.amount,
             currency: currency,
             autoApprove: shouldAutoApprove,
-            resolvedByUserId: currentUid,
+            resolvedByUserId: shouldAutoApprove ? currentUid : null,
           );
       ref.read(localSettlementsRefreshProvider.notifier).bump();
       if (context.mounted) {
+        final message = isOfflineReceiver
+            ? 'Settlement recorded and auto-approved for offline member.'
+            : (isReceiver
+                ? 'Settlement recorded and approved! Balances adjusted.'
+                : 'Settlement requested! Waiting for ${debt.toUserName} to approve.');
         showAppNotificationSheet(
           context,
-          icon: Icons.check_circle_outline_rounded,
-          iconColor: AppColors.positive,
-          title: 'Settlement Approved',
-          message: 'Settlement recorded and approved! Balances adjusted.',
+          icon: shouldAutoApprove
+              ? Icons.check_circle_outline_rounded
+              : Icons.hourglass_top_rounded,
+          iconColor: shouldAutoApprove ? AppColors.positive : AppColors.warning,
+          title: shouldAutoApprove ? 'Settlement Approved' : 'Settlement Requested',
+          message: message,
           primaryButtonText: 'Done',
         );
       }

@@ -8,7 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
@@ -67,9 +67,24 @@ class ReportScreen extends ConsumerWidget {
     final tour = effectiveTour ?? tourStream.value;
     if (tour == null) {
       if (tourStream.isLoading) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: const Center(child: CircularProgressIndicator()),
+        );
       }
-      return const Scaffold();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        }
+      });
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     final cachedMembers = ActiveTourCacheService.getCachedMembers(effectiveTourId);
@@ -168,6 +183,26 @@ class ReportScreen extends ConsumerWidget {
                           color: AppColors.primaryTeal,
                         ),
                       ),
+                      actions: [
+                        IconButton(
+                          tooltip: 'Share Report',
+                          icon: const Icon(Icons.share_rounded,
+                              color: AppColors.primaryTeal),
+                          onPressed: () => _generateAndDownloadPdf(
+                            context,
+                            tour.name,
+                            tour.startDate,
+                            expenses,
+                            members,
+                            balances,
+                            debts,
+                            tour.currencySymbol,
+                            totalSpent,
+                            autoShare: true,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                     ),
                   body: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
@@ -320,6 +355,7 @@ class ReportScreen extends ConsumerWidget {
     String currencySymbol,
     double totalSpent, {
     bool customLocation = false,
+    bool autoShare = false,
   }) async {
     final pdf = pw.Document();
     final dayGroups = _groupExpensesByDay(expenses, tourStartDate);
@@ -513,6 +549,34 @@ class ReportScreen extends ConsumerWidget {
     final filename =
         '${cleanName.isNotEmpty ? cleanName : 'tour'}_report_$dateStr.pdf';
 
+    File? tempFile;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      tempFile = File('${tempDir.path}/$filename');
+      await tempFile.writeAsBytes(bytes, flush: true);
+    } catch (e) {
+      debugPrint('[PDF_EXPORT] Error writing temp file for share: $e');
+    }
+
+    if (autoShare) {
+      if (tempFile != null && await tempFile.exists()) {
+        try {
+          await Share.shareXFiles(
+            [XFile(tempFile.path, mimeType: 'application/pdf', name: filename)],
+            subject: '$tourName Expense Report',
+            text: 'Tour Expense Report: $tourName',
+          );
+          return;
+        } catch (_) {}
+      }
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: filename,
+        subject: '$tourName Expense Report',
+      );
+      return;
+    }
+
     if (customLocation) {
       await Printing.layoutPdf(
         onLayout: (format) async => bytes,
@@ -521,72 +585,54 @@ class ReportScreen extends ConsumerWidget {
       return;
     }
 
-    String? savedPath;
     try {
-      if (Platform.isAndroid) {
-        final status = await Permission.storage.status;
-        if (status.isDenied) {
-          await Permission.storage.request();
+      if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          final publicFile = File('${downloadsDir.path}/$filename');
+          await publicFile.writeAsBytes(bytes, flush: true);
         }
-      }
-
-      Directory? targetDir;
-      if (Platform.isAndroid) {
-        final downloadDir = Directory('/storage/emulated/0/Download');
-        if (await downloadDir.exists()) {
-          targetDir = downloadDir;
-        } else {
-          final extDirs = await getExternalStorageDirectories(
-              type: StorageDirectory.downloads);
-          if (extDirs != null && extDirs.isNotEmpty) {
-            targetDir = extDirs.first;
-          } else {
-            targetDir = await getExternalStorageDirectory();
-          }
-        }
-      } else if (Platform.isIOS) {
-        targetDir = await getApplicationDocumentsDirectory();
-      } else {
-        targetDir = await getDownloadsDirectory() ??
-            await getApplicationDocumentsDirectory();
-      }
-
-      if (targetDir != null) {
-        if (!await targetDir.exists()) {
-          await targetDir.create(recursive: true);
-        }
-        final file = File('${targetDir.path}/$filename');
-        await file.writeAsBytes(bytes, flush: true);
-        savedPath = file.path;
       }
     } catch (e) {
-      debugPrint('[PDF_EXPORT] Error writing to default files location: $e');
+      debugPrint('[PDF_EXPORT] Direct storage write failed: $e');
     }
 
     if (context.mounted) {
-      if (savedPath != null) {
-        showAppNotificationSheet(
-          context,
-          icon: Icons.check_circle_rounded,
-          iconColor: AppColors.positive,
-          title: 'PDF Downloaded',
-          message: 'Saved directly to your device storage:\n$savedPath',
-          primaryButtonText: 'Custom Location / Print',
-          onPrimaryPressed: () async {
-            await Printing.layoutPdf(
-              onLayout: (format) async => bytes,
-              name: filename,
-            );
-          },
-          secondaryButtonText: 'Done',
-        );
-      } else {
-        // Fallback to layoutPdf if direct file write was restricted
-        await Printing.layoutPdf(
-          onLayout: (format) async => bytes,
-          name: filename,
-        );
-      }
+      showAppNotificationSheet(
+        context,
+        icon: Icons.picture_as_pdf_rounded,
+        iconColor: AppColors.primaryTeal,
+        title: 'PDF Report Ready',
+        message:
+            'Your tour expense report is ready.\n\nTap Download to save the PDF to your device, or Share to send it directly via WhatsApp or other apps.',
+        primaryButtonText: 'Download',
+        onPrimaryPressed: () async {
+          await Printing.layoutPdf(
+            onLayout: (format) async => bytes,
+            name: filename,
+          );
+        },
+        secondaryButtonText: 'Share',
+        secondaryButtonTextColor: AppColors.primaryTeal,
+        onSecondaryPressed: () async {
+          final localTemp = tempFile;
+          if (localTemp != null && await localTemp.exists()) {
+            try {
+              await Share.shareXFiles(
+                [XFile(localTemp.path, mimeType: 'application/pdf', name: filename)],
+                subject: '$tourName Expense Report',
+                text: 'Tour Expense Report: $tourName',
+              );
+              return;
+            } catch (_) {}
+          }
+          await Printing.sharePdf(
+            bytes: bytes,
+            filename: filename,
+            subject: '$tourName Expense Report',
+          );
+        },
+      );
     }
   }
 }

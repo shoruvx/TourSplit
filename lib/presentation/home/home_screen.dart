@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -693,7 +694,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       flex: 4,
                       child: OutlinedButton(
                         onPressed: () async {
-                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.of(ctx).pop();
                           await ref
                               .read(tourRepositoryProvider)
@@ -702,12 +702,13 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                 userId: request.userId,
                               );
                           if (mounted) {
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Declined request from ${request.displayName}'),
-                                backgroundColor: AppColors.negative,
-                              ),
+                            showAppNotificationSheet(
+                              context,
+                              icon: Icons.cancel_outlined,
+                              iconColor: AppColors.negative,
+                              title: 'Request Declined',
+                              message: 'Declined request from ${request.displayName}.',
+                              primaryButtonText: 'Done',
                             );
                           }
                         },
@@ -734,7 +735,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                       flex: 6,
                       child: ElevatedButton.icon(
                         onPressed: () async {
-                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.of(ctx).pop();
                           await ref
                               .read(tourRepositoryProvider)
@@ -743,12 +743,13 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                                 request: request,
                               );
                           if (mounted) {
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Approved! ${request.displayName} is now a member.'),
-                                backgroundColor: AppColors.positive,
-                              ),
+                            showAppNotificationSheet(
+                              context,
+                              icon: Icons.check_circle_outline_rounded,
+                              iconColor: AppColors.positive,
+                              title: 'Member Approved',
+                              message: '${request.displayName} is now a member of the tour.',
+                              primaryButtonText: 'Done',
                             );
                           }
                         },
@@ -812,7 +813,6 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     final isLocal = widget.tourId.startsWith('local_');
     final streamTour = tourStream.value;
     if (tourStream.hasValue &&
-        !isLocal &&
         (streamTour == null ||
             streamTour.isDeleted ||
             streamTour.status == TourStatus.deleted)) {
@@ -824,7 +824,7 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
       return _NoActiveTourScreen(
         displayName:
             ref.read(currentUserProvider).value?.firstName ?? 'User',
-        noticeMessage: 'This tour has been deleted by the creator.',
+        noticeMessage: 'This tour has been deleted.',
       );
     }
 
@@ -842,35 +842,36 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
     });
 
     if (effectiveTour == null) {
+      if (ref.watch(activeTourIdOverrideProvider) == kNoActiveTourId ||
+          ActiveTourCacheService.getActiveTourId() != widget.tourId) {
+        return _NoActiveTourScreen(
+          displayName:
+              ref.read(currentUserProvider).value?.firstName ?? 'User',
+          noticeMessage: 'This tour is no longer active.',
+        );
+      }
       return tourStream.when(
-        loading: () =>
-            const Scaffold(body: Center(child: CircularProgressIndicator())),
-        error: (e, _) => Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline_rounded,
-                      size: 48, color: AppColors.danger),
-                  const SizedBox(height: 16),
-                  Text('Could not load tour: $e',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => ref
-                        .read(tourRepositoryProvider)
-                        .clearUserActiveTour(widget.userId),
-                    child: const Text('Return to Trips'),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        loading: () => Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: const Center(child: CircularProgressIndicator()),
         ),
-        data: (_) => const Scaffold(),
+        error: (e, _) => _NoActiveTourScreen(
+          displayName:
+              ref.read(currentUserProvider).value?.firstName ?? 'User',
+          noticeMessage: 'Could not load tour: $e',
+        ),
+        data: (_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ActiveTourCacheService.removeTourCache(widget.tourId);
+            ref.read(tourRepositoryProvider).clearUserActiveTour(widget.userId);
+            ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+          });
+          return _NoActiveTourScreen(
+            displayName:
+                ref.read(currentUserProvider).value?.firstName ?? 'User',
+            noticeMessage: 'This tour is no longer available.',
+          );
+        },
       );
     }
 
@@ -2106,6 +2107,8 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                 ),
               Builder(builder: (context) {
                 final d = debts[i];
+                final hasPending = pendingSettlements.any((s) =>
+                    s.fromUserId == d.fromUserId && s.toUserId == d.toUserId);
                 final formattedAmt = d.amount % 1 == 0
                     ? d.amount.toStringAsFixed(0)
                     : d.amount.toStringAsFixed(2);
@@ -2190,28 +2193,66 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      if (!isReadOnly)
-                        InkWell(
-                          onTap: () => _quickSettleDebt(d, currencySymbol),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryTeal,
-                              borderRadius: BorderRadius.circular(12),
+                      if (!isReadOnly) ...[
+                        if (hasPending)
+                          InkWell(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              context.push('/settlement?tourId=${tour.id}');
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.warning.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.hourglass_top_rounded,
+                                      size: 13, color: AppColors.warning),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Processing',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.warning,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: const Text(
-                              'Settle',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                          )
+                        else
+                          InkWell(
+                            onTap: () => _quickSettleDebt(d, currencySymbol),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryTeal,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Settle',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                      ],
                     ],
                   ),
                 );
@@ -2262,6 +2303,23 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
   }
 
   void _quickSettleDebt(DebtTransaction debt, String currencySymbol) async {
+    final cached = ActiveTourCacheService.getCachedSettlements(widget.tourId);
+    final isAlreadyPending = cached.any((s) =>
+        s.fromUserId == debt.fromUserId &&
+        s.toUserId == debt.toUserId &&
+        s.status == SettlementStatus.requested);
+    if (isAlreadyPending) {
+      showAppNotificationSheet(
+        context,
+        icon: Icons.hourglass_top_rounded,
+        iconColor: AppColors.warning,
+        title: 'Settlement In Progress',
+        message:
+            'A settlement between ${debt.fromUserName} and ${debt.toUserName} is already being processed.',
+      );
+      return;
+    }
+
     final noteCtrl = TextEditingController(text: 'Cash');
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2346,7 +2404,11 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
 
     if (confirmed == true) {
       final currentUid = ref.read(currentUserProvider).value?.uid;
-      const shouldAutoApprove = true;
+      final members = ref.read(tourMembersStreamProvider(widget.tourId)).value ?? [];
+      final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+      final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
+      final isReceiver = currentUid == debt.toUserId;
+      final shouldAutoApprove = isReceiver || isOfflineReceiver;
 
       final repo = ref.read(settlementRepositoryProvider);
       await repo.requestSettlement(
@@ -2359,16 +2421,23 @@ class _ActiveTourDashboardState extends ConsumerState<_ActiveTourDashboard> {
         currency: currencySymbol,
         note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
         autoApprove: shouldAutoApprove,
-        resolvedByUserId: currentUid ?? widget.userId,
+        resolvedByUserId: shouldAutoApprove ? (currentUid ?? widget.userId) : null,
       );
       ref.read(localSettlementsRefreshProvider.notifier).bump();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settlement recorded and approved! Balances updated.'),
-            backgroundColor: AppColors.positive,
-          ),
+        final message = isOfflineReceiver
+            ? 'Settlement recorded and auto-approved for offline member.'
+            : (isReceiver
+                ? 'Settlement recorded and approved! Balances updated.'
+                : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: shouldAutoApprove ? AppColors.positive : AppColors.warning,
+          title: shouldAutoApprove ? 'Settlement Completed' : 'Payment Submitted',
+          message: message,
+          primaryButtonText: 'Done',
         );
       }
     }

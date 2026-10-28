@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models/tour_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/active_tour_cache_service.dart';
 import '../../data/repositories/tour_repository.dart';
@@ -26,6 +28,7 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
   final _nameCtrl = TextEditingController();
   bool _isLoading = false;
   bool _initialized = false;
+  TourModel? _lastTour;
 
   @override
   void dispose() {
@@ -40,16 +43,24 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
         'name': _nameCtrl.text.trim(),
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Tour updated!'),
-              backgroundColor: AppColors.accent),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Tour Updated',
+          message: 'Tour settings have been saved successfully.',
+          primaryButtonText: 'Done',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e')),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Update Failed',
+          message: 'Failed to update tour: $e',
+          primaryButtonText: 'Dismiss',
         );
       }
     } finally {
@@ -143,9 +154,12 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
           .read(tourRepositoryProvider)
           .deleteTour(tourId, currentUserId: currentUserId);
 
-      if (ref.read(activeTourIdProvider) == tourId) {
-        ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
-        await ActiveTourCacheService.clearCachedActiveTour();
+      ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
+      await ActiveTourCacheService.clearCachedActiveTour();
+      await ActiveTourCacheService.clearActiveTourId();
+      await ActiveTourCacheService.removeTourCache(tourId);
+      if (currentUserId != null) {
+        await ref.read(tourRepositoryProvider).clearUserActiveTour(currentUserId);
       }
 
       if (currentUserId != null) {
@@ -155,21 +169,33 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       ref.invalidate(currentUserProvider);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tourId.startsWith('local_')
-                ? 'Tour deleted permanently.'
-                : 'Tour deleted. Changes will sync when online.',
-          ),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      if (context.canPop()) {
+        context.pop();
+      }
       context.go('/home');
+
+      final homeCtx = rootNavigatorKey.currentContext;
+      if (homeCtx != null && homeCtx.mounted) {
+        showAppNotificationSheet(
+          homeCtx,
+          icon: Icons.delete_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Tour Deleted',
+          message: tourId.startsWith('local_')
+              ? 'Tour deleted permanently.'
+              : 'Tour deleted. Changes will sync when back online.',
+          primaryButtonText: 'Done',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Delete Failed',
+        message: 'Could not delete tour: $e',
+        primaryButtonText: 'Dismiss',
       );
       setState(() => _isLoading = false);
     }
@@ -205,22 +231,30 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       if (ref.read(activeTourIdProvider) == tourId) {
         ref.read(activeTourIdOverrideProvider.notifier).state = kNoActiveTourId;
         await ActiveTourCacheService.clearCachedActiveTour();
+        await ActiveTourCacheService.clearActiveTourId();
       }
       ref.invalidate(tourStreamProvider(tourId));
       ref.invalidate(currentUserProvider);
 
       if (!mounted) return;
-      await showAppNotificationSheet(
-        context,
-        icon: Icons.info_outline_rounded,
-        iconColor: AppColors.primaryTeal,
-        title: 'Left Tour',
-        message: preservedAsPast
-            ? 'You have left the tour. Financial records remain intact.'
-            : 'You have been completely removed from the tour.',
-        primaryButtonText: 'Done',
-      );
-      if (mounted) context.go('/home');
+      if (context.canPop()) {
+        context.pop();
+      }
+      context.go('/home');
+
+      final homeCtx = rootNavigatorKey.currentContext;
+      if (homeCtx != null && homeCtx.mounted) {
+        showAppNotificationSheet(
+          homeCtx,
+          icon: Icons.info_outline_rounded,
+          iconColor: AppColors.primaryTeal,
+          title: 'Left Tour',
+          message: preservedAsPast
+              ? 'You have left the tour. Financial records remain intact.'
+              : 'You have been completely removed from the tour.',
+          primaryButtonText: 'Done',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       showAppNotificationSheet(
@@ -261,15 +295,22 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
       ref.invalidate(currentUserProvider);
 
       if (!mounted) return;
-      await showAppNotificationSheet(
-        context,
-        icon: Icons.check_circle_outline_rounded,
-        iconColor: AppColors.positive,
-        title: 'Tour Removed',
-        message: 'Tour was removed from your list.',
-        primaryButtonText: 'Done',
-      );
-      if (mounted) context.go('/home');
+      if (context.canPop()) {
+        context.pop();
+      }
+      context.go('/home');
+
+      final homeCtx = rootNavigatorKey.currentContext;
+      if (homeCtx != null && homeCtx.mounted) {
+        showAppNotificationSheet(
+          homeCtx,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Tour Removed',
+          message: 'Tour was removed from your list.',
+          primaryButtonText: 'Done',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       showAppNotificationSheet(
@@ -297,10 +338,24 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
 
     if (effectiveTourId == null) {
       if (userAsync.isLoading) {
-        return const Scaffold(
-            body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: const Center(child: CircularProgressIndicator()),
+        );
       }
-      return const Scaffold(body: Center(child: Text('No active tour')));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        }
+      });
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     final currentUserId =
@@ -308,11 +363,40 @@ class _TourSettingsScreenState extends ConsumerState<TourSettingsScreen> {
     final tourStream = ref.watch(tourStreamProvider(effectiveTourId));
 
     return tourStream.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (tour) {
-        if (tour == null) return const Scaffold();
+      loading: () => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(child: Text('$e')),
+      ),
+      data: (rawTour) {
+        if (rawTour != null && !rawTour.isDeleted && rawTour.status != TourStatus.deleted) {
+          _lastTour = rawTour;
+        }
+
+        final activeTour = (rawTour != null && !rawTour.isDeleted && rawTour.status != TourStatus.deleted)
+            ? rawTour
+            : (_isLoading ? _lastTour : null);
+
+        if (activeTour == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/home');
+              }
+            }
+          });
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final tour = activeTour;
 
         final isAdmin = currentUserId.isNotEmpty &&
             (tour.creatorId == currentUserId || tour.isAdmin(currentUserId));

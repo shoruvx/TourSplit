@@ -82,62 +82,59 @@ class WhatsNewDialog extends ConsumerWidget {
   static const List<({IconData icon, String title, String description})>
       _features = [
     (
-      icon: Icons.receipt_long_rounded,
-      title: 'Redesigned Add Expense Screen',
+      icon: Icons.add_circle_outline_rounded,
+      title: 'Streamlined Tour Creation',
       description:
-          'Streamlined expense creation with inline math calculation, live amount previews, and clean member split options.',
-    ),
-    (
-      icon: Icons.download_rounded,
-      title: 'Direct PDF File Downloads',
-      description:
-          'PDF expense reports now download directly to your phone files without forcing external app sharing.',
-    ),
-    (
-      icon: Icons.notifications_active_rounded,
-      title: 'Unified Alert Sheets',
-      description:
-          'Standardized universal modal bottom sheets for alerts, confirmations, and warnings across the entire app.',
-    ),
-    (
-      icon: Icons.dashboard_customize_rounded,
-      title: 'Refined Homescreen & Balances',
-      description:
-          'Balanced layout with responsive typography, intuitive button positioning, and improved spacing in tour balance summaries.',
-    ),
-    (
-      icon: Icons.qr_code_2_rounded,
-      title: 'Compact Share TourSplit',
-      description:
-          'Streamlined QR code sharing bottom sheet with minimal vertical footprint.',
-    ),
-    (
-      icon: Icons.lock_clock_rounded,
-      title: 'Strict Inactivity Lockout',
-      description:
-          'Inactive tours entering the 7-day reminder are strictly locked from edits or reactivation until deletion.',
-    ),
-    (
-      icon: Icons.ondemand_video_rounded,
-      title: 'Video User Manual',
-      description:
-          'Quick video walkthrough directly accessible from the home screen via the new How to use guide.',
-    ),
-    (
-      icon: Icons.explore_rounded,
-      title: 'Guest Mode',
-      description:
-          'Explore tours, features, and interface freely without logging in.',
+          'Redesigned new tour flow with focused essential fields, unified connected date range card with duration badge, and optional target budget.',
     ),
     (
       icon: Icons.calculate_rounded,
-      title: 'Expense Calculator',
+      title: 'Live Daily Budget Estimates',
       description:
-          'Calculate expenses with quick math directly in the amount field.',
+          'Target budget input dynamically calculates and displays estimated group spending allowance per day based on trip duration.',
+    ),
+    (
+      icon: Icons.account_balance_wallet_rounded,
+      title: 'Collapsible Payout Accounts',
+      description:
+          'Traveler payout methods are now collapsed by default with smooth animations and overflow-protected badges for all screen sizes.',
+    ),
+    (
+      icon: Icons.person_add_rounded,
+      title: 'Refined Companion Labeling',
+      description:
+          'Offline companions are cleanly labeled as "Friend Added" across all member management and balance sheets.',
+    ),
+    (
+      icon: Icons.delete_sweep_rounded,
+      title: 'Seamless Tour Deletion Flow',
+      description:
+          'Deleting active tours instantly cleans up cached states and redirects directly to the home screen without screen freezes.',
+    ),
+    (
+      icon: Icons.person_rounded,
+      title: 'Redesigned Profile Screen',
+      description:
+          'Clean, card-based traveler profile with airy avatar header, quick-action payout methods, grouped app preferences, and bottom sheet editing.',
+    ),
+    (
+      icon: Icons.luggage_rounded,
+      title: 'Redesigned All Tours Screen',
+      description:
+          'Streamlined tour cards with segmented filter tabs (Active, Completed, All Tours), companion initials, and live personal balance status.',
+    ),
+    (
+      icon: Icons.download_rounded,
+      title: 'Direct PDF Downloads & Sharing',
+      description:
+          'Save expense reports directly to your device storage or share them instantly with companions via WhatsApp.',
     ),
   ];
 
   static IconData _iconForEmoji(String emoji) {
+    if (emoji.contains('🧳') || emoji.contains('🌴') || emoji.contains('🏖️')) {
+      return Icons.luggage_rounded;
+    }
     if (emoji.contains('📄') || emoji.contains('📥') || emoji.contains('💾')) {
       return Icons.download_rounded;
     }
@@ -182,6 +179,21 @@ class WhatsNewDialog extends ConsumerWidget {
       }
     }
     final lowerTitle = title.toLowerCase();
+    if (lowerTitle.contains('all tours') || lowerTitle.contains('tours screen')) {
+      return Icons.luggage_rounded;
+    }
+    if (lowerTitle.contains('contact') ||
+        lowerTitle.contains('feedback') ||
+        lowerTitle.contains('support')) {
+      return Icons.mark_email_read_rounded;
+    }
+    if (lowerTitle.contains('settle') ||
+        lowerTitle.contains('approval') ||
+        lowerTitle.contains('guard') ||
+        lowerTitle.contains('shield') ||
+        lowerTitle.contains('protect')) {
+      return Icons.verified_user_rounded;
+    }
     if (lowerTitle.contains('pdf') || lowerTitle.contains('download')) {
       return Icons.download_rounded;
     }
@@ -205,7 +217,9 @@ class WhatsNewDialog extends ConsumerWidget {
     if (lowerTitle.contains('lock') || lowerTitle.contains('inactivity')) {
       return Icons.lock_clock_rounded;
     }
-    if (lowerTitle.contains('video') || lowerTitle.contains('manual')) {
+    if (lowerTitle.contains('video') ||
+        lowerTitle.contains('manual') ||
+        lowerTitle.contains('how to use')) {
       return Icons.ondemand_video_rounded;
     }
     if (lowerTitle.contains('guest')) {

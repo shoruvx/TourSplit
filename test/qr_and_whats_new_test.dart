@@ -74,12 +74,15 @@ void main() {
 
   group('WhatsNewDialog Features Tests', () {
     test('static features list contains the updated features', () {
-      expect(WhatsNewDialog.features.length, greaterThanOrEqualTo(5));
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Redesigned Add Expense Screen'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Direct PDF File Downloads'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Unified Alert Sheets'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Refined Homescreen & Balances'), isTrue);
-      expect(WhatsNewDialog.features.any((f) => f.title == 'Compact Share TourSplit'), isTrue);
+      expect(WhatsNewDialog.features.length, equals(8));
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Streamlined Tour Creation'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Live Daily Budget Estimates'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Collapsible Payout Accounts'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Refined Companion Labeling'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Seamless Tour Deletion Flow'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Redesigned Profile Screen'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Redesigned All Tours Screen'), isTrue);
+      expect(WhatsNewDialog.features.any((f) => f.title == 'Direct PDF Downloads & Sharing'), isTrue);
     });
   });
 

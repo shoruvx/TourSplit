@@ -19,6 +19,7 @@ import '../../data/repositories/settlement_repository.dart';
 import '../widgets/member_avatar.dart';
 import '../settlement/widgets/manual_settlement_dialog.dart';
 import '../tour/widgets/replace_offline_member_dialog.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class MemberProfileScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -148,20 +149,28 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
                         memberId: member.userId,
                         newName: newName,
                       );
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Renamed to "$newName"'),
-                      backgroundColor: AppColors.primaryTeal,
-                    ),
-                  );
-                  if (mounted) setState(() {});
+                  if (mounted) {
+                    showAppNotificationSheet(
+                      context,
+                      icon: Icons.check_circle_outline_rounded,
+                      iconColor: AppColors.positive,
+                      title: 'Friend Renamed',
+                      message: 'Offline friend renamed to "$newName".',
+                      primaryButtonText: 'Done',
+                    );
+                    setState(() {});
+                  }
                 } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to rename: $e'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
+                  if (mounted) {
+                    showAppNotificationSheet(
+                      context,
+                      icon: Icons.error_outline_rounded,
+                      iconColor: AppColors.danger,
+                      title: 'Rename Failed',
+                      message: 'Failed to rename: $e',
+                      primaryButtonText: 'Dismiss',
+                    );
+                  }
                 }
               }
             },
@@ -1223,38 +1232,18 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
     String tourName,
     String userId,
   ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
-          children: [
-            Icon(Icons.logout_rounded, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('Leave Tour?'),
-          ],
-        ),
-        content: Text(
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.logout_rounded,
+      iconColor: AppColors.danger,
+      title: 'Leave Tour?',
+      message:
           'Are you sure you want to leave "$tourName"?\n\n'
           '• If you have 0 contribution and spending, you will be completely removed from everywhere in the tour.\n'
           '• If you have recorded expenses or splits, your history will stay intact for tour math and you will be listed as a left member.\n\n'
           'You can rejoin anytime using the tour invite code.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Leave Tour'),
-          ),
-        ],
-      ),
+      confirmText: 'Leave Tour',
+      confirmColor: AppColors.danger,
     );
 
     if (confirm != true || !context.mounted) return;
@@ -1269,29 +1258,33 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
       ref.invalidate(currentUserProvider);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              preservedAsPast
-                  ? 'You left the tour. Financial records remain intact.'
-                  : 'You have been completely removed from the tour.',
-            ),
-            backgroundColor: AppColors.accent,
-          ),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.info_outline_rounded,
+          iconColor: AppColors.primaryTeal,
+          title: 'Left Tour',
+          message: preservedAsPast
+              ? 'You left the tour. Financial records remain intact.'
+              : 'You have been completely removed from the tour.',
+          primaryButtonText: 'Done',
         );
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/all-tours');
+        if (context.mounted) {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/all-tours');
+          }
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to leave tour: $e'),
-            backgroundColor: AppColors.danger,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Leave Failed',
+          message: 'Failed to leave tour: $e',
+          primaryButtonText: 'Dismiss',
         );
       }
     }
@@ -1306,77 +1299,58 @@ class _MemberProfileScreenState extends ConsumerState<MemberProfileScreen> {
     if (!context.mounted) return;
 
     if (hasTransactions) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text('Member Cannot Be Removed'),
-          content: Text(
+      showAppNotificationSheet(
+        context,
+        icon: Icons.warning_amber_rounded,
+        iconColor: AppColors.warning,
+        title: 'Member Cannot Be Removed',
+        message:
             '${member.displayName} has recorded contributions, expenses, or settlements in this tour.\n\nTo preserve mathematical integrity of tour balances, members with recorded spending or splits cannot be completely removed.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+        primaryButtonText: 'Got It',
       );
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Remove Member'),
-        content: Text(
+    final confirm = await showAppConfirmationSheet(
+      context,
+      icon: Icons.person_remove_rounded,
+      iconColor: AppColors.danger,
+      title: 'Remove Member?',
+      message:
           'Remove "${member.displayName}" from this tour?\n\nSince this member has no contributions or expenses, they will be completely removed from tour calculations, member lists, and the tour card.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              try {
-                await ref.read(tourRepositoryProvider).removeMistakenMember(
-                      tourId: tourId,
-                      userId: member.userId,
-                    );
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${member.displayName} removed from tour'),
-                      backgroundColor: AppColors.positive,
-                    ),
-                  );
-                  context.pop();
-                }
-              } catch (e) {
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to remove member: $e'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      confirmText: 'Remove',
+      confirmColor: AppColors.danger,
     );
+
+    if (!confirm || !context.mounted) return;
+
+    try {
+      await ref.read(tourRepositoryProvider).removeMistakenMember(
+            tourId: tourId,
+            userId: member.userId,
+          );
+      if (context.mounted) {
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Member Removed',
+          message: '${member.displayName} was removed from the tour.',
+          primaryButtonText: 'Done',
+        );
+        if (context.mounted) context.pop();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Remove Failed',
+          message: 'Failed to remove member: $e',
+          primaryButtonText: 'Dismiss',
+        );
+      }
+    }
   }
 }

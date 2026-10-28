@@ -2,13 +2,29 @@
 
 All notable changes to TourSplit are documented in this file. Releases follow a detailed yet minimalistic format highlighting core capabilities, bug fixes, and user experience enhancements.
 
+## [v1.5.5] - 2026-10-28
+
+- ✨ **Streamlined Tour Creation**: Redesigned new tour flow with focused essential fields, unified connected date range card with duration badge, and optional target budget.
+- 🧮 **Live Daily Budget Estimates**: Target budget input dynamically calculates and displays estimated group spending allowance per day based on trip duration.
+- 💳 **Collapsible Payout Accounts**: Traveler payout methods are now collapsed by default with smooth animations and overflow-protected badges for all screen sizes.
+- 👥 **Refined Companion Labeling**: Offline companions are cleanly labeled as "Friend Added" across all member management and balance sheets.
+- 🚀 **Seamless Tour Deletion Flow**: Deleting active tours instantly cleans up cached states and redirects directly to the home screen without screen freezes.
+- 👤 **Redesigned Profile Screen**: Clean, card-based traveler profile with airy avatar header, quick-action payout methods, grouped app preferences, and bottom sheet editing.
+- 🧳 **Redesigned All Tours Screen**: Streamlined tour cards with segmented filter tabs (Active, Completed, All Tours), companion initials, and live personal balance status.
+- 📄 **Direct PDF Downloads & Sharing**: Save expense reports directly to your device storage or share them instantly with companions via WhatsApp.
+
+---
+
 ## [v1.5.4] - 2026-10-19
 
-- **Redesigned Add Expense Screen**: Streamlined expense creation with inline math calculation, live amount previews, and clean member split options.
-- **Direct PDF File Downloads**: PDF expense reports now download directly to your phone files without forcing external app sharing.
-- **Unified Alert Sheets**: Standardized universal modal bottom sheets for alerts, confirmations, and warnings across the entire app.
-- **Refined Homescreen & Balances**: Balanced layout with responsive typography, intuitive button positioning, and improved spacing in tour balance summaries.
-- **Compact Share TourSplit**: Streamlined QR code sharing bottom sheet with minimal vertical footprint.
+- 👤 **Redesigned Profile Screen**: Clean, card-based traveler profile with airy avatar header, quick-action payout methods, grouped app preferences, and bottom sheet editing.
+- 🧳 **Redesigned All Tours Screen**: Streamlined tour cards with segmented filter tabs (Active, Completed, All Tours), companion initials, and live personal balance status.
+- 🧾 **Redesigned Add Expense Screen**: Streamlined expense creation with inline math calculation, live amount previews, and clean member split options.
+- 📄 **Direct PDF Downloads & Sharing**: Save expense reports directly to your device storage or share them instantly with companions via WhatsApp.
+- 🛡️ **Settlement Approval Safeguard**: Settle-up transfers now require the recipient's explicit confirmation before clearing balances.
+- 🧭 **Guest Mode**: Explore tours, features, and the interface freely without needing to sign in.
+- 🎬 **How to Use Guide**: Quick video walkthrough directly accessible from the home screen to guide you through all core features.
+- 💬 **Redesigned Contact Support**: Modern feedback hub with interactive 2×2 category cards, Formspree integration, sender identity preview, and live character counter.
 
 ---
 

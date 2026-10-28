@@ -137,12 +137,12 @@ void main() {
   });
 
   group('WhatsNewDialog Feature Standard Tests', () {
-    test('contains Video User Manual feature with proper description', () {
-      final videoFeature = WhatsNewDialog.features.firstWhere(
-        (f) => f.title == 'Video User Manual',
-      );
-      expect(videoFeature.description, contains('How to use'));
-      expect(WhatsNewDialog.features.length, greaterThanOrEqualTo(5));
+    test('contains essential release features with non-empty descriptions', () {
+      expect(WhatsNewDialog.features.length, equals(8));
+      for (final feature in WhatsNewDialog.features) {
+        expect(feature.title, isNotEmpty);
+        expect(feature.description, isNotEmpty);
+      }
     });
   });
 }

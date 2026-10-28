@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,9 +71,24 @@ class SettlementScreen extends ConsumerWidget {
     final tour = effectiveTour ?? tourStream.value;
     if (tour == null) {
       if (tourStream.isLoading) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: const Center(child: CircularProgressIndicator()),
+        );
       }
-      return const Scaffold();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        }
+      });
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     final isAdmin = tour.isAdmin(currentUserId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -564,8 +580,12 @@ class SettlementScreen extends ConsumerWidget {
 
     if (confirmed == true) {
       try {
+        final members = ref.read(tourMembersStreamProvider(tour.id)).value ?? [];
+        final toMember = members.firstWhereOrNull((m) => m.userId == debt.toUserId);
+        final isOfflineReceiver = toMember?.isOffline == true || debt.toUserId.startsWith('offline_');
         final currentUid = ref.read(currentUserProvider).value?.uid;
-        const shouldAutoApprove = true;
+        final isReceiver = currentUid == debt.toUserId;
+        final shouldAutoApprove = isReceiver || isOfflineReceiver;
 
         final repo = ref.read(settlementRepositoryProvider);
         await repo.requestSettlement(
@@ -578,26 +598,35 @@ class SettlementScreen extends ConsumerWidget {
           currency: tour.currency,
           note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
           autoApprove: shouldAutoApprove,
-          resolvedByUserId: currentUid ?? tour.adminId,
+          resolvedByUserId: shouldAutoApprove ? currentUid : null,
         );
         ref.read(localSettlementsRefreshProvider.notifier).bump();
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Settlement recorded and approved! Balances adjusted.'),
-              backgroundColor: AppColors.positive,
-            ),
+          final message = isOfflineReceiver
+              ? 'Settlement recorded and auto-approved for offline companion.'
+              : (isReceiver
+                  ? 'Settlement recorded and approved! Balances adjusted.'
+                  : 'Payment submitted! Waiting for ${debt.toUserName} to approve.');
+          await showAppNotificationSheet(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: shouldAutoApprove ? AppColors.positive : AppColors.warning,
+            title: shouldAutoApprove ? 'Settlement Completed' : 'Payment Submitted',
+            message: message,
+            primaryButtonText: 'Done',
           );
         }
       } catch (e) {
         debugPrint('[SETTLEMENT] Error recording payment: $e');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to record settlement: $e'),
-              backgroundColor: AppColors.negative,
-            ),
+          showAppNotificationSheet(
+            context,
+            icon: Icons.error_outline_rounded,
+            iconColor: AppColors.negative,
+            title: 'Settlement Failed',
+            message: 'Failed to record settlement: $e',
+            primaryButtonText: 'Dismiss',
           );
         }
       }
@@ -619,27 +648,33 @@ class SettlementScreen extends ConsumerWidget {
       ref.read(localSettlementsRefreshProvider.notifier).bump();
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              status == SettlementStatus.approved
-                  ? 'Settlement approved!'
-                  : 'Settlement rejected.',
-            ),
-            backgroundColor: status == SettlementStatus.approved
-                ? AppColors.positive
-                : AppColors.negative,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: status == SettlementStatus.approved
+              ? Icons.check_circle_outline_rounded
+              : Icons.cancel_outlined,
+          iconColor: status == SettlementStatus.approved
+              ? AppColors.positive
+              : AppColors.negative,
+          title: status == SettlementStatus.approved
+              ? 'Settlement Approved'
+              : 'Settlement Rejected',
+          message: status == SettlementStatus.approved
+              ? 'Settlement was approved and tour balances have been adjusted.'
+              : 'Settlement request was rejected.',
+          primaryButtonText: 'Done',
         );
       }
     } catch (e) {
       debugPrint('[SETTLEMENT] Error resolving settlement: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update settlement: $e'),
-            backgroundColor: AppColors.negative,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.negative,
+          title: 'Update Failed',
+          message: 'Failed to update settlement: $e',
+          primaryButtonText: 'Dismiss',
         );
       }
     }
@@ -1014,7 +1049,8 @@ class _SettlementCard extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
             if (settlement.isPending) ...[
-              if (settlement.toUserId == currentUserId || isAdmin) ...[
+              if (settlement.toUserId == currentUserId ||
+                  (isAdmin && settlement.toUserId.startsWith('offline_'))) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [

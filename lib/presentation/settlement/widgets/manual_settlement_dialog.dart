@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/tour_model.dart';
 import '../../../data/repositories/settlement_repository.dart';
 import '../../../data/services/active_tour_cache_service.dart';
+import '../../widgets/app_notification_sheet.dart';
 
 class ManualSettlementDialog {
   static Future<void> show(
@@ -26,8 +27,13 @@ class ManualSettlementDialog {
     final uniqueMembers = uniqueMembersMap.values.toList();
 
     if (uniqueMembers.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('At least 2 tour members required for settlement')),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.info_outline_rounded,
+        iconColor: AppColors.warning,
+        title: 'Members Required',
+        message: 'At least 2 tour members are required to record a settlement.',
+        primaryButtonText: 'Got It',
       );
       return;
     }
@@ -370,14 +376,24 @@ class ManualSettlementDialog {
                 onPressed: () {
                   final amt = double.tryParse(amountCtrl.text.trim());
                   if (amt == null || amt <= 0) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('Please enter a valid amount')),
+                    showAppNotificationSheet(
+                      ctx,
+                      icon: Icons.error_outline_rounded,
+                      iconColor: AppColors.danger,
+                      title: 'Invalid Amount',
+                      message: 'Please enter a valid amount greater than 0.',
+                      primaryButtonText: 'Got It',
                     );
                     return;
                   }
                   if (fromUid == toUid) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('Payer and Recipient must be different')),
+                    showAppNotificationSheet(
+                      ctx,
+                      icon: Icons.info_outline_rounded,
+                      iconColor: AppColors.warning,
+                      title: 'Invalid Selection',
+                      message: 'Payer and Recipient cannot be the same member.',
+                      primaryButtonText: 'Got It',
                     );
                     return;
                   }
@@ -419,7 +435,9 @@ class ManualSettlementDialog {
           ),
         );
 
-        const shouldAutoApprove = true;
+        final isReceiver = currentUserId == toUid;
+        final isOfflineReceiver = toMember.isOffline || toUid.startsWith('offline_');
+        final shouldAutoApprove = isReceiver || isOfflineReceiver;
 
         final repo = ref.read(settlementRepositoryProvider);
         await repo.requestSettlement(
@@ -432,26 +450,38 @@ class ManualSettlementDialog {
           currency: tour.currency,
           note: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
           autoApprove: shouldAutoApprove,
-          resolvedByUserId: currentUserId,
+          resolvedByUserId: shouldAutoApprove ? currentUserId : null,
         );
         ref.read(localSettlementsRefreshProvider.notifier).bump();
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Settlement recorded and approved! Balances adjusted.'),
-              backgroundColor: AppColors.positive,
-            ),
+          final String message;
+          if (isOfflineReceiver) {
+            message = 'Settlement recorded and auto-approved for offline companion.';
+          } else if (isReceiver) {
+            message = 'Settlement recorded and approved! Balances adjusted.';
+          } else {
+            message = 'Settlement recorded. Waiting for ${toMember.displayName} to approve.';
+          }
+          await showAppNotificationSheet(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: shouldAutoApprove ? AppColors.positive : AppColors.warning,
+            title: shouldAutoApprove ? 'Settlement Completed' : 'Payment Submitted',
+            message: message,
+            primaryButtonText: 'Done',
           );
         }
       } catch (e) {
         debugPrint('[MANUAL_SETTLEMENT] Error saving settlement: $e');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to record settlement: $e'),
-              backgroundColor: AppColors.negative,
-            ),
+          showAppNotificationSheet(
+            context,
+            icon: Icons.error_outline_rounded,
+            iconColor: AppColors.negative,
+            title: 'Settlement Failed',
+            message: 'Failed to record settlement: $e',
+            primaryButtonText: 'Dismiss',
           );
         }
       }

@@ -9,6 +9,7 @@ import '../../data/repositories/tour_repository.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/loading_overlay.dart';
 import 'widgets/tour_qr_scanner_view.dart';
+import '../widgets/app_notification_sheet.dart';
 
 class JoinTourScreen extends ConsumerStatefulWidget {
   final String? initialCode;
@@ -91,13 +92,15 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
         ref.read(activeTourIdOverrideProvider.notifier).state = tour.id;
         await tourRepo.switchActiveTour(user.uid, tour.id);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Switched to "${tour.name}"'),
-              backgroundColor: AppColors.primaryTeal,
-            ),
+          await showAppNotificationSheet(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: AppColors.primaryTeal,
+            title: 'Tour Switched',
+            message: 'Switched active tour to "${tour.name}".',
+            primaryButtonText: 'Done',
           );
-          context.go('/home');
+          if (mounted) context.go('/home');
         }
         return;
       }
@@ -115,13 +118,15 @@ class _JoinTourScreenState extends ConsumerState<JoinTourScreen> {
       await tourRepo.switchActiveTour(user.uid, tour.id);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Joined "${tour.name}" successfully.'),
-            backgroundColor: AppColors.positive,
-          ),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Joined Tour!',
+          message: 'You have joined "${tour.name}" successfully.',
+          primaryButtonText: 'Done',
         );
-        context.go('/home');
+        if (mounted) context.go('/home');
       }
       return;
     } catch (e, st) {

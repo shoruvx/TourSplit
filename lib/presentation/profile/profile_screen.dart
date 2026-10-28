@@ -37,7 +37,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _usernameCtrl = TextEditingController();
   bool _isLoading = false;
   bool _initialized = false;
-  bool _isAccountsExpanded = false;
+  bool _payoutAccountsExpanded = false;
 
   @override
   void dispose() {
@@ -54,21 +54,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Name cannot be empty'),
-          backgroundColor: AppColors.danger,
-        ),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Missing Name',
+        message: 'Name cannot be empty. Please enter your name.',
+        primaryButtonText: 'Got It',
       );
       return;
     }
 
     if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Username cannot be empty'),
-          backgroundColor: AppColors.danger,
-        ),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Missing Username',
+        message: 'Username cannot be empty. Please enter a valid username.',
+        primaryButtonText: 'Got It',
       );
       return;
     }
@@ -91,20 +95,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully!'),
-            backgroundColor: AppColors.positive,
-          ),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Profile Updated!',
+          message: 'Your profile changes have been saved successfully.',
+          primaryButtonText: 'Done',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update profile: $e'),
-            backgroundColor: AppColors.danger,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Update Failed',
+          message: 'Failed to update profile: $e',
+          primaryButtonText: 'Dismiss',
         );
       }
     } finally {
@@ -127,12 +135,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final rawBytes = await picked.readAsBytes();
       if (!mounted) return;
 
-      // Show interactive crop and positioning dialog
       final croppedBytes = await ImageCropDialog.show(context, rawBytes);
-      if (croppedBytes == null) {
-        // User cancelled or closed the crop dialog
-        return;
-      }
+      if (croppedBytes == null) return;
 
       setState(() => _isLoading = true);
 
@@ -148,26 +152,154 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated successfully!'),
-            backgroundColor: AppColors.positive,
-            duration: Duration(seconds: 2),
-          ),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Picture Updated',
+          message: 'Your profile picture has been updated successfully.',
+          primaryButtonText: 'Done',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update picture: $e'),
-            backgroundColor: AppColors.danger,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Upload Failed',
+          message: 'Failed to update picture: $e',
+          primaryButtonText: 'Dismiss',
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showEditProfileBottomSheet(BuildContext context, UserModel user) {
+    final nameCtrl = TextEditingController(text: user.displayName);
+    final usernameCtrl = TextEditingController(
+      text: user.username.isNotEmpty ? user.username : user.email.split('@').first,
+    );
+    final formKey = GlobalKey<FormState>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Edit Profile Details',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      controller: nameCtrl,
+                      label: 'Full Name',
+                      prefixIcon: Icons.person_outline,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Name cannot be empty';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      controller: usernameCtrl,
+                      label: 'Username',
+                      prefixIcon: Icons.alternate_email_rounded,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Username cannot be empty';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryTeal,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.button),
+                          ),
+                        ),
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+                          Navigator.pop(ctx);
+                          _nameCtrl.text = nameCtrl.text;
+                          _usernameCtrl.text = usernameCtrl.text;
+                          await _saveProfile(user);
+                        },
+                        child: const Text(
+                          'Save Changes',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _showAddPaymentAccountDialog(BuildContext context, UserModel user,
@@ -187,12 +319,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.dialog),
             ),
-            title: Row(
+            title: const Row(
               children: [
-                const Icon(Icons.account_balance_wallet_rounded,
+                Icon(Icons.account_balance_wallet_rounded,
                     color: AppColors.primaryTeal, size: 22),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: 8),
+                Text(
                   'Add Payout Method',
                   style: TextStyle(
                     fontFamily: 'Outfit',
@@ -249,34 +381,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       labelText: 'Account / Provider Type',
                       hintText: 'e.g. bKash, Nagad, City Bank',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.input),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: numberCtrl,
                     keyboardType: TextInputType.text,
                     decoration: InputDecoration(
-                      labelText: 'Phone or Account Number *',
-                      hintText: 'e.g. 017XXXXXXXX or A/C 1234...',
+                      labelText: 'Account / Phone Number',
+                      hintText: '01XXXXXXXXX or A/C No.',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.input),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: noteCtrl,
                     decoration: InputDecoration(
-                      labelText: 'Optional Note / Details',
-                      hintText: 'e.g. Personal, Agent, or Branch',
+                      labelText: 'Note (Optional)',
+                      hintText: 'e.g. Personal, Agent, Branch',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.input),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                   ),
                 ],
@@ -291,56 +426,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
-                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 onPressed: () async {
-                  final numVal = numberCtrl.text.trim();
-                  final typeVal = typeCtrl.text.trim();
-                  if (numVal.isEmpty || typeVal.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter account type and number.'),
-                        backgroundColor: AppColors.danger,
-                      ),
+                  final type = typeCtrl.text.trim();
+                  final num = numberCtrl.text.trim();
+                  final note = noteCtrl.text.trim();
+
+                  if (type.isEmpty || num.isEmpty) {
+                    showAppNotificationSheet(
+                      ctx,
+                      icon: Icons.info_outline_rounded,
+                      iconColor: AppColors.warning,
+                      title: 'Missing Information',
+                      message: 'Please provide both payout type and account number.',
+                      primaryButtonText: 'Got It',
                     );
                     return;
                   }
 
-                  final newAcc = PaymentAccount(
-                    id: const Uuid().v4(),
-                    type: typeVal,
-                    accountNumber: numVal,
-                    note: noteCtrl.text.trim().isNotEmpty
-                        ? noteCtrl.text.trim()
-                        : null,
-                  );
-
-                  final updated = [...user.paymentAccounts, newAcc];
-                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(ctx);
 
+                  final newAccount = PaymentAccount(
+                    id: const Uuid().v4(),
+                    type: type,
+                    accountNumber: num,
+                    note: note.isNotEmpty ? note : null,
+                  );
+
+                  final updated = [...user.paymentAccounts, newAccount];
                   try {
                     await ref
                         .read(authServiceProvider)
                         .updatePaymentAccounts(user.uid, updated);
                     if (mounted) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Receiving account added!'),
-                          backgroundColor: AppColors.positive,
-                        ),
+                      await showAppNotificationSheet(
+                        context,
+                        icon: Icons.check_circle_outline_rounded,
+                        iconColor: AppColors.positive,
+                        title: 'Payout Account Added',
+                        message: '$type account ($num) has been added to your profile.',
+                        primaryButtonText: 'Done',
                       );
                     }
                   } catch (e) {
                     if (mounted) {
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to save account: $e'),
-                          backgroundColor: AppColors.danger,
-                        ),
+                      showAppNotificationSheet(
+                        context,
+                        icon: Icons.error_outline_rounded,
+                        iconColor: AppColors.danger,
+                        title: 'Failed to Save Account',
+                        message: 'Could not save payout account: $e',
+                        primaryButtonText: 'Dismiss',
                       );
                     }
                   }
@@ -355,6 +494,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _deletePaymentAccount(UserModel user, String accountId) async {
+    final confirmed = await showAppConfirmationSheet(
+      context,
+      icon: Icons.delete_outline_rounded,
+      iconColor: AppColors.danger,
+      title: 'Remove Account?',
+      message: 'Are you sure you want to remove this payout method?',
+      confirmText: 'Remove',
+      confirmColor: AppColors.danger,
+    );
+    if (!confirmed) return;
+
     final updated =
         user.paymentAccounts.where((a) => a.id != accountId).toList();
     try {
@@ -362,61 +512,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .read(authServiceProvider)
           .updatePaymentAccounts(user.uid, updated);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account removed.'),
-            backgroundColor: AppColors.warning,
-          ),
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.warning,
+          title: 'Account Removed',
+          message: 'The payout method has been removed from your profile.',
+          primaryButtonText: 'Done',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete account: $e'),
-            backgroundColor: AppColors.danger,
-          ),
+        showAppNotificationSheet(
+          context,
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.danger,
+          title: 'Delete Failed',
+          message: 'Failed to delete account: $e',
+          primaryButtonText: 'Dismiss',
         );
       }
     }
   }
 
-  Widget _buildQuickAddPill({
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(AppRadius.chip),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(AppRadius.chip),
-            border: Border.all(color: color.withValues(alpha: 0.45)),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: 11.5,
-              color: color,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentAccountsSection(
-      BuildContext context, UserModel user) {
+  void _showAccountActionSheet(
+      BuildContext context, UserModel user, PaymentAccount acc) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color badgeColor(String type) {
@@ -428,325 +548,129 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return AppColors.primaryTeal;
     }
 
-    final hasAccounts = user.paymentAccounts.isNotEmpty;
+    final color = badgeColor(acc.type);
 
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: _isAccountsExpanded ? 12 : 11,
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
-              : AppColors.primaryTeal.withValues(alpha: 0.28),
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-                AppColors.primaryTeal.withValues(alpha: isDark ? 0.10 : 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() => _isAccountsExpanded = !_isAccountsExpanded);
-            },
-            borderRadius: BorderRadius.circular(AppRadius.button),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  const Icon(Icons.account_balance_wallet_rounded,
-                      size: 18, color: AppColors.primaryTeal),
-                  const SizedBox(width: 8),
-                  const Expanded(
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
                     child: Text(
-                      'Preferred Payout Methods',
+                      acc.type.isNotEmpty ? acc.type[0].toUpperCase() : 'P',
                       style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
+                        color: color,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (hasAccounts) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1.5),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryTeal.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.chip),
-                      ),
-                      child: Text(
-                        '${user.paymentAccounts.length}',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryTeal,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          acc.type,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
+                        Text(
+                          acc.accountNumber,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        if (acc.note != null && acc.note!.isNotEmpty)
+                          Text(
+                            acc.note!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline_rounded,
-                        color: AppColors.primaryTeal, size: 19),
-                    tooltip: 'Add Payout Method',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () =>
-                        _showAddPaymentAccountDialog(context, user),
                   ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    _isAccountsExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 19,
-                    color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.lightTextSecondary,
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),
-            ),
-          ),
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 220),
-            crossFadeState: _isAccountsExpanded
-                ? CrossFadeState.showFirst
-                : CrossFadeState.showSecond,
-            firstChild: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 12),
-                if (!hasAccounts) ...[
-                  Text(
-                    'Tap a provider to add your account for 1-tap settlement pay:',
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.copy_rounded,
+                      color: AppColors.primaryTeal, size: 20),
+                ),
+                title: const Text('Copy Account Number',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 12,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary,
+                        fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Clipboard.setData(ClipboardData(text: acc.accountNumber));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${acc.type} number copied to clipboard!'),
+                      backgroundColor: AppColors.positive,
+                      duration: const Duration(seconds: 2),
                     ),
+                  );
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildQuickAddPill(
-                        label: '+ bKash',
-                        color: const Color(0xFFE2136E),
-                        onTap: () => _showAddPaymentAccountDialog(context, user,
-                            initialType: 'bKash'),
-                      ),
-                      _buildQuickAddPill(
-                        label: '+ Nagad',
-                        color: const Color(0xFFF7941D),
-                        onTap: () => _showAddPaymentAccountDialog(context, user,
-                            initialType: 'Nagad'),
-                      ),
-                      _buildQuickAddPill(
-                        label: '+ Rocket',
-                        color: const Color(0xFF8C3494),
-                        onTap: () => _showAddPaymentAccountDialog(context, user,
-                            initialType: 'Rocket'),
-                      ),
-                      _buildQuickAddPill(
-                        label: '+ Bank',
-                        color: AppColors.primaryBlue,
-                        onTap: () => _showAddPaymentAccountDialog(context, user,
-                            initialType: 'Bank'),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  ...user.paymentAccounts.map((acc) {
-                    final badgeCol = badgeColor(acc.type);
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          Clipboard.setData(
-                              ClipboardData(text: acc.accountNumber));
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  const Icon(Icons.check_circle_rounded,
-                                      color: AppColors.primaryTeal, size: 18),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Copied ${acc.accountNumber}',
-                                    style: const TextStyle(fontFamily: 'Outfit'),
-                                  ),
-                                ],
-                              ),
-                              duration: const Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(AppRadius.input),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.darkBg
-                                : const Color(0xFFF8FAFC),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.input),
-                            border: Border.all(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.12)
-                                  : AppColors.lightBorder,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: badgeCol.withValues(alpha: 0.15),
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.chip),
-                                  border: Border.all(
-                                      color: badgeCol.withValues(alpha: 0.4)),
-                                ),
-                                child: Text(
-                                  acc.type.toUpperCase(),
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: badgeCol,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      acc.accountNumber,
-                                      style: const TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13.5,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    if (acc.note != null &&
-                                        acc.note!.isNotEmpty)
-                                      Text(
-                                        acc.note!,
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 11,
-                                          color: isDark
-                                              ? AppColors.darkTextSecondary
-                                              : AppColors.lightTextSecondary,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.copy_rounded,
-                                    size: 16, color: Colors.grey),
-                                tooltip: 'Copy',
-                                onPressed: () {
-                                  HapticFeedback.mediumImpact();
-                                  Clipboard.setData(
-                                      ClipboardData(text: acc.accountNumber));
-                                  ScaffoldMessenger.of(context)
-                                      .hideCurrentSnackBar();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Row(
-                                        children: [
-                                          const Icon(Icons.check_circle_rounded,
-                                              color: AppColors.primaryTeal,
-                                              size: 18),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Copied ${acc.accountNumber}',
-                                            style: const TextStyle(
-                                                fontFamily: 'Outfit'),
-                                          ),
-                                        ],
-                                      ),
-                                      duration: const Duration(seconds: 2),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline_rounded,
-                                    size: 18, color: AppColors.danger),
-                                tooltip: 'Remove',
-                                onPressed: () =>
-                                    _deletePaymentAccount(user, acc.id),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _showAddPaymentAccountDialog(context, user),
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add Another Account',
-                          style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryTeal,
-                        side: BorderSide(
-                          color: AppColors.primaryTeal.withValues(alpha: 0.5),
-                          width: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.button),
-                        ),
-                        minimumSize: const Size(0, 42),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            secondChild: const SizedBox.shrink(),
+                  child: const Icon(Icons.delete_outline_rounded,
+                      color: AppColors.danger, size: 20),
+                ),
+                title: const Text('Remove Account',
+                    style: TextStyle(
+                        fontFamily: 'Outfit',
+                        color: AppColors.danger,
+                        fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _deletePaymentAccount(user, acc.id);
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -850,31 +774,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           );
                       if (mounted) {
                         setState(() => _isLoading = false);
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile photo updated from Google!'),
-                            backgroundColor: AppColors.positive,
-                            duration: Duration(seconds: 2),
-                          ),
+                        await showAppNotificationSheet(
+                          context,
+                          icon: Icons.check_circle_outline_rounded,
+                          iconColor: AppColors.positive,
+                          title: 'Photo Updated',
+                          message: 'Profile photo updated from Google successfully!',
+                          primaryButtonText: 'Done',
                         );
                       }
                     } else {
                       if (mounted) {
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No Google profile photo found.'),
-                            backgroundColor: AppColors.danger,
-                          ),
+                        showAppNotificationSheet(
+                          context,
+                          icon: Icons.info_outline_rounded,
+                          iconColor: AppColors.warning,
+                          title: 'No Photo Found',
+                          message: 'No Google profile photo was found for your account.',
+                          primaryButtonText: 'Got It',
                         );
                       }
                     }
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to get Google photo: $e'),
-                          backgroundColor: AppColors.danger,
-                        ),
+                      showAppNotificationSheet(
+                        context,
+                        icon: Icons.error_outline_rounded,
+                        iconColor: AppColors.danger,
+                        title: 'Photo Fetch Failed',
+                        message: 'Failed to retrieve Google photo: $e',
+                        primaryButtonText: 'Dismiss',
                       );
                     }
                   } finally {
@@ -1016,10 +945,669 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Widget _buildHeroProfile(BuildContext context, UserModel user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      children: [
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.primaryTeal,
+                  width: 3.0,
+                ),
+              ),
+              child: MemberAvatar(
+                initials: user.initials,
+                photoUrl: user.photoUrl,
+                userId: user.uid,
+                radius: 46,
+              ),
+            ),
+            Positioned(
+              bottom: 2,
+              right: 2,
+              child: InkWell(
+                onTap: () => _showChangePhotoBottomSheet(context, user),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 2.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded,
+                      size: 15, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ).animate().fadeIn().scale(),
+        const SizedBox(height: 14),
+        GestureDetector(
+          onTap: () => _showEditProfileBottomSheet(context, user),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              user.displayName,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ).animate().fadeIn(delay: 100.ms),
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: () => _showEditProfileBottomSheet(context, user),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              '@${user.username.isNotEmpty ? user.username : user.email.split('@').first}',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryTeal,
+              ),
+            ),
+          ).animate().fadeIn(delay: 150.ms),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPayoutAccountsCard(BuildContext context, UserModel user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accounts = user.paymentAccounts;
+
+    Color badgeColor(String type) {
+      final lower = type.toLowerCase();
+      if (lower.contains('bkash')) return const Color(0xFFE2136E);
+      if (lower.contains('nagad')) return const Color(0xFFF7941D);
+      if (lower.contains('rocket')) return const Color(0xFF8C3494);
+      if (lower.contains('bank')) return AppColors.primaryBlue;
+      return AppColors.primaryTeal;
+    }
+
+    String getInitial(String type) {
+      final lower = type.toLowerCase();
+      if (lower.contains('bkash')) return 'b';
+      if (lower.contains('nagad')) return 'N';
+      if (lower.contains('rocket')) return 'R';
+      if (lower.contains('bank')) return 'B';
+      return type.isNotEmpty ? type[0].toUpperCase() : 'P';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark
+              ? AppColors.darkBorder
+              : AppColors.primaryTeal.withValues(alpha: 0.25),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _payoutAccountsExpanded = !_payoutAccountsExpanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  size: 18,
+                  color: AppColors.primaryTeal,
+                ),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'Payout Accounts',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (accounts.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${accounts.length}',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                InkWell(
+                  onTap: () => _showAddPaymentAccountDialog(context, user),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primaryTeal.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded, size: 15, color: AppColors.primaryTeal),
+                        SizedBox(width: 3),
+                        Text(
+                          'Add',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTeal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: _payoutAccountsExpanded ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity, height: 0),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: accounts.isEmpty
+                  ? InkWell(
+                      onTap: () => _showAddPaymentAccountDialog(context, user),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkSurface
+                              : AppColors.primaryTeal.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                AppColors.primaryTeal.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_circle_outline_rounded,
+                                size: 18, color: AppColors.primaryTeal),
+                            SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Add Payout Account (bKash, Nagad, etc.)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primaryTeal,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ...accounts.map((acc) {
+                              final color = badgeColor(acc.type);
+                              final initial = getInitial(acc.type);
+                              return InkWell(
+                                onTap: () => _showAccountActionSheet(
+                                    context, user, acc),
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.darkSurface
+                                        : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? AppColors.darkBorder
+                                          : AppColors.lightBorder,
+                                    ),
+                                  ),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: constraints.maxWidth > 0
+                                          ? constraints.maxWidth
+                                          : double.infinity,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            color: color,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            initial,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            '${acc.type}: ${acc.accountNumber}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+            crossFadeState: _payoutAccountsExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
+            sizeCurve: Curves.easeInOutCubic,
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 180.ms);
+  }
+
+  Widget _buildSettingsCard(BuildContext context, UserModel user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final packageInfoAsync = ref.watch(currentAppVersionProvider);
+        final updateInfo = ref.watch(effectiveUpdateInfoProvider);
+        final currentVer = packageInfoAsync.value?.version ?? '1.0.0';
+        final hasUpdate = updateInfo != null &&
+            AppUpdateService.isVersionNewer(
+                updateInfo.latestVersion, currentVer);
+
+        Widget buildRowTile({
+          required Widget icon,
+          required String title,
+          String? subtitle,
+          Widget? trailing,
+          VoidCallback? onTap,
+        }) {
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal.withValues(alpha: isDark ? 0.14 : 0.10),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      alignment: Alignment.center,
+                      child: icon,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (trailing != null) ...[
+                      const SizedBox(width: 8),
+                      trailing,
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        Widget buildDivider() {
+          return Divider(
+            height: 1,
+            thickness: 0.8,
+            indent: 70,
+            endIndent: 18,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkCard : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark
+                  ? AppColors.darkBorder
+                  : AppColors.primaryTeal.withValues(alpha: 0.25),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              // 1. Theme Switch
+              buildRowTile(
+                icon: const Icon(Icons.dark_mode_outlined,
+                    size: 20, color: AppColors.primaryTeal),
+                title: 'Theme',
+                subtitle: 'Dark / Light mode',
+                trailing: const ThemeSwitchToggle(height: 30, width: 54),
+              ),
+              buildDivider(),
+
+              // 2. What's New
+              buildRowTile(
+                icon: const Icon(Icons.auto_awesome_rounded,
+                    size: 20, color: AppColors.primaryTeal),
+                title: 'What\'s New',
+                subtitle: 'Latest features and changelog',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'v$currentVer',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryTeal,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded,
+                        color: Colors.grey, size: 20),
+                  ],
+                ),
+                onTap: () => WhatsNewDialog.show(context, version: currentVer),
+              ),
+              buildDivider(),
+
+              // 3. Share TourSplit
+              buildRowTile(
+                icon: const Icon(Icons.share_rounded,
+                    size: 20, color: AppColors.primaryTeal),
+                title: 'Share TourSplit',
+                subtitle: 'Invite friends or download link',
+                trailing: const Icon(Icons.chevron_right_rounded,
+                    color: Colors.grey, size: 20),
+                onTap: () => _showShareAppBottomSheet(context),
+              ),
+              buildDivider(),
+
+              // 4. Contact Support
+              buildRowTile(
+                icon: const Icon(Icons.mark_chat_unread_outlined,
+                    size: 20, color: AppColors.primaryTeal),
+                title: 'Contact Support',
+                subtitle: 'Feedback & developer chat',
+                trailing: const Icon(Icons.chevron_right_rounded,
+                    color: Colors.grey, size: 20),
+                onTap: () => context.push('/profile/contact-us'),
+              ),
+              buildDivider(),
+
+              // 5. App Updates
+              buildRowTile(
+                icon: Icon(
+                  hasUpdate
+                      ? Icons.system_update_alt_rounded
+                      : Icons.check_circle_outline_rounded,
+                  size: 20,
+                  color: hasUpdate ? AppColors.accent : AppColors.primaryTeal,
+                ),
+                title: 'App Updates',
+                subtitle: hasUpdate
+                    ? 'Version ${updateInfo.latestVersion} available!'
+                    : 'TourSplit is up to date',
+                trailing: hasUpdate
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.accent.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: const Text(
+                          'Update Available',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Up to date',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: Colors.grey, size: 20),
+                        ],
+                      ),
+                onTap: () =>
+                    AppUpdateService.checkForUpdatesInteractive(context, ref),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(delay: 240.ms);
+      },
+    );
+  }
+
+  Widget _buildSignOutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: () async {
+          final confirm = await showAppConfirmationSheet(
+            context,
+            icon: Icons.logout_rounded,
+            iconColor: AppColors.danger,
+            title: 'Sign Out?',
+            message: 'You will be returned to the login screen.',
+            confirmText: 'Sign Out',
+            confirmColor: AppColors.danger,
+          );
+          if (confirm == true) {
+            await ref.read(authServiceProvider).signOut();
+            if (context.mounted) context.go('/login');
+          }
+        },
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.danger,
+          side: BorderSide(
+            color: AppColors.danger.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.logout_rounded, color: AppColors.danger, size: 18),
+            SizedBox(width: 8),
+            Text(
+              'Sign Out',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: AppColors.danger,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(delay: 300.ms);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final userAsync = ref.watch(currentUserProvider);
 
     return userAsync.when(
@@ -1027,7 +1615,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (user) {
-        if (user == null) return const Scaffold();
+        if (user == null) {
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
         final toursStream = ref.watch(userToursStreamProvider(user.uid));
         final activeCount =
@@ -1070,553 +1663,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
                 actions: [
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const ThemeSwitchToggle(height: 36, width: 62),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: Icon(Icons.mark_chat_unread_outlined,
-                                color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                            tooltip: 'Contact Us',
-                            onPressed: () => context.push('/profile/contact-us'),
-                          ),
-                        ],
-                      ),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.mode_edit_outline_rounded, size: 22),
+                    tooltip: 'Edit Profile',
+                    onPressed: () => _showEditProfileBottomSheet(context, user),
                   ),
+                  const SizedBox(width: 8),
                 ],
               ),
-            body: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-              child: Column(
-                children: [
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color:
-                                  AppColors.primaryTeal.withValues(alpha: 0.4),
-                              width: 2.5,
-                            ),
-                          ),
-                          child: MemberAvatar(
-                            initials: user.initials,
-                            photoUrl: user.photoUrl,
-                            userId: user.uid,
-                            radius: 48,
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 2,
-                          right: 2,
-                          child: InkWell(
-                            onTap: () =>
-                                _showChangePhotoBottomSheet(context, user),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryTeal,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Theme.of(context).scaffoldBackgroundColor,
-                                  width: 2.5,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.2),
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(Icons.camera_alt_rounded,
-                                  size: 18, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ).animate().fadeIn().scale(),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(user.displayName,
-                          style: theme.textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w700))
-                      .animate()
-                      .fadeIn(delay: 100.ms),
-                  const SizedBox(height: 4),
-                  Text(
-                    '@${user.username.isNotEmpty ? user.username : user.email.split('@').first}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary,
-                    ),
-                  ).animate().fadeIn(delay: 150.ms),
-                  const SizedBox(height: 12),
-                  _buildPaymentAccountsSection(context, user)
-                      .animate()
-                      .fadeIn(delay: 180.ms),
-                  const SizedBox(height: 14),
-                  AppTextField(
-                    controller: _nameCtrl,
-                    label: 'Name',
-                    prefixIcon: Icons.person_outline,
-                    textCapitalization: TextCapitalization.words,
-                  ).animate().fadeIn(delay: 200.ms),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _usernameCtrl,
-                    label: 'Username',
-                    prefixIcon: Icons.alternate_email_rounded,
-                  ).animate().fadeIn(delay: 250.ms),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark
-                            ? AppColors.darkCard
-                            : const Color(0xFFF8FAFC),
-                        foregroundColor: AppColors.primaryTeal,
-                        elevation: 0,
-                        side: BorderSide(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.15)
-                              : AppColors.primaryTeal.withValues(alpha: 0.28),
-                          width: 1.0,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.button),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: _isLoading ? null : () => _saveProfile(user),
-                      icon: _isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primaryTeal,
-                              ),
-                            )
-                          : const Icon(Icons.save_rounded,
-                              color: AppColors.primaryTeal),
-                      label: Text(
-                        _isLoading ? 'Saving...' : 'Save Changes',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14.5,
-                          color: AppColors.primaryTeal,
-                        ),
-                      ),
-                    ),
-                  ).animate().fadeIn(delay: 300.ms),
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final isDark =
-                          Theme.of(context).brightness == Brightness.dark;
-                      final packageInfoAsync =
-                          ref.watch(currentAppVersionProvider);
-                      final updateInfo =
-                          ref.watch(effectiveUpdateInfoProvider);
-                      final currentVer =
-                          packageInfoAsync.value?.version ?? '1.0.0';
-                      final hasUpdate = updateInfo != null &&
-                          AppUpdateService.isVersionNewer(
-                              updateInfo.latestVersion, currentVer);
-
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.darkCard
-                              : AppColors.lightCard,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: hasUpdate
-                                ? AppColors.primaryTeal
-                                : (isDark
-                                    ? AppColors.darkBorder
-                                    : AppColors.lightBorder),
-                            width: hasUpdate ? 1.5 : 1.0,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.asset(
-                                    'assets/brand/app_icon.png',
-                                    width: 38,
-                                    height: 38,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Text(
-                                            'TourSplit',
-                                            style: TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 16),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primaryTeal
-                                                  .withValues(alpha: 0.15),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              'v$currentVer',
-                                              style: const TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.primaryTeal,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Split the costs, keep the memories.',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 12,
-                                          color: isDark
-                                              ? Colors.white60
-                                              : Colors.black54,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () => AppUpdateService
-                                    .checkForUpdatesInteractive(
-                                        context, ref),
-                                icon: Icon(
-                                  hasUpdate
-                                      ? Icons.system_update_alt_rounded
-                                      : Icons.check_circle_outline_rounded,
-                                  size: 18,
-                                  color: AppColors.primaryTeal,
-                                ),
-                                label: Text(
-                                  hasUpdate
-                                      ? 'Update Available!'
-                                      : 'Check for Updates',
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primaryTeal,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isDark
-                                      ? AppColors.darkBg
-                                      : (hasUpdate
-                                          ? AppColors.primaryTeal
-                                              .withValues(alpha: 0.08)
-                                          : Colors.white),
-                                  foregroundColor: AppColors.primaryTeal,
-                                  elevation: 0,
-                                  side: BorderSide(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.15)
-                                        : AppColors.primaryTeal
-                                            .withValues(alpha: 0.28),
-                                    width: 1.0,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(AppRadius.button)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final isDark =
-                          Theme.of(context).brightness == Brightness.dark;
-                      return Material(
-                        color: isDark
-                            ? AppColors.darkCard
-                            : AppColors.lightCard,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
-                              width: 1.0,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              ListTile(
-                                onTap: () {
-                                  final curVer = ref
-                                      .read(currentAppVersionProvider)
-                                      .value
-                                      ?.version;
-                                  WhatsNewDialog.show(context, version: curVer);
-                                },
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 4),
-                                leading: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.06)
-                                        : Colors.black.withValues(alpha: 0.04),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.auto_awesome_rounded,
-                                    size: 20,
-                                    color: AppColors.primaryTeal,
-                                  ),
-                                ),
-                                title: const Text(
-                                  'What\'s New',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14.5,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Latest features and improvements',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? AppColors.darkTextSecondary
-                                        : AppColors.lightTextSecondary,
-                                  ),
-                                ),
-                                trailing: const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.grey,
-                                  size: 22,
-                                ),
-                              ),
-                              Divider(
-                                height: 1,
-                                thickness: 1,
-                                indent: 16,
-                                endIndent: 16,
-                                color: isDark
-                                    ? AppColors.darkBorder
-                                    : AppColors.lightBorder,
-                              ),
-
-                              ListTile(
-                                onTap: () =>
-                                    context.push('/profile/contact-us'),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 4),
-                                leading: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.06)
-                                        : Colors.black.withValues(alpha: 0.04),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.mark_chat_unread_outlined,
-                                    size: 20,
-                                    color: AppColors.primaryTeal,
-                                  ),
-                                ),
-                                title: const Text(
-                                  'Contact Us',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14.5,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Feedback and developer support',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? AppColors.darkTextSecondary
-                                        : AppColors.lightTextSecondary,
-                                  ),
-                                ),
-                                trailing: const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.grey,
-                                  size: 22,
-                                ),
-                              ),
-                              Divider(
-                                height: 1,
-                                thickness: 1,
-                                indent: 16,
-                                endIndent: 16,
-                                color: isDark
-                                    ? AppColors.darkBorder
-                                    : AppColors.lightBorder,
-                              ),
-                              ListTile(
-                                onTap: () => _showShareAppBottomSheet(context),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 4),
-                                leading: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.06)
-                                        : Colors.black.withValues(alpha: 0.04),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.share_rounded,
-                                    size: 20,
-                                    color: AppColors.primaryTeal,
-                                  ),
-                                ),
-                                title: const Text(
-                                  'Share TourSplit',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14.5,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Invite friends or share app download link',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? AppColors.darkTextSecondary
-                                        : AppColors.lightTextSecondary,
-                                  ),
-                                ),
-                                trailing: const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.grey,
-                                  size: 22,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final confirm = await showAppConfirmationSheet(
-                          context,
-                          icon: Icons.logout_rounded,
-                          iconColor: AppColors.danger,
-                          title: 'Sign Out?',
-                          message:
-                              'You will be returned to the login screen.',
-                          confirmText: 'Sign Out',
-                          confirmColor: AppColors.danger,
-                        );
-                        if (confirm == true) {
-                          await ref.read(authServiceProvider).signOut();
-                          if (context.mounted) context.go('/login');
-                        }
-                      },
-                      icon: const Icon(Icons.logout_rounded,
-                          color: AppColors.danger),
-                      label: const Text('Sign Out',
-                          style: TextStyle(color: AppColors.danger)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                            color: AppColors.danger, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.button),
-                        ),
-                      ),
-                    ),
-                  ).animate().fadeIn(delay: 350.ms),
-                ],
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 32),
+                child: Column(
+                  children: [
+                    _buildHeroProfile(context, user),
+                    const SizedBox(height: 24),
+                    _buildPayoutAccountsCard(context, user),
+                    const SizedBox(height: 20),
+                    _buildSettingsCard(context, user),
+                    const SizedBox(height: 28),
+                    _buildSignOutButton(context),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
-            ),
-            bottomNavigationBar: HomeBottomNavigationBar(
-              currentIndex: 2,
-              activeToursCount: activeCount,
-              currentUser: user,
-              onHomeTap: () async {
-                ref.read(activeTourIdOverrideProvider.notifier).state =
-                    kNoActiveTourId;
-                await ActiveTourCacheService.clearActiveTourId();
-                if (context.mounted) {
-                  context.go('/home');
-                }
-              },
-              onToursTap: () => context.push('/tours'),
-              onProfileTap: () {},
+              bottomNavigationBar: HomeBottomNavigationBar(
+                currentIndex: 2,
+                activeToursCount: activeCount,
+                currentUser: user,
+                onHomeTap: () async {
+                  ref.read(activeTourIdOverrideProvider.notifier).state =
+                      kNoActiveTourId;
+                  await ActiveTourCacheService.clearActiveTourId();
+                  if (context.mounted) {
+                    context.go('/home');
+                  }
+                },
+                onToursTap: () => context.push('/tours'),
+                onProfileTap: () {},
+              ),
             ),
           ),
-        ),
-      );
+        );
       },
     );
   }

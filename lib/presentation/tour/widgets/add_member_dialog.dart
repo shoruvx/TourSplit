@@ -11,6 +11,7 @@ import '../../../data/repositories/tour_repository.dart';
 import '../../../data/services/offline_tour_queue_service.dart';
 import '../../home/home_screen.dart' show localMembersRefreshProvider;
 import '../../widgets/member_avatar.dart';
+import '../../widgets/app_notification_sheet.dart';
 
 class AddMemberDialog extends ConsumerStatefulWidget {
   final String tourId;
@@ -164,13 +165,16 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
         ref.read(localMembersRefreshProvider.notifier).bump();
 
         if (!mounted) return;
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${user.displayName} added to the tour!'),
-            backgroundColor: AppColors.positive,
-          ),
+        final nav = Navigator.of(context);
+        await showAppNotificationSheet(
+          context,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: AppColors.positive,
+          title: 'Member Added!',
+          message: '${user.displayName} has been added to the tour.',
+          primaryButtonText: 'Done',
         );
+        if (mounted) nav.pop();
       } else {
         // Not found by username or email
         if (query.contains('@')) {
@@ -182,13 +186,16 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
               );
 
           if (!mounted) return;
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Invitation sent to $query!'),
-              backgroundColor: AppColors.positive,
-            ),
+          final nav = Navigator.of(context);
+          await showAppNotificationSheet(
+            context,
+            icon: Icons.mark_email_read_outlined,
+            iconColor: AppColors.positive,
+            title: 'Invitation Sent!',
+            message: 'An invitation email was sent to $query.',
+            primaryButtonText: 'Done',
           );
+          if (mounted) nav.pop();
         } else {
           setState(() {
             _isSubmitting = false;
@@ -204,6 +211,14 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
         _isSubmitting = false;
         _onlineError = 'Failed to add member: $e';
       });
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Error Adding Member',
+        message: 'Failed to add member: $e',
+        primaryButtonText: 'Dismiss',
+      );
     }
   }
 
@@ -237,25 +252,28 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
       }
 
       if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isOffline
-                ? 'Offline friend "$name" saved — will sync when connected'
-                : 'Offline friend "$name" added to the tour!',
-          ),
-          backgroundColor: _isOffline ? AppColors.warning : AppColors.positive,
-        ),
+      final nav = Navigator.of(context);
+      await showAppNotificationSheet(
+        context,
+        icon: _isOffline ? Icons.cloud_off_rounded : Icons.check_circle_outline_rounded,
+        iconColor: _isOffline ? AppColors.warning : AppColors.positive,
+        title: _isOffline ? 'Friend Saved Offline' : 'Friend Added!',
+        message: _isOffline
+            ? 'Offline friend "$name" saved — will sync automatically when connected.'
+            : 'Offline friend "$name" added to the tour!',
+        primaryButtonText: 'Done',
       );
+      if (mounted) nav.pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to add offline friend: $e'),
-          backgroundColor: AppColors.danger,
-        ),
+      showAppNotificationSheet(
+        context,
+        icon: Icons.error_outline_rounded,
+        iconColor: AppColors.danger,
+        title: 'Failed to Add Friend',
+        message: 'Could not add offline friend: $e',
+        primaryButtonText: 'Dismiss',
       );
     }
   }
@@ -666,7 +684,7 @@ class _AddMemberDialogState extends ConsumerState<AddMemberDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Add a companion using only their name. No email, device, or app installation needed. You can track expenses & splits for them.',
+            'Add a friend using only their name. No email, device, or app installation needed. You can track expenses & splits for them.',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontSize: 12.5,
