@@ -34,10 +34,12 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            keyAlias = "toursplit"
+            keyPassword = "toursplit2026"
             storeFile = file("release.keystore")
-            storePassword = "android"
+            storePassword = "toursplit2026"
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
